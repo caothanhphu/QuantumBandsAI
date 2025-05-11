@@ -9,6 +9,10 @@ GET {{QuantumBands.API_HostAddress}}/Greeting?name=YourName
 
 ###
 
+
+GET {{QuantumBands.API_HostAddress}}/api/Roles
+###
+
 POST {{QuantumBands.API_HostAddress}}/api/Roles
 Content-Type: application/json
 Accept: application/json
