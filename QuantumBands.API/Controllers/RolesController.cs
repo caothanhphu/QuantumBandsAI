@@ -1,6 +1,7 @@
 ﻿// QuantumBands.API/Controllers/RolesController.cs
 using Microsoft.AspNetCore.Mvc;
 using QuantumBands.Application.Services; // Namespace của IRoleManagementService
+using QuantumBands.Application.Features.Roles.Commands.CreateRole;
 using QuantumBands.Domain.Entities; // Namespace của UserRole
 
 namespace QuantumBands.API.Controllers;
@@ -36,38 +37,46 @@ public class RolesController : ControllerBase
         return Ok(role);
     }
 
-    public class CreateRoleRequest
-    {
-        public required string RoleName { get; set; }
-    }
-
     [HttpPost]
-    public async Task<IActionResult> CreateRole([FromBody] CreateRoleRequest request)
+    // Sử dụng [FromBody] để ASP.NET Core biết rằng nó nên đọc CreateRoleCommand từ body của request
+    public async Task<IActionResult> CreateRole([FromBody] CreateRoleCommand command)
     {
-        if (request == null || string.IsNullOrWhiteSpace(request.RoleName))
-        {
-            return BadRequest("Role name is required.");
-        }
+        // FluentValidation.AspNetCore sẽ tự động validate 'command'
+        // Nếu không hợp lệ, ModelState.IsValid sẽ là false
+        // và [ApiController] attribute sẽ tự động trả về 400 Bad Request
+        // nên bạn không cần kiểm tra ModelState.IsValid ở đây một cách tường minh nữa.
+
+        // Tuy nhiên, nếu bạn *không* dùng [ApiController] hoặc muốn xử lý tùy chỉnh, bạn sẽ kiểm tra:
+        // if (!ModelState.IsValid)
+        // {
+        //     return BadRequest(ModelState);
+        // }
+
         try
         {
-            await _roleManagementService.AddRoleAsync(request.RoleName);
-            // Lấy lại role vừa tạo để trả về (hoặc trả về CreatedAtAction)
-            var newRole = await _roleManagementService.GetAllRolesAsync(); // Tạm lấy hết để tìm
-            var createdRole = newRole.FirstOrDefault(r => r.RoleName == request.RoleName);
-            if (createdRole != null)
+            // Truyền toàn bộ command hoặc các thuộc tính cần thiết cho service
+            // Giả sử RoleManagementService được cập nhật để nhận Description
+            await _roleManagementService.AddRoleAsync(command.RoleName); // Cập nhật service nếu cần nhận thêm Description
+
+            var newRole = (await _roleManagementService.GetAllRolesAsync())
+                            .FirstOrDefault(r => r.RoleName == command.RoleName);
+
+            if (newRole != null)
             {
-                return CreatedAtAction(nameof(GetRoleById), new { id = createdRole.RoleId }, createdRole);
+                return CreatedAtAction(nameof(GetRoleById), new { id = newRole.RoleId }, newRole);
             }
-            return Ok("Role created, but could not retrieve it immediately."); // Fallback
+            _logger.LogWarning("Role {RoleName} was created but could not be retrieved immediately for CreatedAtAction response.", command.RoleName);
+            return Ok(new { Message = $"Role '{command.RoleName}' created successfully." }); // Fallback
         }
-        catch (InvalidOperationException ex)
+        catch (InvalidOperationException ex) // Ví dụ: Role đã tồn tại
         {
-            return Conflict(ex.Message);
+            _logger.LogWarning(ex, "Conflict creating role {RoleName}", command.RoleName);
+            return Conflict(new { Message = ex.Message });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error creating role {RoleName}", request.RoleName);
-            return StatusCode(500, "An error occurred while creating the role.");
+            _logger.LogError(ex, "Error creating role {RoleName}", command.RoleName);
+            return StatusCode(500, new { Message = "An error occurred while creating the role." });
         }
     }
 }
