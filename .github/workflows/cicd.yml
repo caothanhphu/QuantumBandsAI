@@ -1,0 +1,61 @@
+name: CI/CD Docker Local Deployment
+
+# Kích hoạt workflow này mỗi khi có push vào nhánh 'main' (hoặc master)
+on:
+  push:
+    branches:
+      - main # Hoặc nhánh chính của bạn, ví dụ: master
+
+jobs:
+  build-and-deploy-local:
+    name: Build and Deploy to Local Docker
+    # Chạy job này trên self-hosted runner có nhãn 'self-hosted' VÀ 'Windows'
+    # Đảm bảo runner của bạn có các nhãn này khi cấu hình
+    runs-on: [self-hosted, Windows]
+
+    steps:
+      # Bước 1: Checkout mã nguồn từ repository
+      - name: Checkout repository
+        uses: actions/checkout@v4 # Sử dụng phiên bản mới của action
+
+      # Bước 2: Kiểm tra cài đặt Docker trên runner
+      - name: Verify Docker installation
+        run: docker --version
+        shell: pwsh # Sử dụng PowerShell cho các lệnh trên Windows runner
+
+      # Bước 3: Build Docker image
+      - name: Build Docker image
+        run: docker build -t quantumbands-api-image -f Dockerfile .
+        # -t quantumbands-api-image: Đặt tên (tag) cho image là 'quantumbands-api-image'
+        # -f Dockerfile: Chỉ định tên Dockerfile (nếu không phải là 'Dockerfile')
+        # .: Build context là thư mục hiện tại (thư mục gốc của repo)
+        shell: pwsh
+
+      # Bước 4: Dừng và xóa container cũ (nếu có)
+      - name: Stop and Remove existing container
+        run: |
+          $containerName = "quantumbands-api-container"
+          # Kiểm tra xem container có tồn tại không
+          $existingContainer = docker ps -a -q --filter "name=$containerName"
+          if ($existingContainer) {
+            Write-Host "Stopping and removing existing container: $containerName ($existingContainer)"
+            docker stop $containerName
+            docker rm $containerName
+          } else {
+            Write-Host "No existing container named $containerName found."
+          }
+        shell: pwsh
+
+      # Bước 5: Chạy container mới từ image vừa build
+      - name: Run new Docker container
+        run: |
+          docker run -d `
+            -p 6020:8080 ` # Map port 8081 của máy host tới port 8080 của container (HTTP)
+            --name quantumbands-api-container `
+            quantumbands-api-image
+          Write-Host "New container 'quantumbands-api-container' started. Access it on host at http://localhost:6020"
+        shell: pwsh
+        # Điều chỉnh mapping port -p 8081:8080 nếu cần.
+        # Port đầu tiên (8081) là port trên máy host của bạn.
+        # Port thứ hai (8080) là port mà ứng dụng lắng nghe BÊN TRONG container
+        # (phải khớp với EXPOSE trong Dockerfile và cấu hình ứng dụng của bạn).
