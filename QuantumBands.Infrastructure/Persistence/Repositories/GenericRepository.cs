@@ -62,6 +62,10 @@ public class GenericRepository<T> : IGenericRepository<T> where T : class
     {
         return await _dbSet.CountAsync();
     }
+    public IQueryable<T> Query()
+    {
+        return _dbSet.AsQueryable();
+    }
     // Lưu ý: Bạn cần một Unit of Work pattern hoặc gọi _context.SaveChangesAsync()
     // từ Application layer (service) để lưu các thay đổi vào database.
     // Repository không nên tự gọi SaveChangesAsync().

@@ -3,9 +3,12 @@ using Microsoft.AspNetCore.Mvc;
 using QuantumBands.Application.Features.Authentication.Commands.RegisterUser;
 using QuantumBands.Application.Features.Authentication.Commands.VerifyEmail; // Thêm using
 using QuantumBands.Application.Features.Authentication.Commands.ResendVerificationEmail; // Thêm using
+using QuantumBands.Application.Features.Authentication.Commands.Login; // Thêm using
+
 using QuantumBands.Application.Interfaces; // For IAuthService
 using System.Threading.Tasks;
 using System.Threading;
+using QuantumBands.Application.Features.Authentication;
 
 namespace QuantumBands.API.Controllers;
 
@@ -111,4 +114,37 @@ public class AuthController : ControllerBase
         _logger.LogInformation("Resend verification email process completed for Email: {Email}. Result message: {Message}", request.Email, message);
         return Ok(new { Message = message });
     }
+
+    [HttpPost("login")]
+    [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)] // Cho validation lỗi
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)] // Cho sai credentials
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> Login([FromBody] LoginRequest request, CancellationToken cancellationToken)
+    {
+        if (request == null)
+        {
+            return BadRequest("Login request cannot be null.");
+        }
+        _logger.LogInformation("Received login request for user: {UsernameOrEmail}", request.UsernameOrEmail);
+
+        var (loginResponse, errorMessage) = await _authService.LoginAsync(request, cancellationToken);
+
+        if (loginResponse == null)
+        {
+            _logger.LogWarning("Login failed for {UsernameOrEmail}. Reason: {Reason}", request.UsernameOrEmail, errorMessage);
+            // Phân biệt lỗi do sai thông tin (401) hay lỗi hệ thống (500)
+            if (errorMessage != null && (errorMessage.Contains("Invalid") || errorMessage.Contains("inactive") || errorMessage.Contains("verify")))
+            {
+                // Trả về 401 cho các lỗi liên quan đến thông tin đăng nhập hoặc trạng thái tài khoản
+                return Unauthorized(new { Message = errorMessage });
+            }
+            // Các lỗi khác coi là lỗi server
+            return StatusCode(StatusCodes.Status500InternalServerError, new { Message = errorMessage ?? "An unexpected error occurred during login." });
+        }
+
+        _logger.LogInformation("User {Username} logged in successfully.", loginResponse.Username);
+        return Ok(loginResponse);
+    }
+
 }

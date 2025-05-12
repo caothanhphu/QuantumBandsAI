@@ -12,6 +12,9 @@ using System.Security.Cryptography;
 using System.Web; // For DateTime
 using QuantumBands.Application.Features.Authentication.Commands.VerifyEmail; // Thêm using
 using QuantumBands.Application.Features.Authentication.Commands.ResendVerificationEmail; // Thêm using
+using QuantumBands.Application.Features.Authentication.Commands.Login; // Thêm using
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options; // Thêm using cho Include
 
 
 namespace QuantumBands.Application.Services;
@@ -22,6 +25,9 @@ public class AuthService : IAuthService
     private readonly ILogger<AuthService> _logger;
     private readonly IEmailService _emailService;
     private readonly IConfiguration _configuration; // Inject IConfiguration
+    private readonly IJwtTokenGenerator _jwtTokenGenerator; // Inject JWT generator
+    private readonly JwtSettings _jwtSettings; // Inject JwtSettings để lấy expiry
+
     private const string DefaultUserRole = "Investor"; // Tên vai trò mặc định
 
 
@@ -30,12 +36,16 @@ public class AuthService : IAuthService
        IUnitOfWork unitOfWork,
        ILogger<AuthService> logger,
        IEmailService emailService,
-       IConfiguration configuration)
+       IConfiguration configuration,
+        IJwtTokenGenerator jwtTokenGenerator, // Thêm vào constructor
+        IOptions<JwtSettings> jwtSettingsOptions) // Thêm vào constructor
     {
         _unitOfWork = unitOfWork;
         _logger = logger;
         _emailService = emailService;
         _configuration = configuration;
+        _jwtTokenGenerator = jwtTokenGenerator; // Gán
+        _jwtSettings = jwtSettingsOptions.Value; // Gán
     }
 
     public async Task<(UserDto? User, string? ErrorMessage)> RegisterUserAsync(RegisterUserCommand command, CancellationToken cancellationToken = default)
@@ -317,7 +327,93 @@ public class AuthService : IAuthService
             return (false, "An error occurred while sending the verification email.");
         }
     }
+    public async Task<(LoginResponse? Response, string? ErrorMessage)> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Attempting login for user: {UsernameOrEmail}", request.UsernameOrEmail);
 
+        // 1. Tìm user bằng Username hoặc Email, bao gồm cả thông tin Role
+        var user = await _unitOfWork.Users.Query() // Giả sử có phương thức Query() trả về IQueryable<User>
+                                    .Include(u => u.Role) // Nạp thông tin Role liên quan
+                                    .FirstOrDefaultAsync(u => u.Username == request.UsernameOrEmail || u.Email == request.UsernameOrEmail, cancellationToken);
+
+        if (user == null)
+        {
+            _logger.LogWarning("Login failed: User {UsernameOrEmail} not found.", request.UsernameOrEmail);
+            return (null, "Invalid username/email or password."); // Thông báo chung
+        }
+
+        // 2. Kiểm tra tài khoản có active không
+        if (!user.IsActive)
+        {
+            _logger.LogWarning("Login failed: User {Username} account is inactive.", user.Username);
+            return (null, "Your account is inactive. Please contact support.");
+        }
+
+        // 3. (Tùy chọn) Kiểm tra email đã xác thực chưa (nếu là yêu cầu)
+        // if (!user.IsEmailVerified)
+        // {
+        //     _logger.LogWarning("Login failed: User {Username} email is not verified.", user.Username);
+        //     // Có thể gửi lại email xác thực ở đây
+        //     return (null, "Please verify your email address before logging in.");
+        // }
+
+        // 4. Xác thực mật khẩu
+        bool isPasswordValid = BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash);
+        if (!isPasswordValid)
+        {
+            _logger.LogWarning("Login failed: Invalid password for user {Username}.", user.Username);
+            return (null, "Invalid username/email or password."); // Thông báo chung
+        }
+
+        // 5. Lấy tên Role (đã Include ở trên)
+        string roleName = user.Role?.RoleName ?? "Unknown"; // Lấy tên role, xử lý nếu null
+        if (user.Role == null)
+        {
+            _logger.LogError("User {Username} (ID: {UserId}) does not have a valid Role associated.", user.Username, user.UserId);
+            return (null, "User role configuration error."); // Lỗi hệ thống
+        }
+
+        // 6. Tạo JWT và Refresh Token
+        string jwtToken = _jwtTokenGenerator.GenerateJwtToken(user, roleName);
+        string refreshToken = _jwtTokenGenerator.GenerateRefreshToken();
+        DateTime refreshTokenExpiry = DateTime.UtcNow.AddDays(_jwtSettings.RefreshTokenExpiryDays);
+
+        _logger.LogDebug("Generated JWT and Refresh Token for user {Username}.", user.Username);
+
+        // 7. Cập nhật thông tin user trong DB (RefreshToken, Expiry, LastLoginDate)
+        user.RefreshToken = refreshToken;
+        user.RefreshTokenExpiry = refreshTokenExpiry;
+        user.LastLoginDate = DateTime.UtcNow; // Cập nhật thời gian đăng nhập cuối
+        user.UpdatedAt = DateTime.UtcNow;
+
+        _unitOfWork.Users.Update(user);
+        try
+        {
+            await _unitOfWork.CompleteAsync(cancellationToken);
+            _logger.LogInformation("User {Username} logged in successfully. Tokens updated.", user.Username);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to update user tokens and last login date for {Username}.", user.Username);
+            // Vẫn có thể trả về token vì đã tạo được, nhưng DB chưa cập nhật
+            // Hoặc trả về lỗi tùy thuộc vào yêu cầu nghiệp vụ
+            return (null, "An error occurred while finalizing login.");
+        }
+
+        // 8. Tạo Response DTO
+        var loginResponse = new LoginResponse
+        {
+            UserId = user.UserId,
+            Username = user.Username,
+            Email = user.Email,
+            Role = roleName,
+            JwtToken = jwtToken,
+            RefreshToken = refreshToken,
+            RefreshTokenExpiry = refreshTokenExpiry
+        };
+
+        return (loginResponse, null); // Đăng nhập thành công
+    }
     // Hàm helper để tạo token ngẫu nhiên, an toàn
     private string GenerateSecureToken(int length = 32)
     {
