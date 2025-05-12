@@ -24,19 +24,18 @@ jobs:
 
       - name: Stop and Remove existing container
         run: |
-          powershell -ExecutionPolicy Bypass -Command "& {
-            $containerName = \"quantumbands-api-container\"
-            Write-Host \"Checking for existing container: $containerName\"
-            $existingContainer = docker ps -a -q --filter \"name=$containerName\"
-            if ($existingContainer) {
-              Write-Host \"Stopping and removing existing container: $containerName ($existingContainer)\"
-              docker stop $containerName
-              docker rm $containerName
-            } else {
-              Write-Host \"No existing container named $containerName found.\"
-            }
-          }"
-        shell: cmd
+          Set-ExecutionPolicy Bypass -Scope Process -Force;
+          $containerName = "quantumbands-api-container"
+          Write-Host "Checking for existing container: $containerName"
+          $existingContainer = docker ps -a -q --filter "name=$containerName"
+          if ($existingContainer) {
+            Write-Host "Stopping and removing existing container: $containerName ($existingContainer)"
+            docker stop $containerName
+            docker rm $containerName
+          } else {
+            Write-Host "No existing container named $containerName found."
+          }
+        shell: powershell
 
       - name: Run new Docker container
         env: # Định nghĩa các biến môi trường sẽ được truyền vào container
