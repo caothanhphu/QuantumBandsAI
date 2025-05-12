@@ -4,7 +4,7 @@ name: CI/CD Docker Local Deployment
 on:
   push:
     branches:
-      - main # Hoặc nhánh chính của bạn, ví dụ: master
+      - master # Hoặc nhánh chính của bạn, ví dụ: master
 
 jobs:
   build-and-deploy-local:
