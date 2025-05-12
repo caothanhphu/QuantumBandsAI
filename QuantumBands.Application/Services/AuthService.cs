@@ -1,0 +1,339 @@
+﻿// QuantumBands.Application/Services/AuthService.cs
+using QuantumBands.Application.Features.Authentication;
+using QuantumBands.Application.Features.Authentication.Commands.RegisterUser;
+using QuantumBands.Application.Interfaces;
+using QuantumBands.Domain.Entities; // User, UserRole, Wallet entities
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Configuration; // Thêm using này
+using System.Threading.Tasks;
+using System.Threading;
+using System;
+using System.Security.Cryptography;
+using System.Web; // For DateTime
+using QuantumBands.Application.Features.Authentication.Commands.VerifyEmail; // Thêm using
+using QuantumBands.Application.Features.Authentication.Commands.ResendVerificationEmail; // Thêm using
+
+
+namespace QuantumBands.Application.Services;
+
+public class AuthService : IAuthService
+{
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly ILogger<AuthService> _logger;
+    private readonly IEmailService _emailService;
+    private readonly IConfiguration _configuration; // Inject IConfiguration
+    private const string DefaultUserRole = "Investor"; // Tên vai trò mặc định
+
+
+    // Update the constructor to accept IConfiguration and initialize the field  
+    public AuthService(
+       IUnitOfWork unitOfWork,
+       ILogger<AuthService> logger,
+       IEmailService emailService,
+       IConfiguration configuration)
+    {
+        _unitOfWork = unitOfWork;
+        _logger = logger;
+        _emailService = emailService;
+        _configuration = configuration;
+    }
+
+    public async Task<(UserDto? User, string? ErrorMessage)> RegisterUserAsync(RegisterUserCommand command, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Attempting to register user with username: {Username} and email: {Email}", command.Username, command.Email);
+
+        // 1. Kiểm tra Username hoặc Email đã tồn tại chưa
+        var existingUserByUsername = (await _unitOfWork.Users.FindAsync(u => u.Username == command.Username, cancellationToken)).FirstOrDefault();
+        if (existingUserByUsername != null)
+        {
+            _logger.LogWarning("Username {Username} already exists.", command.Username);
+            return (null, $"Username '{command.Username}' already exists.");
+        }
+
+        var existingUserByEmail = (await _unitOfWork.Users.FindAsync(u => u.Email == command.Email, cancellationToken)).FirstOrDefault();
+        if (existingUserByEmail != null)
+        {
+            _logger.LogWarning("Email {Email} already exists.", command.Email);
+            return (null, $"Email '{command.Email}' already exists.");
+        }
+
+        // 2. Hash mật khẩu
+        string hashedPassword = BCrypt.Net.BCrypt.HashPassword(command.Password);
+        _logger.LogDebug("Password hashed for user {Username}.", command.Username);
+
+        // 3. Lấy vai trò mặc định 'Investor'
+        var investorRole = await _unitOfWork.UserRoles.GetRoleByNameAsync(DefaultUserRole); // Giả sử GetRoleByNameAsync tồn tại trong IUserRoleRepository
+        if (investorRole == null)
+        {
+            _logger.LogError("Default role '{DefaultUserRole}' not found in the database.", DefaultUserRole);
+            // Có thể tạo role nếu không tìm thấy, hoặc throw lỗi nghiêm trọng
+            // For now, we'll return an error.
+            return (null, $"System configuration error: Default role '{DefaultUserRole}' not found.");
+        }
+        _logger.LogDebug("Default role '{DefaultUserRole}' (ID: {RoleId}) found.", DefaultUserRole, investorRole.RoleId);
+
+
+        // --- BẮT ĐẦU THAY ĐỔI ---
+        // 4. Tạo Token và Thời gian hết hạn
+        string verificationToken = GenerateSecureToken();
+        DateTime tokenExpiry = DateTime.UtcNow.AddHours(24); // Token hết hạn sau 24 giờ
+        _logger.LogDebug("Generated verification token for {Username}. Expires at {ExpiryTime}", command.Username, tokenExpiry);
+
+        // 5. Tạo User entity (bao gồm token và expiry)
+        var newUser = new User
+        {
+            Username = command.Username,
+            Email = command.Email,
+            PasswordHash = hashedPassword,
+            FullName = command.FullName,
+            RoleId = investorRole.RoleId,
+            IsActive = true, // Kích hoạt tài khoản ngay, nhưng cần xác thực email để đăng nhập (nếu logic đăng nhập yêu cầu)
+            IsEmailVerified = false,
+            EmailVerificationToken = verificationToken, // Lưu token
+            EmailVerificationTokenExpiry = tokenExpiry, // Lưu thời gian hết hạn
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        // 5. Thêm User vào DbContext (chưa lưu vào DB)
+        await _unitOfWork.Users.AddAsync(newUser, cancellationToken);
+        _logger.LogInformation("User entity created for {Username}. Attempting to save to DB to get UserID.", command.Username);
+
+        // *QUAN TRỌNG*: Cần lưu User để có UserID cho Wallet
+        // Nếu không có UserID, không thể tạo Wallet với khóa ngoại chính xác
+        // Chúng ta sẽ lưu User trước, sau đó tạo Wallet
+        try
+        {
+            await _unitOfWork.CompleteAsync(cancellationToken); // Lưu User để có UserID
+            _logger.LogInformation("User {Username} (ID: {UserId}) saved to database.", newUser.Username, newUser.UserId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to save initial user {Username} to database.", newUser.Username);
+            return (null, "An error occurred while saving user information.");
+        }
+
+        // 6. Tạo Wallet cho người dùng mới
+        var newWallet = new Wallet
+        {
+            UserId = newUser.UserId, // Sử dụng UserID vừa được tạo
+            Balance = 0.00m,
+            CurrencyCode = "USD", // Mặc định
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        await _unitOfWork.Wallets.AddAsync(newWallet, cancellationToken); // Giả sử có IGenericRepository<Wallet> trong IUnitOfWork
+        _logger.LogInformation("Wallet entity created for UserID {UserId}.", newUser.UserId);
+
+        // 7. Lưu tất cả thay đổi (bao gồm Wallet) vào database
+        try
+        {
+            await _unitOfWork.CompleteAsync(cancellationToken);
+            _logger.LogInformation("Wallet for UserID {UserId} saved. Registration process complete for {Username}.", newUser.UserId, newUser.Username);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to save wallet for user {Username} (ID: {UserId}).", newUser.Username, newUser.UserId);
+            // Cân nhắc rollback việc tạo user nếu tạo wallet thất bại, hoặc xử lý khác
+            // Hiện tại, user đã được tạo, nhưng wallet có thể chưa.
+            return (null, "An error occurred while finalizing account setup.");
+        }
+
+
+        // 9. Gửi email xác thực với Link
+        try
+        {
+            string? frontendBaseUrl = _configuration["AppSettings:FrontendBaseUrl"]; // Lấy URL frontend từ config
+            if (string.IsNullOrEmpty(frontendBaseUrl))
+            {
+                _logger.LogWarning("FrontendBaseUrl is not configured in AppSettings. Cannot generate verification link.");
+                // Quyết định xem có nên báo lỗi hay không. Hiện tại chỉ log warning.
+            }
+            else
+            {
+                // Mã hóa token để an toàn khi truyền qua URL
+                string encodedToken = HttpUtility.UrlEncode(verificationToken);
+                string verificationLink = $"{frontendBaseUrl.TrimEnd('/')}/auth/verify-email?userId={newUser.UserId}&token={encodedToken}";
+
+                string subject = "Verify Your Email for QuantumBands AI";
+                string htmlMessage = $@"
+                    <h1>Welcome, {newUser.Username}!</h1>
+                    <p>Thank you for registering at QuantumBands AI. Please verify your email address by clicking the link below:</p>
+                    <p><a href='{verificationLink}'>Verify My Email</a></p>
+                    <p>If you cannot click the link, please copy and paste the following URL into your browser:</p>
+                    <p>{verificationLink}</p>
+                    <p>This link will expire in 24 hours.</p>
+                    <p>If you did not create this account, please ignore this email.</p>";
+
+                // Gửi email ngầm
+                _ = _emailService.SendEmailAsync(newUser.Email, subject, htmlMessage, cancellationToken);
+                _logger.LogInformation("Verification email initiated for {Email} with link: {Link}", newUser.Email, verificationLink);
+            }
+        }
+        catch (Exception emailEx)
+        {
+            _logger.LogError(emailEx, "Failed to initiate verification email for {Email}, but user registration was successful.", newUser.Email);
+            // Không nên fail cả quá trình đăng ký chỉ vì gửi mail lỗi
+        }
+
+        // 9. Tạo UserDto để trả về
+        var userDto = new UserDto
+        {
+            UserId = newUser.UserId,
+            Username = newUser.Username,
+            Email = newUser.Email,
+            FullName = newUser.FullName,
+            CreatedAt = newUser.CreatedAt
+        };
+
+        return (userDto, null);
+    }
+    public async Task<(bool Success, string Message)> VerifyEmailAsync(VerifyEmailRequest request, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Attempting to verify email for UserID: {UserId}", request.UserId);
+
+        var user = await _unitOfWork.Users.GetByIdAsync(request.UserId); // Giả sử GetByIdAsync tồn tại
+
+        if (user == null)
+        {
+            _logger.LogWarning("VerifyEmail: User with ID {UserId} not found.", request.UserId);
+            return (false, "Invalid user or token."); // Không tiết lộ user không tồn tại
+        }
+
+        if (user.IsEmailVerified)
+        {
+            _logger.LogInformation("Email for UserID {UserId} is already verified.", request.UserId);
+            return (true, "Email is already verified.");
+        }
+
+        if (user.EmailVerificationToken != request.Token)
+        {
+            _logger.LogWarning("VerifyEmail: Invalid token provided for UserID {UserId}.", request.UserId);
+            return (false, "Invalid user or token.");
+        }
+        // Fix for CS1061: 'DateTime' does not contain a definition for 'HasValue' and 'Value'
+        // Explanation: The `DateTime` type is a non-nullable struct and does not have `HasValue` or `Value` properties. 
+        // These properties are available on `Nullable<DateTime>` (or `DateTime?`). 
+        // To fix this, we need to ensure that the `EmailVerificationTokenExpiry` property is nullable (`DateTime?`) in the `User` class.
+
+        if (user.EmailVerificationTokenExpiry.HasValue && user.EmailVerificationTokenExpiry.Value < DateTime.UtcNow)
+        {
+            _logger.LogWarning("VerifyEmail: Token expired for UserID {UserId}. Expiry: {ExpiryTime}", request.UserId, user.EmailVerificationTokenExpiry.Value);
+            return (false, "Verification token has expired. Please request a new one.");
+        }
+
+        // Xác thực thành công
+        user.IsEmailVerified = true;
+        user.EmailVerificationToken = null; // Xóa token sau khi sử dụng
+        user.EmailVerificationTokenExpiry = null;
+        user.UpdatedAt = DateTime.UtcNow;
+
+        _unitOfWork.Users.Update(user); // Đánh dấu user là đã thay đổi
+        try
+        {
+            await _unitOfWork.CompleteAsync(cancellationToken);
+            _logger.LogInformation("Email successfully verified for UserID {UserId}.", request.UserId);
+            return (true, "Email successfully verified.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to update user verification status for UserID {UserId}.", request.UserId);
+            return (false, "An error occurred while verifying email.");
+        }
+    }
+
+    public async Task<(bool Success, string Message)> ResendVerificationEmailAsync(ResendVerificationEmailRequest request, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Attempting to resend verification email for Email: {Email}", request.Email);
+
+        var user = (await _unitOfWork.Users.FindAsync(u => u.Email == request.Email, cancellationToken)).FirstOrDefault();
+
+        if (user == null)
+        {
+            _logger.LogWarning("ResendVerificationEmail: User with email {Email} not found.", request.Email);
+            // Vẫn trả về thông báo chung để không tiết lộ email tồn tại
+            return (true, "If an account with this email exists and is not verified, a new verification email has been sent.");
+        }
+
+        if (user.IsEmailVerified)
+        {
+            _logger.LogInformation("ResendVerificationEmail: Email {Email} is already verified for UserID {UserId}.", request.Email, user.UserId);
+            return (true, "This email address is already verified.");
+        }
+
+        // Tạo token mới và thời gian hết hạn mới
+        string newVerificationToken = GenerateSecureToken();
+        DateTime newTokenExpiry = DateTime.UtcNow.AddHours(24);
+
+        user.EmailVerificationToken = newVerificationToken;
+        user.EmailVerificationTokenExpiry = newTokenExpiry;
+        user.UpdatedAt = DateTime.UtcNow;
+
+        _unitOfWork.Users.Update(user);
+        try
+        {
+            await _unitOfWork.CompleteAsync(cancellationToken);
+            _logger.LogInformation("Generated and saved new verification token for UserID {UserId}.", user.UserId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to save new verification token for UserID {UserId}.", user.UserId);
+            return (false, "An error occurred while preparing the verification email.");
+        }
+
+        // Gửi email mới
+        try
+        {
+            string? frontendBaseUrl = _configuration["AppSettings:FrontendBaseUrl"];
+            if (string.IsNullOrEmpty(frontendBaseUrl))
+            {
+                _logger.LogWarning("FrontendBaseUrl is not configured. Cannot generate verification link for resend.");
+                return (false, "Email server configuration error."); // Báo lỗi nếu không gửi được link
+            }
+            else
+            {
+                string encodedToken = HttpUtility.UrlEncode(newVerificationToken);
+                string verificationLink = $"{frontendBaseUrl.TrimEnd('/')}/auth/verify-email?userId={user.UserId}&token={encodedToken}";
+
+                string subject = "Verify Your Email for QuantumBands AI (New Link)";
+                string htmlMessage = $@"
+                    <h1>Verify Your Email Address</h1>
+                    <p>You requested a new email verification link for your QuantumBands AI account.</p>
+                    <p>Please click the link below to verify your email:</p>
+                    <p><a href='{verificationLink}'>Verify My Email</a></p>
+                    <p>If you cannot click the link, please copy and paste the following URL into your browser:</p>
+                    <p>{verificationLink}</p>
+                    <p>This link will expire in 24 hours.</p>
+                    <p>If you did not request this, please ignore this email.</p>";
+
+                _ = _emailService.SendEmailAsync(user.Email, subject, htmlMessage, cancellationToken);
+                _logger.LogInformation("New verification email initiated for {Email} with link: {Link}", user.Email, verificationLink);
+                return (true, "If an account with this email exists and is not verified, a new verification email has been sent.");
+            }
+        }
+        catch (Exception emailEx)
+        {
+            _logger.LogError(emailEx, "Failed to initiate resend verification email for {Email}.", user.Email);
+            return (false, "An error occurred while sending the verification email.");
+        }
+    }
+
+    // Hàm helper để tạo token ngẫu nhiên, an toàn
+    private string GenerateSecureToken(int length = 32)
+    {
+        // Tạo một chuỗi byte ngẫu nhiên
+        byte[] randomNumber = new byte[length];
+        using (var rng = RandomNumberGenerator.Create())
+        {
+            rng.GetBytes(randomNumber);
+        }
+        // Chuyển đổi sang chuỗi Base64 URL-safe
+        return Convert.ToBase64String(randomNumber)
+            .TrimEnd('=') // Loại bỏ padding '='
+            .Replace('+', '-') // Thay thế ký tự không an toàn cho URL
+            .Replace('/', '_');
+    }
+
+    
+
+}

@@ -40,6 +40,9 @@ public partial class User
     public DateTime CreatedAt { get; set; }
 
     public DateTime UpdatedAt { get; set; }
+    public DateTime? EmailVerificationTokenExpiry { get; set; }
+    [StringLength(256)]
+    public string EmailVerificationToken { get; set; } = null!;
 
     [InverseProperty("AdminUser")]
     public virtual ICollection<InitialShareOffering> InitialShareOfferings { get; set; } = new List<InitialShareOffering>();
