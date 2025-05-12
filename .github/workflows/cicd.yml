@@ -15,12 +15,12 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Verify Docker installation
-        run: docker --version
-        shell: powershell
+        run: powershell -ExecutionPolicy Bypass -Command "docker --version"
+        shell: cmd
 
       - name: Build Docker image
-        run: docker build -t quantumbands-api-image -f Dockerfile .
-        shell: powershell
+        run: powershell -ExecutionPolicy Bypass -Command "docker build -t quantumbands-api-image -f Dockerfile ."
+        shell: cmd
 
       - name: Stop and Remove existing container
         run: |
