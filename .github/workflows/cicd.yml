@@ -23,9 +23,14 @@ jobs:
         shell: cmd
 
       - name: Stop and Remove existing container
-        run: powershell -ExecutionPolicy Bypass -NoProfile -NonInteractive -Command "$ErrorActionPreference = 'Stop'; $containerName = 'quantumbands-api-container'; Write-Host ('Checking for existing container: ' + $containerName); $existingContainer = docker ps -a -q --filter ('name=' + $containerName); if ($existingContainer) { Write-Host ('Stopping and removing existing container: ' + $containerName + ' (' + $existingContainer + ')'); docker stop $containerName; docker rm $containerName; } else { Write-Host ('No existing container named ' + $containerName + ' found.'); }"
+        run: powershell -ExecutionPolicy Bypass -Command "
+          $containerName = 'quantumbands-api-container'
+          $existingContainer = docker ps -a -q --filter 'name=$containerName'
+          if ($existingContainer) {
+            docker stop $containerName
+            docker rm $containerName }"
         shell: cmd
-      
+
       - name: Run new Docker container
         env: # Định nghĩa các biến môi trường sẽ được truyền vào container
           # Lấy giá trị từ GitHub Secrets
