@@ -70,4 +70,45 @@ public class JwtTokenGenerator : IJwtTokenGenerator
         rng.GetBytes(randomNumber);
         return Convert.ToBase64String(randomNumber);
     }
+    // Triển khai phương thức mới
+    public ClaimsPrincipal? GetPrincipalFromExpiredToken(string token)
+    {
+        var tokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateAudience = true, // Nên validate audience
+            ValidateIssuer = true,   // Nên validate issuer
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.ASCII.GetBytes(_jwtSettings.Secret)),
+            ValidateLifetime = false, // QUAN TRỌNG: Không validate thời gian sống của token
+            ValidIssuer = _jwtSettings.Issuer,
+            ValidAudience = _jwtSettings.Audience,
+            ClockSkew = TimeSpan.Zero // Không cho phép chênh lệch thời gian
+        };
+
+        var tokenHandler = new JwtSecurityTokenHandler();
+        SecurityToken securityToken;
+        try
+        {
+            // Validate token (ngoại trừ lifetime) và lấy principal
+            var principal = tokenHandler.ValidateToken(token, tokenValidationParameters, out securityToken);
+            var jwtSecurityToken = securityToken as JwtSecurityToken;
+
+            // Kiểm tra xem token có đúng thuật toán không (tùy chọn nhưng tăng bảo mật)
+            if (jwtSecurityToken == null || !jwtSecurityToken.Header.Alg.Equals(SecurityAlgorithms.HmacSha256, StringComparison.InvariantCultureIgnoreCase))
+                throw new SecurityTokenException("Invalid token: Algorithm mismatch.");
+
+            return principal;
+        }
+        catch (SecurityTokenException stEx)
+        {
+            // Log lỗi nếu cần
+            // _logger.LogWarning(stEx, "Invalid token received for refresh.");
+            return null;
+        }
+        catch (Exception ex)
+        {
+            // _logger.LogError(ex, "Error validating expired token.");
+            return null;
+        }
+    }
 }

@@ -13,8 +13,11 @@ using System.Web; // For DateTime
 using QuantumBands.Application.Features.Authentication.Commands.VerifyEmail; // Thêm using
 using QuantumBands.Application.Features.Authentication.Commands.ResendVerificationEmail; // Thêm using
 using QuantumBands.Application.Features.Authentication.Commands.Login; // Thêm using
+using QuantumBands.Application.Features.Authentication.Commands.RefreshToken; // Thêm using
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options; // Thêm using cho Include
+using System.Security.Claims; // Thêm using
+using Microsoft.Extensions.Options;
+using System.IdentityModel.Tokens.Jwt; // Thêm using cho Include
 
 
 namespace QuantumBands.Application.Services;
@@ -413,6 +416,100 @@ public class AuthService : IAuthService
         };
 
         return (loginResponse, null); // Đăng nhập thành công
+    }
+    public async Task<(LoginResponse? Response, string? ErrorMessage)> RefreshTokenAsync(RefreshTokenRequest request, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Attempting to refresh token.");
+
+        // 1. Lấy principal từ JWT đã hết hạn (nhưng vẫn validate chữ ký)
+        var principal = _jwtTokenGenerator.GetPrincipalFromExpiredToken(request.ExpiredJwtToken);
+        if (principal == null)
+        {
+            _logger.LogWarning("Refresh token failed: Invalid expired JWT token provided.");
+            return (null, "Invalid token or refresh token.");
+        }
+
+        // 2. Lấy UserID từ claims
+        var userIdString = principal.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier || c.Type == "uid" || c.Type == JwtRegisteredClaimNames.Sub)?.Value;
+        if (!int.TryParse(userIdString, out var userId))
+        {
+            _logger.LogWarning("Refresh token failed: Could not extract UserID from expired token.");
+            return (null, "Invalid token or refresh token.");
+        }
+
+        _logger.LogDebug("UserID {UserId} extracted from expired token.", userId);
+
+        // 3. Lấy user từ DB, bao gồm cả Role
+        var user = await _unitOfWork.Users.Query()
+                                    .Include(u => u.Role)
+                                    .FirstOrDefaultAsync(u => u.UserId == userId, cancellationToken);
+
+        if (user == null)
+        {
+            _logger.LogWarning("Refresh token failed: User with ID {UserId} not found.", userId);
+            return (null, "Invalid token or refresh token.");
+        }
+
+        // 4. Kiểm tra Refresh Token có khớp và còn hạn không
+        if (user.RefreshToken != request.RefreshToken || user.RefreshTokenExpiry <= DateTime.UtcNow)
+        {
+            _logger.LogWarning("Refresh token failed for UserID {UserId}: Stored token mismatch or token expired. DB Token: {DbToken}, Request Token: {ReqToken}, DB Expiry: {DbExpiry}",
+                               userId, user.RefreshToken, request.RefreshToken, user.RefreshTokenExpiry);
+            // Có thể xem xét việc thu hồi tất cả refresh token của user nếu có dấu hiệu lạm dụng
+            // user.RefreshToken = null;
+            // user.RefreshTokenExpiry = null;
+            // _unitOfWork.Users.Update(user);
+            // await _unitOfWork.CompleteAsync(cancellationToken);
+            return (null, "Invalid token or refresh token.");
+        }
+
+        _logger.LogDebug("Refresh token validated for UserID {UserId}.", userId);
+
+        // 5. Tạo JWT mới và Refresh Token mới
+        string roleName = user.Role?.RoleName ?? "Unknown";
+        if (user.Role == null)
+        {
+            _logger.LogError("User {Username} (ID: {UserId}) does not have a valid Role associated during token refresh.", user.Username, user.UserId);
+            return (null, "User role configuration error during token refresh.");
+        }
+
+        string newJwtToken = _jwtTokenGenerator.GenerateJwtToken(user, roleName);
+        string newRefreshToken = _jwtTokenGenerator.GenerateRefreshToken();
+        DateTime newRefreshTokenExpiry = DateTime.UtcNow.AddDays(_jwtSettings.RefreshTokenExpiryDays);
+
+        _logger.LogDebug("Generated new JWT and Refresh Token for UserID {UserId}.", userId);
+
+        // 6. Cập nhật Refresh Token và thời gian hết hạn trong DB
+        user.RefreshToken = newRefreshToken;
+        user.RefreshTokenExpiry = newRefreshTokenExpiry;
+        user.UpdatedAt = DateTime.UtcNow; // Cập nhật thời gian
+        // Không cần cập nhật LastLoginDate ở đây, vì đây là refresh, không phải login mới
+
+        _unitOfWork.Users.Update(user);
+        try
+        {
+            await _unitOfWork.CompleteAsync(cancellationToken);
+            _logger.LogInformation("Successfully refreshed tokens for UserID {UserId}.", userId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to update new refresh token for UserID {UserId}.", userId);
+            return (null, "An error occurred while refreshing token.");
+        }
+
+        // 7. Tạo Response
+        var loginResponse = new LoginResponse
+        {
+            UserId = user.UserId,
+            Username = user.Username,
+            Email = user.Email,
+            Role = roleName,
+            JwtToken = newJwtToken,
+            RefreshToken = newRefreshToken,
+            RefreshTokenExpiry = newRefreshTokenExpiry
+        };
+
+        return (loginResponse, null);
     }
     // Hàm helper để tạo token ngẫu nhiên, an toàn
     private string GenerateSecureToken(int length = 32)

@@ -4,6 +4,7 @@ using QuantumBands.Application.Features.Authentication.Commands.RegisterUser;
 using QuantumBands.Application.Features.Authentication.Commands.VerifyEmail; // Thêm using
 using QuantumBands.Application.Features.Authentication.Commands.ResendVerificationEmail; // Thêm using
 using QuantumBands.Application.Features.Authentication.Commands.Login; // Thêm using
+using QuantumBands.Application.Features.Authentication.Commands.RefreshToken; // Thêm using
 
 using QuantumBands.Application.Interfaces; // For IAuthService
 using System.Threading.Tasks;
@@ -146,5 +147,29 @@ public class AuthController : ControllerBase
         _logger.LogInformation("User {Username} logged in successfully.", loginResponse.Username);
         return Ok(loginResponse);
     }
+    [HttpPost("refresh-token")]
+    [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)] // Cho validation lỗi (nếu có validator)
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)] // Cho token không hợp lệ/hết hạn
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequest request, CancellationToken cancellationToken)
+    {
+        if (request == null)
+        {
+            return BadRequest(new { Message = "Refresh token request cannot be null." });
+        }
+        _logger.LogInformation("Received request to refresh token.");
 
+        var (loginResponse, errorMessage) = await _authService.RefreshTokenAsync(request, cancellationToken);
+
+        if (loginResponse == null)
+        {
+            _logger.LogWarning("Token refresh failed. Reason: {Reason}", errorMessage);
+            // Trả về 401 cho các lỗi liên quan đến token
+            return Unauthorized(new { Message = errorMessage ?? "Invalid token or refresh token." });
+        }
+
+        _logger.LogInformation("Token refreshed successfully for UserID {UserId}.", loginResponse.UserId);
+        return Ok(loginResponse);
+    }
 }
