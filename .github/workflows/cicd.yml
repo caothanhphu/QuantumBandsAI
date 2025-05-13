@@ -3,40 +3,23 @@ name: CI/CD Docker Local Deployment
 on:
   push:
     branches:
-      - master
+      - master # Hoặc nhánh chính của bạn
 
 jobs:
   build-and-deploy-local:
     name: Build and Deploy to Local Docker
-    runs-on: [self-hosted, Windows]
+    runs-on: [self-hosted, Windows] # Đảm bảo runner của bạn có các nhãn này
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Verify Docker installation
-        run: powershell -ExecutionPolicy Bypass -Command "docker --version"
-        shell: cmd
-
-      - name: Build Docker image
-        run: powershell -ExecutionPolicy Bypass -Command "docker build -t quantumbands-api-image -f Dockerfile ."
-        shell: cmd
-
-      - name: Stop and Remove existing container
-        run: powershell -ExecutionPolicy Bypass -Command "
-          $containerName = 'quantumbands-api-container';
-          $existingContainer = docker ps -a -q --filter 'name=$containerName';
-          if ($existingContainer) {
-            docker stop $containerName;
-            docker rm $containerName;
-          }"
-        shell: cmd
-
-      - name: Run new Docker container
-        env: # Định nghĩa các biến môi trường sẽ được truyền vào container
-          # Lấy giá trị từ GitHub Secrets
+      - name: Run deployment script
+        env:
+          # Truyền các secrets từ GitHub vào làm biến môi trường cho step này
+          # File batch sẽ có thể truy cập chúng
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           JWT_SECRET: ${{ secrets.JWT_SECRET_KEY }}
-        run: powershell -ExecutionPolicy Bypass -Command "
-          docker run -d -p 6020:8080 --name quantumbands-api-container --name quantumbands-api-container -e ConnectionStrings__DefaultConnection='Server=host.docker.internal;Database=FinixAI;User ID=finix;Password=${env:DB_PASSWORD};TrustServerCertificate=True;MultipleActiveResultSets=true' -e JwtSettings__Secret='${env:JWT_SECRET}' -e ASPNETCORE_ENVIRONMENT=Docker quantumbands-api-image"
-        shell: cmd
+        run: |
+          call deploy.bat
+        shell: cmd # Chỉ định shell là cmd để thực thi file .bat
