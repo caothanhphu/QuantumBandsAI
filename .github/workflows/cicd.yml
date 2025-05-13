@@ -37,16 +37,6 @@ jobs:
           # Lấy giá trị từ GitHub Secrets
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           JWT_SECRET: ${{ secrets.JWT_SECRET_KEY }}
-        run: |
-          docker run -d `
-            -p 6020:8080 `
-            --name quantumbands-api-container `
-            # Truyền biến môi trường vào container
-            # Tên biến môi trường trong container phải khớp với quy ước của ASP.NET Core
-            -e ConnectionStrings__DefaultConnection="Server=host.docker.internal;Database=FinixAI;User ID=finix;Password=${env:DB_PASSWORD};TrustServerCertificate=True;MultipleActiveResultSets=true" `
-            -e JwtSettings__Secret="${env:JWT_SECRET}" `
-            # Đảm bảo ASPNETCORE_ENVIRONMENT được đặt đúng nếu không đặt trong Dockerfile
-            -e ASPNETCORE_ENVIRONMENT=Docker `
-            quantumbands-api-image
-          Write-Host "New container 'quantumbands-api-container' started. Access it on host at http://localhost:6020"
-        shell: powershell
+        run: powershell -ExecutionPolicy Bypass -Command "
+          docker run -d -p 6020:8080 --name quantumbands-api-container --name quantumbands-api-container -e ConnectionStrings__DefaultConnection='Server=host.docker.internal;Database=FinixAI;User ID=finix;Password=${env:DB_PASSWORD};TrustServerCertificate=True;MultipleActiveResultSets=true' -e JwtSettings__Secret='${env:JWT_SECRET}' -e ASPNETCORE_ENVIRONMENT=Docker quantumbands-api-image"
+        shell: cmd
