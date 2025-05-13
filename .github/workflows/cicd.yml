@@ -24,11 +24,12 @@ jobs:
 
       - name: Stop and Remove existing container
         run: powershell -ExecutionPolicy Bypass -Command "
-          $containerName = 'quantumbands-api-container'
-          $existingContainer = docker ps -a -q --filter 'name=$containerName'
+          $containerName = 'quantumbands-api-container';
+          $existingContainer = docker ps -a -q --filter 'name=$containerName';
           if ($existingContainer) {
-            docker stop $containerName
-            docker rm $containerName }"
+            docker stop $containerName;
+            docker rm $containerName;
+          }"
         shell: cmd
 
       - name: Run new Docker container
