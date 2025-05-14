@@ -14,6 +14,8 @@ using QuantumBands.Application.Features.Authentication.Commands.VerifyEmail; // 
 using QuantumBands.Application.Features.Authentication.Commands.ResendVerificationEmail; // Thêm using
 using QuantumBands.Application.Features.Authentication.Commands.Login; // Thêm using
 using QuantumBands.Application.Features.Authentication.Commands.RefreshToken; // Thêm using
+using QuantumBands.Application.Features.Authentication.Commands.ForgotPassword; // Thêm using
+using QuantumBands.Application.Features.Authentication.Commands.ResetPassword; // Thêm using
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims; // Thêm using
 using Microsoft.Extensions.Options;
@@ -511,7 +513,149 @@ public class AuthService : IAuthService
 
         return (loginResponse, null);
     }
-    
+    public async Task<(bool Success, string Message)> ForgotPasswordAsync(ForgotPasswordRequest request, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Forgot password request received for email: {Email}", request.Email);
+
+        var user = (await _unitOfWork.Users.FindAsync(u => u.Email == request.Email, cancellationToken)).FirstOrDefault();
+
+        // Luôn trả về thông báo thành công chung để tránh user enumeration
+        string successMessage = "If an account with this email exists, a password reset link has been sent.";
+
+        if (user == null)
+        {
+            _logger.LogWarning("Forgot password: User with email {Email} not found. Sending generic success message.", request.Email);
+            return (true, successMessage); // Không tiết lộ email không tồn tại
+        }
+
+        // (Tùy chọn) Bạn có thể muốn kiểm tra xem email đã được xác thực chưa trước khi cho reset
+        // if (!user.IsEmailVerified)
+        // {
+        //     _logger.LogWarning("Forgot password: Email {Email} for UserID {UserId} is not verified. Sending generic success message.", request.Email, user.UserId);
+        //     return (true, successMessage);
+        // }
+
+        // Tạo token và thời gian hết hạn
+        string resetToken = GenerateSecureToken(); // Sử dụng lại hàm đã có
+        DateTime tokenExpiry = DateTime.UtcNow.AddHours(1); // Token hết hạn sau 1 giờ
+
+        user.PasswordResetToken = resetToken;
+        user.PasswordResetTokenExpiry = tokenExpiry;
+        user.UpdatedAt = DateTime.UtcNow;
+
+        _unitOfWork.Users.Update(user);
+        try
+        {
+            await _unitOfWork.CompleteAsync(cancellationToken);
+            _logger.LogInformation("Generated and saved password reset token for UserID {UserId}.", user.UserId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to save password reset token for UserID {UserId}.", user.UserId);
+            // Vẫn trả về thông báo chung, nhưng log lỗi nghiêm trọng
+            return (true, successMessage);
+        }
+
+        // Gửi email với link đặt lại mật khẩu
+        try
+        {
+            string? frontendBaseUrl = _configuration["AppSettings:FrontendBaseUrl"];
+            if (string.IsNullOrEmpty(frontendBaseUrl))
+            {
+                _logger.LogError("FrontendBaseUrl is not configured. Cannot generate password reset link for UserID {UserId}.", user.UserId);
+                // Vẫn trả về thông báo chung
+                return (true, successMessage);
+            }
+
+            string encodedToken = HttpUtility.UrlEncode(resetToken);
+            string encodedEmail = HttpUtility.UrlEncode(user.Email); // Mã hóa email để truyền qua URL
+            string resetLink = $"{frontendBaseUrl.TrimEnd('/')}/auth/reset-password?email={encodedEmail}&token={encodedToken}";
+
+            string subject = "Reset Your QuantumBands AI Password";
+            string htmlMessage = $@"
+                <h1>Password Reset Request</h1>
+                <p>Hello {user.Username ?? user.FullName ?? "User"},</p>
+                <p>We received a request to reset the password for your QuantumBands AI account associated with this email address.</p>
+                <p>Please click the link below to set a new password:</p>
+                <p><a href='{resetLink}'>Reset My Password</a></p>
+                <p>If you cannot click the link, please copy and paste the following URL into your browser:</p>
+                <p>{resetLink}</p>
+                <p>This link will expire in 1 hour. If you did not request a password reset, please ignore this email.</p>";
+
+            _ = _emailService.SendEmailAsync(user.Email, subject, htmlMessage, cancellationToken);
+            _logger.LogInformation("Password reset email initiated for {Email} with link: {Link}", user.Email, resetLink);
+        }
+        catch (Exception emailEx)
+        {
+            _logger.LogError(emailEx, "Failed to initiate password reset email for {Email}, but token was generated for UserID {UserId}.", user.Email, user.UserId);
+            // Vẫn trả về thông báo chung
+        }
+
+        return (true, successMessage);
+    }
+
+    public async Task<(bool Success, string Message)> ResetPasswordAsync(ResetPasswordRequest request, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Attempting to reset password for email: {Email}", request.Email);
+
+        var user = (await _unitOfWork.Users.FindAsync(u => u.Email == request.Email, cancellationToken)).FirstOrDefault();
+
+        if (user == null)
+        {
+            _logger.LogWarning("ResetPassword: User with email {Email} not found.", request.Email);
+            return (false, "Invalid email or reset token."); // Thông báo chung
+        }
+
+        if (user.PasswordResetToken != request.ResetToken)
+        {
+            _logger.LogWarning("ResetPassword: Invalid reset token provided for UserID {UserId}.", user.UserId);
+            return (false, "Invalid email or reset token.");
+        }
+
+        if (user.PasswordResetTokenExpiry.HasValue && user.PasswordResetTokenExpiry.Value < DateTime.UtcNow)
+        {
+            _logger.LogWarning("ResetPassword: Token expired for UserID {UserId}. Expiry: {ExpiryTime}", user.UserId, user.PasswordResetTokenExpiry.Value);
+            return (false, "Password reset token has expired. Please request a new one.");
+        }
+
+        // (Validator đã kiểm tra NewPassword và ConfirmNewPassword khớp nhau)
+
+        // Hash mật khẩu mới
+        string newPasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+
+        // Cập nhật mật khẩu, xóa token và thời gian
+        user.PasswordHash = newPasswordHash;
+        user.PasswordResetToken = null; // Vô hiệu hóa token sau khi sử dụng
+        user.PasswordResetTokenExpiry = null;
+        user.UpdatedAt = DateTime.UtcNow;
+        // (Tùy chọn) Có thể muốn cập nhật RefreshToken ở đây để vô hiệu hóa các session cũ
+        // user.RefreshToken = null;
+        // user.RefreshTokenExpiry = null;
+
+        _unitOfWork.Users.Update(user);
+        try
+        {
+            await _unitOfWork.CompleteAsync(cancellationToken);
+            _logger.LogInformation("Password reset successfully for UserID {UserId}.", user.UserId);
+
+            // (Tùy chọn) Gửi email thông báo mật khẩu đã được thay đổi
+            string subject = "Your QuantumBands AI Password Has Been Changed";
+            string htmlMessage = $@"
+                <h1>Password Changed</h1>
+                <p>Hello {user.Username ?? user.FullName ?? "User"},</p>
+                <p>The password for your QuantumBands AI account was recently changed.</p>
+                <p>If you did not make this change, please contact our support team immediately.</p>";
+            _ = _emailService.SendEmailAsync(user.Email, subject, htmlMessage, cancellationToken);
+
+
+            return (true, "Password reset successfully. You can now log in with your new password.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error resetting password for UserID {UserId}.", user.UserId);
+            return (false, "An error occurred while resetting password.");
+        }
+    }
     // Hàm helper để tạo token ngẫu nhiên, an toàn
     private string GenerateSecureToken(int length = 32)
     {

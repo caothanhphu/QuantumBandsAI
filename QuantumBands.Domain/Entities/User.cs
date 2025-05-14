@@ -43,6 +43,9 @@ public partial class User
     public DateTime? EmailVerificationTokenExpiry { get; set; }
     [StringLength(256)]
     public string? EmailVerificationToken { get; set; } = null!;
+    public DateTime? PasswordResetTokenExpiry { get; set; }
+    [StringLength(256)]
+    public string? PasswordResetToken { get; set; } = null!;
     public DateTime? RefreshTokenExpiry { get; set; }
     [StringLength(256)]
     public string? RefreshToken { get; set; } = null!;

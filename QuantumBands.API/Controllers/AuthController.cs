@@ -5,7 +5,8 @@ using QuantumBands.Application.Features.Authentication.Commands.VerifyEmail; // 
 using QuantumBands.Application.Features.Authentication.Commands.ResendVerificationEmail; // Thêm using
 using QuantumBands.Application.Features.Authentication.Commands.Login; // Thêm using
 using QuantumBands.Application.Features.Authentication.Commands.RefreshToken; // Thêm using
-
+using QuantumBands.Application.Features.Authentication.Commands.ForgotPassword; // Thêm using
+using QuantumBands.Application.Features.Authentication.Commands.ResetPassword; // Thêm using
 using QuantumBands.Application.Interfaces; // For IAuthService
 using System.Threading.Tasks;
 using System.Threading;
@@ -173,5 +174,53 @@ public class AuthController : ControllerBase
 
         _logger.LogInformation("Token refreshed successfully for UserID {UserId}.", loginResponse.UserId);
         return Ok(loginResponse);
+    }
+    [HttpPost("forgot-password")]
+    [ProducesResponseType(StatusCodes.Status200OK)] // Luôn trả về 200 để tránh user enumeration
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)] // Cho các lỗi không mong muốn khi xử lý
+    public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request, CancellationToken cancellationToken)
+    {
+        if (request == null)
+        {
+            return BadRequest(new { Message = "Request cannot be null." });
+        }
+        _logger.LogInformation("Received forgot password request for email: {Email}", request.Email);
+
+        var (success, message) = await _authService.ForgotPasswordAsync(request, cancellationToken);
+
+        // Ngay cả khi có lỗi server (success=false), chúng ta vẫn trả về message chung từ service
+        // để không tiết lộ thông tin. Lỗi server sẽ được log.
+        _logger.LogInformation("Forgot password process completed for email {Email}. Result message: {Message}", request.Email, message);
+        return Ok(new { Message = message }); // Luôn trả về thông báo chung từ service
+    }
+
+    [HttpPost("reset-password")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)] // Cho token không hợp lệ/hết hạn hoặc validation lỗi
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request, CancellationToken cancellationToken)
+    {
+        if (request == null)
+        {
+            return BadRequest(new { Message = "Request cannot be null." });
+        }
+        _logger.LogInformation("Received reset password request for email: {Email}", request.Email);
+
+        var (success, message) = await _authService.ResetPasswordAsync(request, cancellationToken);
+
+        if (!success)
+        {
+            _logger.LogWarning("Password reset failed for email {Email}. Reason: {Reason}", request.Email, message);
+            // Phân biệt lỗi do người dùng (token sai/hết hạn) hay lỗi hệ thống
+            if (message.Contains("Invalid") || message.Contains("expired"))
+            {
+                return BadRequest(new { Message = message });
+            }
+            return StatusCode(StatusCodes.Status500InternalServerError, new { Message = message ?? "An unexpected error occurred while resetting password." });
+        }
+
+        _logger.LogInformation("Password reset successful for email {Email}.", request.Email);
+        return Ok(new { Message = message });
     }
 }
