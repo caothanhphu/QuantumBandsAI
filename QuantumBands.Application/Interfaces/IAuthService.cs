@@ -7,6 +7,7 @@ using QuantumBands.Application.Features.Authentication.Commands.ResendVerificati
 using QuantumBands.Application.Features.Authentication.Commands.VerifyEmail;
 using QuantumBands.Application.Features.Authentication.Commands.Login; // Thêm using
 using QuantumBands.Application.Features.Authentication.Commands.RefreshToken; // Thêm using
+using System.Security.Claims; // Thêm using cho ClaimsPrincipal
 
 namespace QuantumBands.Application.Interfaces;
 
@@ -18,5 +19,4 @@ public interface IAuthService
     Task<(LoginResponse? Response, string? ErrorMessage)> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default);
     // Thêm phương thức RefreshToken
     Task<(LoginResponse? Response, string? ErrorMessage)> RefreshTokenAsync(RefreshTokenRequest request, CancellationToken cancellationToken = default);
-
 }

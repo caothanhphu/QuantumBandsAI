@@ -1,0 +1,417 @@
+{
+	"info": {
+		"_postman_id": "YOUR_COLLECTION_ID",
+		"name": "QuantumBands API",
+		"description": "Postman Collection for QuantumBands API based on OpenAPI 3.0.4 spec.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "YOUR_EXPORTER_ID"
+	},
+	"item": [
+		{
+			"name": "Auth",
+			"item": [
+				{
+					"name": "Register User",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"username\": \"testuser_pm\",\n  \"email\": \"testuser_pm@example.com\",\n  \"password\": \"Password123!\",\n  \"fullName\": \"Postman Test User\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/Auth/register",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"Auth",
+								"register"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Login User",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"if (pm.response.code === 200) {",
+									"    try {",
+									"        var jsonData = pm.response.json();",
+									"        if (jsonData && jsonData.jwtToken) {",
+									"            pm.environment.set(\"jwtToken\", jsonData.jwtToken);",
+									"            console.log(\"jwtToken set to: \" + jsonData.jwtToken);",
+									"        } else {",
+									"            console.log(\"jwtToken not found in response.\");",
+									"        }",
+									"        if (jsonData && jsonData.refreshToken) {",
+									"            pm.environment.set(\"refreshToken\", jsonData.refreshToken);",
+									"            console.log(\"refreshToken set to: \" + jsonData.refreshToken);",
+									"        } else {",
+									"            console.log(\"refreshToken not found in response.\");",
+									"        }",
+									"        if (jsonData && jsonData.userId) {",
+									"            pm.environment.set(\"currentUserId\", jsonData.userId);",
+									"            console.log(\"currentUserId set to: \" + jsonData.userId);",
+									"        } else {",
+									"            console.log(\"userId not found in response.\");",
+									"        }",
+									"    } catch (e) {",
+									"        console.log(\"Error parsing response or setting environment variables: \" + e);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"usernameOrEmail\": \"testuser_pm@example.com\",\n  \"password\": \"Password123!\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/Auth/login",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"Auth",
+								"login"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Verify Email",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"userId\": {{currentUserId}},\n  \"token\": \"YOUR_VERIFICATION_TOKEN_HERE\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/Auth/verify-email",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"Auth",
+								"verify-email"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Resend Verification Email",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"testuser_pm@example.com\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/Auth/resend-verification-email",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"Auth",
+								"resend-verification-email"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Refresh Token",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"expiredJwtToken\": \"{{jwtToken}}\",\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/Auth/refresh-token",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"Auth",
+								"refresh-token"
+							]
+						},
+						"description": "Lấy jwtToken và refreshToken từ response của API Login và lưu vào biến môi trường Postman. Sau đó, sử dụng các biến này ở đây."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Users",
+			"item": [
+				{
+					"name": "Get My Profile",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{jwtToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/Users/me",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"Users",
+								"me"
+							]
+						},
+						"description": "Yêu cầu này sử dụng JWT token được lưu trong biến môi trường 'jwtToken' sau khi đăng nhập thành công."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Roles",
+			"item": [
+				{
+					"name": "Get All Roles",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/Roles",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"Roles"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Role",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"roleName\": \"NewRoleFromPostman\",\n  \"description\": \"This role was created via Postman\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/Roles",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"Roles"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Role By ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/Roles/1",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"Roles",
+								"1"
+							],
+							"query": []
+						},
+						"description": "Thay đổi số '1' ở cuối URL thành ID của role bạn muốn lấy."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Misc",
+			"item": [
+				{
+					"name": "Get Greeting",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/Greeting?name=PostmanUser",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"Greeting"
+							],
+							"query": [
+								{
+									"key": "name",
+									"value": "PostmanUser"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Error (Test)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/Greeting/error",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"Greeting",
+								"error"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Custom Error (Test)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/Greeting/customerror",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"Greeting",
+								"customerror"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Weather Forecast",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/WeatherForecast",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"WeatherForecast"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:YOUR_PORT",
+			"type": "string",
+			"description": "Thay YOUR_PORT bằng port API của bạn (ví dụ: 5100 cho http hoặc 7100 cho https)"
+		}
+	]
+}

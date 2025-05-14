@@ -511,6 +511,7 @@ public class AuthService : IAuthService
 
         return (loginResponse, null);
     }
+    
     // Hàm helper để tạo token ngẫu nhiên, an toàn
     private string GenerateSecureToken(int length = 32)
     {

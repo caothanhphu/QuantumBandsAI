@@ -10,6 +10,8 @@ using QuantumBands.Application.Interfaces; // For IAuthService
 using System.Threading.Tasks;
 using System.Threading;
 using QuantumBands.Application.Features.Authentication;
+using Microsoft.AspNetCore.Authorization; // Thêm using cho [Authorize]
+using System.Security.Claims; // Thêm using cho User.FindFirstValue
 
 namespace QuantumBands.API.Controllers;
 
