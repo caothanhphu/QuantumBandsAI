@@ -9,7 +9,8 @@ using System.Threading.Tasks;
 using System.Threading;
 using System;
 using Microsoft.EntityFrameworkCore;
-using System.IdentityModel.Tokens.Jwt; // For Include
+using System.IdentityModel.Tokens.Jwt;
+using QuantumBands.Application.Features.Users.Commands.ChangePassword; // For Include
 
 namespace QuantumBands.Application.Services;
 
@@ -167,5 +168,57 @@ public class UserService : IUserService
         };
 
         return (updatedProfileDto, null);
+    }
+    public async Task<(bool Success, string Message)> ChangePasswordAsync(ClaimsPrincipal currentUser, ChangePasswordRequest request, CancellationToken cancellationToken = default)
+    {
+        var userId = GetUserIdFromPrincipal(currentUser);
+        if (!userId.HasValue)
+        {
+            _logger.LogWarning("ChangePasswordAsync: User is not authenticated or UserId claim is missing.");
+            return (false, "User not authenticated or identity is invalid.");
+        }
+
+        _logger.LogInformation("Attempting to change password for UserID: {UserId}", userId.Value);
+
+        var user = await _unitOfWork.Users.GetByIdAsync(userId.Value); // Không cần Include Role ở đây
+        if (user == null)
+        {
+            _logger.LogWarning("ChangePasswordAsync: User with ID {UserId} not found in database.", userId.Value);
+            return (false, "User not found."); // Hoặc "Invalid operation"
+        }
+
+        // 1. Xác minh mật khẩu hiện tại
+        if (!BCrypt.Net.BCrypt.Verify(request.CurrentPassword, user.PasswordHash))
+        {
+            _logger.LogWarning("ChangePasswordAsync: Invalid current password for UserID: {UserId}", userId.Value);
+            return (false, "Incorrect current password.");
+        }
+
+        // (Validator đã kiểm tra NewPassword và ConfirmNewPassword khớp nhau,
+        // và NewPassword khác CurrentPassword)
+
+        // 2. Hash mật khẩu mới
+        string newPasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+
+        // 3. Cập nhật mật khẩu và thời gian
+        user.PasswordHash = newPasswordHash;
+        user.UpdatedAt = DateTime.UtcNow;
+        // (Tùy chọn) Có thể muốn cập nhật RefreshToken ở đây để vô hiệu hóa các session cũ,
+        // hoặc thêm một trường như 'PasswordChangedAt' để kiểm tra khi validate JWT.
+        user.RefreshToken = null;
+        user.RefreshTokenExpiry = null;
+
+        _unitOfWork.Users.Update(user);
+        try
+        {
+            await _unitOfWork.CompleteAsync(cancellationToken);
+            _logger.LogInformation("Password changed successfully for UserID: {UserId}", userId.Value);
+            return (true, "Password changed successfully.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error changing password for UserID: {UserId}", userId.Value);
+            return (false, "An error occurred while changing password.");
+        }
     }
 }

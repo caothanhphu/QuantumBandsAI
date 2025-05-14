@@ -7,6 +7,7 @@ using QuantumBands.Application.Interfaces; // For IUserService
 using System.Security.Claims;
 using System.Threading.Tasks;
 using System.Threading;
+using QuantumBands.Application.Features.Users.Commands.ChangePassword;
 
 namespace QuantumBands.API.Controllers;
 
@@ -80,5 +81,37 @@ public class UsersController : ControllerBase
 
         _logger.LogInformation("Profile updated successfully for UserID: {UserId}", updatedProfile.UserId);
         return Ok(updatedProfile);
+    }
+
+    [HttpPost("change-password")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)] // Cho validation lỗi hoặc current password sai
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)] // Nếu user không tìm thấy (hiếm khi xảy ra với [Authorize])
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request, CancellationToken cancellationToken)
+    {
+        if (request == null) // FluentValidation đã kiểm tra, nhưng kiểm tra null vẫn tốt
+        {
+            return BadRequest(new { Message = "Change password request cannot be null." });
+        }
+
+        _logger.LogInformation("Attempting to change password for current authenticated user.");
+
+        var (success, message) = await _userService.ChangePasswordAsync(User, request, cancellationToken);
+
+        if (!success)
+        {
+            _logger.LogWarning("Password change failed for current user. Reason: {Reason}", message);
+            // Phân biệt lỗi do người dùng (ví dụ: sai mật khẩu hiện tại) hay lỗi hệ thống
+            if (message.Contains("Incorrect current password") || message.Contains("not found")) // "not found" cho user
+            {
+                return BadRequest(new { Message = message }); // 400 cho thông tin không hợp lệ
+            }
+            return StatusCode(StatusCodes.Status500InternalServerError, new { Message = message ?? "An unexpected error occurred while changing password." });
+        }
+
+        _logger.LogInformation("Password changed successfully for current user.");
+        return Ok(new { Message = message });
     }
 }
