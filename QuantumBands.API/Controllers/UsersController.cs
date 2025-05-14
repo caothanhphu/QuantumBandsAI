@@ -26,6 +26,7 @@ public class UsersController : ControllerBase
     }
 
     [HttpGet("me")]
+    // [Authorize(Roles = "Admin,Investor")] // Có thể đặt ở đây hoặc để [Authorize] ở cấp controller là đủ nếu không có phân quyền cụ thể hơn
     [ProducesResponseType(typeof(UserProfileDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
