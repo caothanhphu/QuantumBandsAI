@@ -11,6 +11,11 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using System.IdentityModel.Tokens.Jwt;
 using QuantumBands.Application.Features.Users.Commands.ChangePassword; // For Include
+using QuantumBands.Application.Features.Users.Commands.Setup2FA;
+using QuantumBands.Application.Features.Users.Commands.Enable2FA;
+using QuantumBands.Application.Features.Users.Commands.Verify2FA;
+using QuantumBands.Application.Features.Users.Commands.Disable2FA;
+using Microsoft.Extensions.Configuration; // Để lấy Issuer từ config
 
 namespace QuantumBands.Application.Services;
 
@@ -18,11 +23,19 @@ public class UserService : IUserService
 {
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<UserService> _logger;
+    private readonly ITwoFactorAuthService _twoFactorAuthService; // Inject
+    private readonly IConfiguration _configuration; // Inject
 
-    public UserService(IUnitOfWork unitOfWork, ILogger<UserService> logger)
+    public UserService(
+        IUnitOfWork unitOfWork,
+        ILogger<UserService> logger,
+        ITwoFactorAuthService twoFactorAuthService, // Thêm vào constructor
+        IConfiguration configuration) // Thêm vào constructor
     {
         _unitOfWork = unitOfWork;
         _logger = logger;
+        _twoFactorAuthService = twoFactorAuthService; // Gán
+        _configuration = configuration; // Gán
     }
 
     private int? GetUserIdFromPrincipal(ClaimsPrincipal principal)
@@ -219,6 +232,148 @@ public class UserService : IUserService
         {
             _logger.LogError(ex, "Error changing password for UserID: {UserId}", userId.Value);
             return (false, "An error occurred while changing password.");
+        }
+    }
+    public async Task<(Setup2FAResponse? Response, string? ErrorMessage)> Setup2FAAsync(ClaimsPrincipal currentUser, CancellationToken cancellationToken = default)
+    {
+        var userId = GetUserIdFromPrincipal(currentUser);
+        if (!userId.HasValue) return (null, "User not authenticated.");
+
+        var user = await _unitOfWork.Users.GetByIdAsync(userId.Value);
+        if (user == null) return (null, "User not found.");
+
+        if (user.TwoFactorEnabled)
+        {
+            return (null, "Two-Factor Authentication is already enabled.");
+        }
+
+        string issuer = _configuration["JwtSettings:Issuer"] ?? "QuantumBandsAI"; // Lấy Issuer từ config hoặc dùng mặc định
+        var (sharedKey, authenticatorUri) = _twoFactorAuthService.GenerateSetupInfo(issuer, user.Email, user.Username);
+
+        // Lưu tạm sharedKey vào user để verify ở bước Enable.
+        // Trong thực tế, bạn có thể muốn mã hóa key này trước khi lưu, ngay cả khi là tạm thời.
+        // Hoặc chỉ lưu một phần hash của nó để xác nhận mà không lưu key gốc cho đến khi enable.
+        // Để đơn giản, ví dụ này lưu trực tiếp (NHƯNG NÊN MÃ HÓA TRONG PRODUCTION)
+        user.TwoFactorSecretKey = sharedKey; // Cần đảm bảo User entity có trường này
+        user.UpdatedAt = DateTime.UtcNow;
+        _unitOfWork.Users.Update(user);
+        try
+        {
+            await _unitOfWork.CompleteAsync(cancellationToken);
+            _logger.LogInformation("2FA setup initiated for UserID {UserId}. Shared key stored temporarily.", userId.Value);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to save temporary 2FA secret for UserID {UserId}", userId.Value);
+            return (null, "Error initiating 2FA setup.");
+        }
+
+        return (new Setup2FAResponse { SharedKey = sharedKey, AuthenticatorUri = authenticatorUri }, null);
+    }
+
+    public async Task<(bool Success, string Message, IEnumerable<string>? RecoveryCodes)> Enable2FAAsync(ClaimsPrincipal currentUser, Enable2FARequest request, CancellationToken cancellationToken = default)
+    {
+        var userId = GetUserIdFromPrincipal(currentUser);
+        if (!userId.HasValue) return (false, "User not authenticated.", null);
+
+        var user = await _unitOfWork.Users.GetByIdAsync(userId.Value);
+        if (user == null) return (false, "User not found.", null);
+
+        if (user.TwoFactorEnabled) return (true, "2FA is already enabled.", null); // Đã bật rồi thì thôi
+
+        if (string.IsNullOrEmpty(user.TwoFactorSecretKey))
+        {
+            return (false, "2FA setup process not initiated or secret key is missing. Please start setup again.", null);
+        }
+
+        bool isValidCode = _twoFactorAuthService.VerifyCode(user.TwoFactorSecretKey, request.VerificationCode);
+
+        if (!isValidCode)
+        {
+            return (false, "Invalid verification code.", null);
+        }
+
+        // Mã hợp lệ, kích hoạt 2FA
+        user.TwoFactorEnabled = true;
+        // TwoFactorSecretKey đã được lưu ở bước setup, đảm bảo nó được mã hóa nếu cần
+        user.UpdatedAt = DateTime.UtcNow;
+        _unitOfWork.Users.Update(user);
+        try
+        {
+            await _unitOfWork.CompleteAsync(cancellationToken);
+            _logger.LogInformation("2FA enabled successfully for UserID {UserId}.", userId.Value);
+
+            // TODO: Tạo và trả về Recovery Codes.
+            // Việc tạo và lưu trữ recovery codes là một phần quan trọng nhưng phức tạp hơn.
+            // Tạm thời trả về null.
+            var recoveryCodes = new List<string> { "RECOVERY-CODE-1", "RECOVERY-CODE-2" }; // Placeholder
+            return (true, "Two-Factor Authentication enabled successfully.", recoveryCodes);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error enabling 2FA for UserID {UserId}", userId.Value);
+            return (false, "An error occurred while enabling 2FA.", null);
+        }
+    }
+
+    public async Task<(bool Success, string Message)> Verify2FACodeAsync(ClaimsPrincipal currentUser, Verify2FARequest request, CancellationToken cancellationToken = default)
+    {
+        var userId = GetUserIdFromPrincipal(currentUser);
+        if (!userId.HasValue) return (false, "User not authenticated.");
+
+        var user = await _unitOfWork.Users.GetByIdAsync(userId.Value);
+        if (user == null) return (false, "User not found.");
+
+        if (!user.TwoFactorEnabled || string.IsNullOrEmpty(user.TwoFactorSecretKey))
+        {
+            return (false, "2FA is not enabled for this account.");
+        }
+
+        bool isValidCode = _twoFactorAuthService.VerifyCode(user.TwoFactorSecretKey, request.VerificationCode);
+
+        if (!isValidCode)
+        {
+            return (false, "Invalid 2FA verification code.");
+        }
+
+        _logger.LogInformation("2FA code verified successfully for UserID {UserId}", userId.Value);
+        return (true, "2FA verification successful.");
+    }
+
+    public async Task<(bool Success, string Message)> Disable2FAAsync(ClaimsPrincipal currentUser, Disable2FARequest request, CancellationToken cancellationToken = default)
+    {
+        var userId = GetUserIdFromPrincipal(currentUser);
+        if (!userId.HasValue) return (false, "User not authenticated.");
+
+        var user = await _unitOfWork.Users.GetByIdAsync(userId.Value);
+        if (user == null) return (false, "User not found.");
+
+        if (!user.TwoFactorEnabled || string.IsNullOrEmpty(user.TwoFactorSecretKey))
+        {
+            return (false, "2FA is not currently enabled for this account.");
+        }
+
+        // Xác minh mã 2FA hiện tại trước khi vô hiệu hóa
+        bool isValidCode = _twoFactorAuthService.VerifyCode(user.TwoFactorSecretKey, request.VerificationCode);
+        if (!isValidCode)
+        {
+            return (false, "Invalid verification code. Cannot disable 2FA.");
+        }
+
+        user.TwoFactorEnabled = false;
+        user.TwoFactorSecretKey = null; // Xóa khóa bí mật
+        user.UpdatedAt = DateTime.UtcNow;
+        _unitOfWork.Users.Update(user);
+        try
+        {
+            await _unitOfWork.CompleteAsync(cancellationToken);
+            _logger.LogInformation("2FA disabled successfully for UserID {UserId}.", userId.Value);
+            return (true, "Two-Factor Authentication disabled successfully.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error disabling 2FA for UserID {UserId}", userId.Value);
+            return (false, "An error occurred while disabling 2FA.");
         }
     }
 }

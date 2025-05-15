@@ -1,0 +1,208 @@
+{
+	"info": {
+		"_postman_id": "YOUR_2FA_COLLECTION_ID_OR_KEEP_EXISTING_IF_MERGING",
+		"name": "QuantumBands API - 2FA Management (Thêm vào Collection hiện tại)",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "2FA Management",
+			"description": "Endpoints for managing Two-Factor Authentication. Requires user to be logged in (Bearer Token).",
+			"item": [
+				{
+					"name": "1. Setup 2FA",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"if (pm.response.code === 200) {",
+									"    try {",
+									"        var jsonData = pm.response.json();",
+									"        if (jsonData && jsonData.sharedKey) {",
+									"            pm.collectionVariables.set(\"twoFactorSharedKey\", jsonData.sharedKey);",
+									"            console.log(\"twoFactorSharedKey (for manual entry) set to: \" + jsonData.sharedKey);",
+									"        }",
+									"        if (jsonData && jsonData.authenticatorUri) {",
+									"            console.log(\"Authenticator URI (for QR Code): \" + jsonData.authenticatorUri);",
+									"            // Bạn cần dùng URI này để tạo mã QR và quét bằng Authenticator App",
+									"        }",
+									"    } catch (e) {",
+									"        console.log(\"Error parsing 2FA setup response: \" + e);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{jwtToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/users/me/2fa/setup",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"users",
+								"me",
+								"2fa",
+								"setup"
+							]
+						},
+						"description": "Bắt đầu quá trình thiết lập 2FA. Trả về sharedKey và authenticatorUri.\n\n**Hành động thủ công:**\n1. Sử dụng `authenticatorUri` từ response để tạo mã QR (ví dụ: dùng một trang web tạo QR online).\n2. Quét mã QR bằng ứng dụng xác thực (Google Authenticator, Authy, v.v.).\n3. Ứng dụng sẽ hiển thị mã 6 chữ số. Sử dụng mã này cho request 'Enable 2FA'."
+					},
+					"response": []
+				},
+				{
+					"name": "2. Enable 2FA",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{jwtToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"verificationCode\": \"123456\" // <<< THAY BẰNG MÃ 6 CHỮ SỐ TỪ AUTHENTICATOR APP CỦA BẠN SAU KHI SETUP\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/users/me/2fa/enable",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"users",
+								"me",
+								"2fa",
+								"enable"
+							]
+						},
+						"description": "Xác minh mã từ ứng dụng xác thực và kích hoạt 2FA."
+					},
+					"response": []
+				},
+				{
+					"name": "Verify 2FA Code (General Verification)",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{jwtToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"verificationCode\": \"123456\" // <<< THAY BẰNG MÃ 6 CHỮ SỐ HIỆN TẠI TỪ AUTHENTICATOR APP\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/users/me/2fa/verify",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"users",
+								"me",
+								"2fa",
+								"verify"
+							]
+						},
+						"description": "Xác minh mã 2FA hiện tại. Dùng cho các hành động nhạy cảm hoặc bước thứ hai của login (nếu luồng login yêu cầu và user đã có JWT tạm thời)."
+					},
+					"response": []
+				},
+				{
+					"name": "3. Disable 2FA",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{jwtToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"verificationCode\": \"123456\" // <<< THAY BẰNG MÃ 6 CHỮ SỐ HIỆN TẠI TỪ AUTHENTICATOR APP ĐỂ VÔ HIỆU HÓA\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/users/me/2fa/disable",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"users",
+								"me",
+								"2fa",
+								"disable"
+							]
+						},
+						"description": "Vô hiệu hóa 2FA cho tài khoản người dùng hiện tại."
+					},
+					"response": []
+				}
+			]
+		}
+	]
+}

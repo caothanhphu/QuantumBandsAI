@@ -34,6 +34,8 @@ public partial class User
     public bool IsEmailVerified { get; set; }
 
     public bool TwoFactorEnabled { get; set; }
+    [StringLength(256)]
+    public string? TwoFactorSecretKey { get; set; } = null!;
 
     public DateTime? LastLoginDate { get; set; }
 

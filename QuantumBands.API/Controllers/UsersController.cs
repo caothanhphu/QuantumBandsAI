@@ -8,6 +8,10 @@ using System.Security.Claims;
 using System.Threading.Tasks;
 using System.Threading;
 using QuantumBands.Application.Features.Users.Commands.ChangePassword;
+using QuantumBands.Application.Features.Users.Commands.Setup2FA;
+using QuantumBands.Application.Features.Users.Commands.Enable2FA;
+using QuantumBands.Application.Features.Users.Commands.Verify2FA;
+using QuantumBands.Application.Features.Users.Commands.Disable2FA;
 
 namespace QuantumBands.API.Controllers;
 
@@ -113,6 +117,69 @@ public class UsersController : ControllerBase
         }
 
         _logger.LogInformation("Password changed successfully for current user.");
+        return Ok(new { Message = message });
+    }
+
+    [HttpPost("2fa/setup")]
+    [ProducesResponseType(typeof(Setup2FAResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> Setup2FA(CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("User {UserId} attempting to setup 2FA.", User.FindFirstValue(ClaimTypes.NameIdentifier));
+        var (response, errorMessage) = await _userService.Setup2FAAsync(User, cancellationToken);
+        if (response == null)
+        {
+            return BadRequest(new { Message = errorMessage ?? "Failed to initiate 2FA setup." });
+        }
+        return Ok(response);
+    }
+
+    [HttpPost("2fa/enable")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> Enable2FA([FromBody] Enable2FARequest request, CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("User {UserId} attempting to enable 2FA.", User.FindFirstValue(ClaimTypes.NameIdentifier));
+        var (success, message, recoveryCodes) = await _userService.Enable2FAAsync(User, request, cancellationToken);
+        if (!success)
+        {
+            return BadRequest(new { Message = message });
+        }
+        // Trả về recovery codes nếu có
+        return Ok(new { Message = message, RecoveryCodes = recoveryCodes });
+    }
+
+    [HttpPost("2fa/verify")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> Verify2FACode([FromBody] Verify2FARequest request, CancellationToken cancellationToken)
+    {
+        // Endpoint này dùng để user xác minh mã 2FA cho một hành động nhạy cảm
+        // hoặc là bước thứ hai của login (nếu luồng login được thiết kế như vậy)
+        _logger.LogInformation("User {UserId} attempting to verify 2FA code.", User.FindFirstValue(ClaimTypes.NameIdentifier));
+        var (success, message) = await _userService.Verify2FACodeAsync(User, request, cancellationToken);
+        if (!success)
+        {
+            return BadRequest(new { Message = message });
+        }
+        return Ok(new { Success = true, Message = message });
+    }
+
+    [HttpPost("2fa/disable")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> Disable2FA([FromBody] Disable2FARequest request, CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("User {UserId} attempting to disable 2FA.", User.FindFirstValue(ClaimTypes.NameIdentifier));
+        var (success, message) = await _userService.Disable2FAAsync(User, request, cancellationToken);
+        if (!success)
+        {
+            return BadRequest(new { Message = message });
+        }
         return Ok(new { Message = message });
     }
 }
