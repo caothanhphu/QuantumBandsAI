@@ -15,6 +15,7 @@ public class UnitOfWork : IUnitOfWork
     // public IUserRepository Users { get; private set; }
     public IGenericRepository<User> Users { get; private set; }
     public IGenericRepository<Wallet> Wallets { get; private set; }
+    public IGenericRepository<WalletTransaction> WalletTransactions { get; private set; }
 
     public UnitOfWork(FinixAIDbContext context)
     {
@@ -22,6 +23,7 @@ public class UnitOfWork : IUnitOfWork
         UserRoles = new UserRoleRepository(_context); // Giả sử UserRoleRepository đã có
         Users = new GenericRepository<User>(_context); // Khởi tạo generic repository
         Wallets = new GenericRepository<Wallet>(_context); // Khởi tạo generic repository
+        WalletTransactions = new GenericRepository<WalletTransaction>(_context); // Khởi tạo generic repository
     }
 
     public async Task<int> CompleteAsync(CancellationToken cancellationToken = default)

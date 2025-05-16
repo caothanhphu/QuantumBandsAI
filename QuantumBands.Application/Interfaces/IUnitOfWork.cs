@@ -1,14 +1,14 @@
 ﻿// QuantumBands.Application/Interfaces/IUnitOfWork.cs
-using QuantumBands.Domain.Entities; // Thêm using này
+using QuantumBands.Domain.Entities;
 
 namespace QuantumBands.Application.Interfaces;
 
 public interface IUnitOfWork : IDisposable
 {
     IUserRoleRepository UserRoles { get; }
-    IGenericRepository<User> Users { get; } // Sử dụng generic repository cho User
-    IGenericRepository<Wallet> Wallets { get; } // Sử dụng generic repository cho Wallet
-                                                // Thêm các repository khác ở đây
+    IGenericRepository<User> Users { get; }
+    IGenericRepository<Wallet> Wallets { get; }
+    IGenericRepository<WalletTransaction> WalletTransactions { get; } 
 
-    Task<int> CompleteAsync(CancellationToken cancellationToken = default); // Thêm CancellationToken
+    Task<int> CompleteAsync(CancellationToken cancellationToken = default);
 }

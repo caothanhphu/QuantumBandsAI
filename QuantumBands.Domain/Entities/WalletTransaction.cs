@@ -41,6 +41,11 @@ public partial class WalletTransaction
 
     [Column("RelatedTransactionID")]
     public long? RelatedTransactionId { get; set; }
+    public string? PaymentMethod { get; set; }
+    public string? ExternalTransactionId { get; set; }
+    public string CurrencyCode { get; set; } = "USD"; // Thêm vào, khớp với DEFAULT trong DB
+    public DateTime UpdatedAt { get; set; }         // Thêm vào
+
 
     [InverseProperty("RelatedTransaction")]
     public virtual ICollection<WalletTransaction> InverseRelatedTransaction { get; set; } = new List<WalletTransaction>();
