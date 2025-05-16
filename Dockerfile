@@ -55,6 +55,6 @@ USER app
 
 COPY --from=build /app/publish .
 
-ENV ASPNETCORE_ENVIRONMENT=Development
+ENV ASPNETCORE_ENVIRONMENT=Docker
 EXPOSE 8080
 ENTRYPOINT ["dotnet", "QuantumBands.API.dll"]
