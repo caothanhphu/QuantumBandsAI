@@ -18,6 +18,7 @@ using System.Globalization;
 using System.IdentityModel.Tokens.Jwt;
 using System.Linq.Expressions;
 using System.Security.Claims;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -516,6 +517,8 @@ public class WalletService : IWalletService
             // Tuy nhiên, một số hệ thống có thể chọn "tạm giữ" số tiền này bằng cách trừ nó khỏi "available_balance"
             // nhưng không thay đổi "actual_balance". Để đơn giản, chúng ta giữ "actual_balance".
             BalanceAfter = userWallet.Balance,
+            WithdrawalMethodDetails = request.WithdrawalMethodDetails, // Lưu trực tiếp
+            UserProvidedNotes = request.Notes, // Lưu trực tiếp
             Description = $"Withdrawal request. Details: {request.WithdrawalMethodDetails}. Notes: {request.Notes ?? "N/A"}",
             Status = "PendingAdminApproval",
             PaymentMethod = "Withdrawal", // Hoặc cụ thể hơn như "BankWithdrawal"
@@ -866,5 +869,247 @@ public class WalletService : IWalletService
             _logger.LogError(ex, "Error during internal transfer execution between UserID {SenderId} and UserID {RecipientId}.", senderUserId.Value, request.RecipientUserId);
             return (null, "An error occurred while executing the transfer.");
         }
+    }
+    public async Task<PaginatedList<AdminPendingBankDepositDto>> GetAdminPendingBankDepositsAsync(
+        ClaimsPrincipal adminUser,
+        GetAdminPendingBankDepositsQuery query,
+        CancellationToken cancellationToken = default)
+    {
+        var adminUserId = GetUserIdFromPrincipal(adminUser);
+        if (!adminUserId.HasValue)
+        {
+            _logger.LogWarning("GetAdminPendingBankDepositsAsync: Admin user not authenticated.");
+            // Trả về danh sách rỗng hoặc throw exception tùy theo chính sách của bạn
+            return new PaginatedList<AdminPendingBankDepositDto>(new List<AdminPendingBankDepositDto>(), 0, query.ValidatedPageNumber, query.ValidatedPageSize);
+        }
+        // Thêm kiểm tra vai trò Admin ở đây nếu controller chưa đủ chặt chẽ
+
+        _logger.LogInformation("Admin {AdminUserId} fetching pending bank deposits with query: {@Query}", adminUserId.Value, query);
+
+        var transactionsQuery = _unitOfWork.WalletTransactions.Query()
+                                    .Include(t => t.Wallet) // Cần Wallet để lấy UserId
+                                        .ThenInclude(w => w.User) // Từ Wallet lấy User để có Username, Email
+                                    .Include(t => t.TransactionType) // Để lấy TransactionTypeName (dù có thể không cần nếu chỉ lọc theo status code)
+                                    .Where(t => t.PaymentMethod == "BankTransfer" &&
+                                                (t.Status == "PendingBankTransfer" || t.Status == "PendingAdminConfirmation")); // Các trạng thái chờ
+
+        // Áp dụng Filter
+        if (query.UserId.HasValue)
+        {
+            transactionsQuery = transactionsQuery.Where(t => t.Wallet.UserId == query.UserId.Value);
+        }
+        if (!string.IsNullOrWhiteSpace(query.UsernameOrEmail))
+        {
+            string searchTerm = query.UsernameOrEmail.ToLower();
+            transactionsQuery = transactionsQuery.Where(t => t.Wallet.User.Username.ToLower().Contains(searchTerm) ||
+                                                           t.Wallet.User.Email.ToLower().Contains(searchTerm));
+        }
+        if (!string.IsNullOrWhiteSpace(query.ReferenceCode))
+        {
+            transactionsQuery = transactionsQuery.Where(t => t.ReferenceId == query.ReferenceCode);
+        }
+        if (query.MinAmountUSD.HasValue)
+        {
+            transactionsQuery = transactionsQuery.Where(t => t.Amount >= query.MinAmountUSD.Value);
+        }
+        if (query.MaxAmountUSD.HasValue)
+        {
+            transactionsQuery = transactionsQuery.Where(t => t.Amount <= query.MaxAmountUSD.Value);
+        }
+        if (query.DateFrom.HasValue)
+        {
+            transactionsQuery = transactionsQuery.Where(t => t.TransactionDate >= query.DateFrom.Value.Date); // Bắt đầu từ 00:00:00 của DateFrom
+        }
+        if (query.DateTo.HasValue)
+        {
+            transactionsQuery = transactionsQuery.Where(t => t.TransactionDate < query.DateTo.Value.Date.AddDays(1)); // Đến cuối ngày DateTo
+        }
+
+        // Áp dụng Sắp xếp
+        bool isDescending = query.SortOrder?.ToLower() == "desc";
+        Expression<Func<WalletTransaction, object>> orderByExpression;
+
+        switch (query.SortBy?.ToLowerInvariant())
+        {
+            case "amount":
+                orderByExpression = t => t.Amount;
+                break;
+            case "userid":
+                orderByExpression = t => t.Wallet.UserId;
+                break;
+            case "referenceid":
+                orderByExpression = t => t.ReferenceId!; // Thêm ! nếu bạn chắc chắn nó không null khi sort
+                break;
+            case "transactiondate":
+            default:
+                orderByExpression = t => t.TransactionDate;
+                break;
+        }
+        transactionsQuery = isDescending
+            ? transactionsQuery.OrderByDescending(orderByExpression)
+            : transactionsQuery.OrderBy(orderByExpression);
+
+        var paginatedTransactions = await PaginatedList<WalletTransaction>.CreateAsync(
+            transactionsQuery,
+            query.ValidatedPageNumber,
+            query.ValidatedPageSize,
+            cancellationToken);
+
+        var dtos = paginatedTransactions.Items.Select(t =>
+        {
+            // Trích xuất AmountVND và ExchangeRate từ Description
+            decimal? amountVND = null;
+            decimal? exchangeRate = null;
+            if (!string.IsNullOrEmpty(t.Description))
+            {
+                var vndMatch = Regex.Match(t.Description, @"VND equivalent: ([\d,]+) VND");
+                if (vndMatch.Success && decimal.TryParse(vndMatch.Groups[1].Value.Replace(",", ""), NumberStyles.Any, CultureInfo.InvariantCulture, out decimal vndVal))
+                {
+                    amountVND = vndVal;
+                }
+                var rateMatch = Regex.Match(t.Description, @"Rate: ([\d.,]+)");
+                if (rateMatch.Success && decimal.TryParse(rateMatch.Groups[1].Value.Replace(",", ""), NumberStyles.Any, CultureInfo.InvariantCulture, out decimal rateVal))
+                {
+                    exchangeRate = rateVal;
+                }
+            }
+
+            return new AdminPendingBankDepositDto
+            {
+                TransactionId = t.TransactionId,
+                UserId = t.Wallet.UserId,
+                Username = t.Wallet.User.Username,
+                UserEmail = t.Wallet.User.Email,
+                AmountUSD = t.Amount,
+                CurrencyCode = t.CurrencyCode,
+                AmountVND = amountVND,
+                ExchangeRate = exchangeRate,
+                ReferenceCode = t.ReferenceId,
+                PaymentMethod = t.PaymentMethod ?? "N/A",
+                Status = t.Status,
+                TransactionDate = t.TransactionDate,
+                UpdatedAt = t.UpdatedAt,
+                Description = t.Description
+            };
+        }).ToList();
+
+        return new PaginatedList<AdminPendingBankDepositDto>(
+            dtos,
+            paginatedTransactions.TotalCount,
+            paginatedTransactions.PageNumber,
+            paginatedTransactions.PageSize);
+    }
+
+    public async Task<PaginatedList<WithdrawalRequestAdminViewDto>> GetAdminPendingWithdrawalsAsync(
+    ClaimsPrincipal adminUser,
+    GetAdminPendingWithdrawalsQuery query,
+    CancellationToken cancellationToken = default)
+    {
+        var adminUserId = GetUserIdFromPrincipal(adminUser);
+        if (!adminUserId.HasValue)
+        {
+            _logger.LogWarning("GetAdminPendingWithdrawalsAsync: Admin user not authenticated.");
+            return new PaginatedList<WithdrawalRequestAdminViewDto>(new List<WithdrawalRequestAdminViewDto>(), 0, query.ValidatedPageNumber, query.ValidatedPageSize);
+        }
+        // Thêm kiểm tra vai trò Admin ở đây nếu controller chưa đủ chặt chẽ
+
+        _logger.LogInformation("Admin {AdminUserId} fetching pending withdrawal requests with query: {@Query}", adminUserId.Value, query);
+
+        // Lấy TransactionType "WithdrawalPending" để lọc chính xác
+        var withdrawalPendingType = await _transactionTypeRepository.GetByNameAsync("WithdrawalPending", cancellationToken);
+        if (withdrawalPendingType == null)
+        {
+            _logger.LogError("TransactionType 'WithdrawalPending' not found. Cannot fetch pending withdrawals.");
+            return new PaginatedList<WithdrawalRequestAdminViewDto>(new List<WithdrawalRequestAdminViewDto>(), 0, query.ValidatedPageNumber, query.ValidatedPageSize);
+        }
+
+        var transactionsQuery = _unitOfWork.WalletTransactions.Query()
+                                    .Include(t => t.Wallet)
+                                        .ThenInclude(w => w.User)
+                                    .Where(t => t.TransactionTypeId == withdrawalPendingType.TransactionTypeId &&
+                                                t.Status == "PendingAdminApproval" &&
+                                                t.PaymentMethod == "Withdrawal"); // Hoặc tên PaymentMethod bạn dùng
+
+        // Áp dụng Filter
+        if (query.UserId.HasValue)
+        {
+            transactionsQuery = transactionsQuery.Where(t => t.Wallet.UserId == query.UserId.Value);
+        }
+        if (!string.IsNullOrWhiteSpace(query.UsernameOrEmail))
+        {
+            string searchTerm = query.UsernameOrEmail.ToLower();
+            transactionsQuery = transactionsQuery.Where(t => t.Wallet.User.Username.ToLower().Contains(searchTerm) ||
+                                                           t.Wallet.User.Email.ToLower().Contains(searchTerm));
+        }
+        if (query.MinAmount.HasValue)
+        {
+            transactionsQuery = transactionsQuery.Where(t => t.Amount >= query.MinAmount.Value);
+        }
+        if (query.MaxAmount.HasValue)
+        {
+            transactionsQuery = transactionsQuery.Where(t => t.Amount <= query.MaxAmount.Value);
+        }
+        if (query.DateFrom.HasValue)
+        {
+            transactionsQuery = transactionsQuery.Where(t => t.TransactionDate >= query.DateFrom.Value.Date);
+        }
+        if (query.DateTo.HasValue)
+        {
+            transactionsQuery = transactionsQuery.Where(t => t.TransactionDate < query.DateTo.Value.Date.AddDays(1));
+        }
+
+        // Áp dụng Sắp xếp
+        bool isDescending = query.SortOrder?.ToLower() == "desc";
+        Expression<Func<WalletTransaction, object>> orderByExpression;
+
+        switch (query.SortBy?.ToLowerInvariant())
+        {
+            case "amount":
+                orderByExpression = t => t.Amount;
+                break;
+            case "userid":
+                orderByExpression = t => t.Wallet.UserId;
+                break;
+            case "username":
+                orderByExpression = t => t.Wallet.User.Username;
+                break;
+            case "useremail":
+                orderByExpression = t => t.Wallet.User.Email;
+                break;
+            case "requestedat": // Mặc định
+            default:
+                orderByExpression = t => t.TransactionDate;
+                break;
+        }
+        transactionsQuery = isDescending
+            ? transactionsQuery.OrderByDescending(orderByExpression)
+            : transactionsQuery.OrderBy(orderByExpression);
+
+        var paginatedTransactions = await PaginatedList<WalletTransaction>.CreateAsync(
+            transactionsQuery,
+            query.ValidatedPageNumber,
+            query.ValidatedPageSize,
+            cancellationToken);
+
+        var dtos = paginatedTransactions.Items.Select(t => new WithdrawalRequestAdminViewDto
+        {
+            TransactionId = t.TransactionId,
+            UserId = t.Wallet.UserId,
+            Username = t.Wallet.User.Username,
+            UserEmail = t.Wallet.User.Email,
+            Amount = t.Amount,
+            CurrencyCode = t.CurrencyCode,
+            Status = t.Status,
+            WithdrawalMethodDetails = t.WithdrawalMethodDetails, // Từ cột mới trong DB
+            UserNotes = t.UserProvidedNotes, // Từ cột mới trong DB
+            RequestedAt = t.TransactionDate,
+            AdminNotes = null // Sẽ được điền khi admin xử lý
+        }).ToList();
+
+        return new PaginatedList<WithdrawalRequestAdminViewDto>(
+            dtos,
+            paginatedTransactions.TotalCount,
+            paginatedTransactions.PageNumber,
+            paginatedTransactions.PageSize);
     }
 }

@@ -46,6 +46,8 @@ public partial class WalletTransaction
     public string CurrencyCode { get; set; } = "USD"; // Thêm vào, khớp với DEFAULT trong DB
     public DateTime UpdatedAt { get; set; }         // Thêm vào
 
+    public string? WithdrawalMethodDetails { get; set; }
+    public string? UserProvidedNotes { get; set; }
 
     [InverseProperty("RelatedTransaction")]
     public virtual ICollection<WalletTransaction> InverseRelatedTransaction { get; set; } = new List<WalletTransaction>();

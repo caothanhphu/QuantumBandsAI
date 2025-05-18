@@ -16,6 +16,9 @@ public class TransactionTypeRepository : GenericRepository<TransactionType>, ITr
 
     public async Task<TransactionType?> GetByNameAsync(string typeName, CancellationToken cancellationToken = default)
     {
-        return await _dbSet.FirstOrDefaultAsync(tt => tt.TypeName.Equals(typeName, StringComparison.OrdinalIgnoreCase), cancellationToken);
+        return await _dbSet
+            .FirstOrDefaultAsync(
+                tt => tt.TypeName.ToLower() == typeName.ToLower(),
+                cancellationToken);
     }
 }

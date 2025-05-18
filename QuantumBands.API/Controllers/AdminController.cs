@@ -1,10 +1,12 @@
 ﻿// QuantumBands.API/Controllers/AdminController.cs
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using QuantumBands.Application.Common.Models;
 using QuantumBands.Application.Features.Wallets.Commands.AdminActions;
 using QuantumBands.Application.Features.Wallets.Commands.AdminDeposit;
 using QuantumBands.Application.Features.Wallets.Commands.BankDeposit;
 using QuantumBands.Application.Features.Wallets.Dtos;
+using QuantumBands.Application.Features.Wallets.Queries.GetTransactions;
 using QuantumBands.Application.Interfaces;
 using System.Security.Claims;
 using System.Threading;
@@ -155,4 +157,35 @@ public class AdminController : ControllerBase
         }
         return Ok(transactionDto);
     }
+
+    [HttpGet("wallets/deposits/bank/pending-confirmation")]
+    [ProducesResponseType(typeof(PaginatedList<AdminPendingBankDepositDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)] // Nếu query params không hợp lệ
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetPendingBankDeposits([FromQuery] GetAdminPendingBankDepositsQuery query, CancellationToken cancellationToken)
+    {
+        var adminUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        _logger.LogInformation("Admin {AdminId} requesting list of pending bank deposits with query: {@Query}", adminUserId, query);
+
+        // (Tùy chọn) Validate query DTO ở đây nếu không dùng auto-validation của FluentValidation cho [FromQuery]
+        // Hoặc tạo một validator riêng cho GetAdminPendingBankDepositsQuery và đăng ký nó
+
+        var result = await _walletService.GetAdminPendingBankDepositsAsync(User, query, cancellationToken);
+        return Ok(result);
+    }
+    [HttpGet("wallets/withdrawals/pending-approval")]
+    [ProducesResponseType(typeof(PaginatedList<WithdrawalRequestAdminViewDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetPendingWithdrawals([FromQuery] GetAdminPendingWithdrawalsQuery query, CancellationToken cancellationToken)
+    {
+        var adminUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        _logger.LogInformation("Admin {AdminId} requesting list of pending withdrawal requests with query: {@Query}", adminUserId, query);
+
+        var result = await _walletService.GetAdminPendingWithdrawalsAsync(User, query, cancellationToken);
+        return Ok(result);
+    }
+
 }
