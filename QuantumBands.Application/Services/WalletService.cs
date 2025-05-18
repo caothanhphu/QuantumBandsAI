@@ -1,22 +1,25 @@
 ﻿// QuantumBands.Application/Services/WalletService.cs
-using QuantumBands.Application.Features.Wallets.Dtos;
-using QuantumBands.Application.Interfaces;
-using QuantumBands.Domain.Entities; // For Wallet entity
-using Microsoft.Extensions.Logging;
-using System.Security.Claims;
-using System.Threading.Tasks;
-using System.Threading;
-using System;
 using Microsoft.EntityFrameworkCore;
-using System.IdentityModel.Tokens.Jwt;
 using Microsoft.Extensions.Configuration; // For FirstOrDefaultAsync
-using System.Linq.Expressions;
+using Microsoft.Extensions.Logging;
 using QuantumBands.Application.Common.Models;
-using QuantumBands.Application.Features.Wallets.Queries.GetTransactions; // For Expression
+using QuantumBands.Application.Features.Wallets.Commands.AdminActions;
 using QuantumBands.Application.Features.Wallets.Commands.AdminDeposit;
 using QuantumBands.Application.Features.Wallets.Commands.BankDeposit;
-using System.Globalization;
+using QuantumBands.Application.Features.Wallets.Commands.CreateWithdrawal;
+using QuantumBands.Application.Features.Wallets.Commands.InternalTransfer;
+using QuantumBands.Application.Features.Wallets.Dtos;
+using QuantumBands.Application.Features.Wallets.Queries.GetTransactions; // For Expression
+using QuantumBands.Application.Interfaces;
 using QuantumBands.Application.Interfaces.Repositories;
+using QuantumBands.Domain.Entities; // For Wallet entity
+using System;
+using System.Globalization;
+using System.IdentityModel.Tokens.Jwt;
+using System.Linq.Expressions;
+using System.Security.Claims;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace QuantumBands.Application.Services;
 
@@ -458,5 +461,410 @@ public class WalletService : IWalletService
             Status = transaction.Status,
             TransactionDate = transaction.TransactionDate
         }, null);
+    }
+    public async Task<(WithdrawalRequestDto? Response, string? ErrorMessage)> CreateWithdrawalRequestAsync(ClaimsPrincipal currentUser, CreateWithdrawalRequest request, CancellationToken cancellationToken = default)
+    {
+        var userId = GetUserIdFromPrincipal(currentUser);
+        if (!userId.HasValue)
+        {
+            _logger.LogWarning("CreateWithdrawalRequestAsync: User is not authenticated or UserId claim is missing.");
+            return (null, "User not authenticated or identity is invalid.");
+        }
+
+        _logger.LogInformation("User {UserId} initiating withdrawal request for Amount: {Amount} {Currency}", userId.Value, request.Amount, request.CurrencyCode);
+
+        var userWallet = await _unitOfWork.Wallets.Query().FirstOrDefaultAsync(w => w.UserId == userId.Value, cancellationToken);
+        if (userWallet == null)
+        {
+            _logger.LogWarning("CreateWithdrawalRequestAsync: Wallet not found for UserID {UserId}.", userId.Value);
+            return (null, "User wallet not found.");
+        }
+
+        // 1. Kiểm tra số dư ví
+        if (userWallet.Balance < request.Amount)
+        {
+            _logger.LogWarning("CreateWithdrawalRequestAsync: Insufficient balance for UserID {UserId}. Requested: {RequestedAmount}, Available: {AvailableBalance}",
+                               userId.Value, request.Amount, userWallet.Balance);
+            return (null, "Insufficient wallet balance to perform this withdrawal.");
+        }
+
+        // 2. Lấy TransactionType cho "WithdrawalPending" (hoặc tên tương tự)
+        // Đảm bảo TransactionType này có IsCredit = false (vì là trừ tiền khỏi ví)
+        var withdrawalPendingType = await _transactionTypeRepository.GetByNameAsync("WithdrawalPending", cancellationToken); // Hoặc "WithdrawalRequested"
+        if (withdrawalPendingType == null)
+        {
+            _logger.LogError("TransactionType 'WithdrawalPending' not found in the database.");
+            return (null, "System error: Withdrawal type configuration missing.");
+        }
+        if (withdrawalPendingType.IsCredit) // Double check
+        {
+            _logger.LogError("TransactionType 'WithdrawalPending' is incorrectly configured as a credit type.");
+            return (null, "System error: Withdrawal type configuration error.");
+        }
+
+
+        // 3. Tạo bản ghi WalletTransaction
+        var transaction = new WalletTransaction
+        {
+            WalletId = userWallet.WalletId,
+            TransactionTypeId = withdrawalPendingType.TransactionTypeId,
+            Amount = request.Amount, // Số tiền yêu cầu rút
+            CurrencyCode = request.CurrencyCode.ToUpper(),
+            BalanceBefore = userWallet.Balance,
+            // BalanceAfter sẽ được cập nhật khi Admin duyệt. Hiện tại, nó vẫn là balance cũ
+            // vì tiền chưa thực sự bị trừ khỏi ví cho đến khi admin xác nhận.
+            // Tuy nhiên, một số hệ thống có thể chọn "tạm giữ" số tiền này bằng cách trừ nó khỏi "available_balance"
+            // nhưng không thay đổi "actual_balance". Để đơn giản, chúng ta giữ "actual_balance".
+            BalanceAfter = userWallet.Balance,
+            Description = $"Withdrawal request. Details: {request.WithdrawalMethodDetails}. Notes: {request.Notes ?? "N/A"}",
+            Status = "PendingAdminApproval",
+            PaymentMethod = "Withdrawal", // Hoặc cụ thể hơn như "BankWithdrawal"
+            TransactionDate = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+            // ReferenceID có thể được tạo ở đây hoặc để trống cho Admin điền khi xử lý
+        };
+
+        await _unitOfWork.WalletTransactions.AddAsync(transaction);
+        await _unitOfWork.CompleteAsync(cancellationToken);
+
+        _logger.LogInformation("Withdrawal request created successfully for UserID {UserId}. TransactionID: {TransactionId}, Amount: {Amount}",
+                               userId.Value, transaction.TransactionId, request.Amount);
+
+        var responseDto = new WithdrawalRequestDto
+        {
+            WithdrawalRequestId = transaction.TransactionId,
+            UserId = userId.Value,
+            Amount = transaction.Amount,
+            CurrencyCode = transaction.CurrencyCode,
+            Status = transaction.Status,
+            WithdrawalMethodDetails = request.WithdrawalMethodDetails,
+            Notes = request.Notes,
+            RequestedAt = transaction.TransactionDate
+        };
+
+        return (responseDto, null);
+    }
+    public async Task<(WalletTransactionDto? Transaction, string? ErrorMessage)> ApproveWithdrawalAsync(ClaimsPrincipal adminUser, ApproveWithdrawalRequest request, CancellationToken cancellationToken = default)
+    {
+        var adminUserId = GetUserIdFromPrincipal(adminUser);
+        if (!adminUserId.HasValue) return (null, "Admin user not authenticated.");
+        // Thêm kiểm tra vai trò Admin ở đây hoặc để controller xử lý
+
+        _logger.LogInformation("Admin {AdminUserId} attempting to approve withdrawal TransactionID: {TransactionId}", adminUserId.Value, request.TransactionId);
+
+        var transaction = await _unitOfWork.WalletTransactions.Query()
+                                .Include(t => t.Wallet) // Cần Wallet để cập nhật số dư
+                                .Include(t => t.TransactionType) // Để lấy tên cho DTO
+                                .FirstOrDefaultAsync(t => t.TransactionId == request.TransactionId, cancellationToken);
+
+        if (transaction == null) return (null, "Withdrawal transaction not found.");
+        if (transaction.Status != "PendingAdminApproval")
+        {
+            return (null, $"Transaction is not pending approval. Current status: {transaction.Status}");
+        }
+        if (transaction.Wallet == null)
+        {
+            _logger.LogError("Wallet not found for TransactionID {TransactionId} during approval.", request.TransactionId);
+            return (null, "Associated wallet not found for the transaction.");
+        }
+        // Đảm bảo TransactionType "WithdrawalPending" đã được lấy đúng khi tạo request
+        if (transaction.TransactionType?.IsCredit == true) // IsCredit=0 (false) cho withdrawal
+        {
+            _logger.LogError("TransactionType for withdrawal (ID: {TransactionTypeId}) is incorrectly configured as a credit type.", transaction.TransactionTypeId);
+            return (null, "System error: Withdrawal type configuration error.");
+        }
+
+
+        // Kiểm tra lại số dư trước khi trừ (mặc dù đã kiểm tra khi user tạo request)
+        if (transaction.Wallet.Balance < transaction.Amount)
+        {
+            _logger.LogWarning("Insufficient balance for UserID {UserId} during withdrawal approval. Requested: {RequestedAmount}, Available: {AvailableBalance}. TransactionID: {TransactionId}",
+                               transaction.Wallet.UserId, transaction.Amount, transaction.Wallet.Balance, transaction.TransactionId);
+            // Cân nhắc: Có nên hủy giao dịch ở đây không nếu số dư không đủ?
+            // Hoặc chỉ báo lỗi cho Admin. Hiện tại báo lỗi.
+            return (null, "Insufficient wallet balance at the time of approval. User's balance might have changed.");
+        }
+
+        var withdrawalCompletedType = await _transactionTypeRepository.GetByNameAsync("WithdrawalCompleted", cancellationToken);
+        if (withdrawalCompletedType == null)
+        {
+            _logger.LogError("TransactionType 'WithdrawalCompleted' not found.");
+            return (null, "System error: Withdrawal type configuration missing.");
+        }
+
+        // Trừ tiền khỏi ví
+        transaction.Wallet.Balance -= transaction.Amount;
+        transaction.Wallet.UpdatedAt = DateTime.UtcNow;
+
+        // Cập nhật giao dịch
+        transaction.Status = "Completed";
+        transaction.TransactionTypeId = withdrawalCompletedType.TransactionTypeId; // Cập nhật loại giao dịch
+        transaction.BalanceAfter = transaction.Wallet.Balance; // Số dư mới sau khi trừ
+        transaction.Description = $"{transaction.Description?.TrimEnd()} | Approved by Admin {adminUserId.Value}. Notes: {request.AdminNotes ?? "N/A"}";
+        if (!string.IsNullOrEmpty(request.ExternalTransactionReference))
+        {
+            transaction.ExternalTransactionId = request.ExternalTransactionReference;
+            transaction.Description += $" | Ext. Ref: {request.ExternalTransactionReference}";
+        }
+        transaction.UpdatedAt = DateTime.UtcNow;
+
+        _unitOfWork.Wallets.Update(transaction.Wallet);
+        _unitOfWork.WalletTransactions.Update(transaction);
+        await _unitOfWork.CompleteAsync(cancellationToken);
+
+        _logger.LogInformation("Withdrawal TransactionID {TransactionId} approved by Admin {AdminUserId}. UserID {UserId} wallet updated. New balance: {NewBalance}",
+                               request.TransactionId, adminUserId.Value, transaction.Wallet.UserId, transaction.Wallet.Balance);
+
+        return (new WalletTransactionDto
+        {
+            TransactionId = transaction.TransactionId,
+            TransactionTypeName = withdrawalCompletedType.TypeName,
+            Amount = transaction.Amount,
+            CurrencyCode = transaction.CurrencyCode,
+            BalanceAfter = transaction.BalanceAfter,
+            ReferenceId = transaction.ReferenceId,
+            PaymentMethod = transaction.PaymentMethod,
+            ExternalTransactionId = transaction.ExternalTransactionId,
+            Description = transaction.Description,
+            Status = transaction.Status,
+            TransactionDate = transaction.TransactionDate, // Ngày tạo yêu cầu ban đầu
+            UpdatedAt = transaction.UpdatedAt
+        }, null);
+    }
+
+    public async Task<(WalletTransactionDto? Transaction, string? ErrorMessage)> RejectWithdrawalAsync(ClaimsPrincipal adminUser, RejectWithdrawalRequest request, CancellationToken cancellationToken = default)
+    {
+        var adminUserId = GetUserIdFromPrincipal(adminUser);
+        if (!adminUserId.HasValue) return (null, "Admin user not authenticated.");
+
+        _logger.LogInformation("Admin {AdminUserId} attempting to reject withdrawal TransactionID: {TransactionId}", adminUserId.Value, request.TransactionId);
+
+        var transaction = await _unitOfWork.WalletTransactions.Query()
+                                .Include(t => t.Wallet) // Wallet không thay đổi balance nhưng có thể cần cho DTO
+                                .Include(t => t.TransactionType)
+                                .FirstOrDefaultAsync(t => t.TransactionId == request.TransactionId, cancellationToken);
+
+        if (transaction == null) return (null, "Withdrawal transaction not found.");
+        if (transaction.Status != "PendingAdminApproval")
+        {
+            return (null, $"Transaction cannot be rejected. Current status: {transaction.Status}");
+        }
+
+        var withdrawalRejectedType = await _transactionTypeRepository.GetByNameAsync("WithdrawalRejected", cancellationToken);
+        if (withdrawalRejectedType == null)
+        {
+            _logger.LogError("TransactionType 'WithdrawalRejected' not found.");
+            return (null, "System error: Withdrawal type configuration missing.");
+        }
+
+        transaction.Status = "Rejected";
+        transaction.TransactionTypeId = withdrawalRejectedType.TransactionTypeId;
+        transaction.Description = $"{transaction.Description?.TrimEnd()} | Rejected by Admin {adminUserId.Value}. Reason: {request.AdminNotes}";
+        // BalanceAfter và Wallet.Balance không thay đổi
+        transaction.UpdatedAt = DateTime.UtcNow;
+
+        _unitOfWork.WalletTransactions.Update(transaction);
+        await _unitOfWork.CompleteAsync(cancellationToken);
+
+        _logger.LogInformation("Withdrawal TransactionID {TransactionId} rejected by Admin {AdminUserId}.", request.TransactionId, adminUserId.Value);
+
+        return (new WalletTransactionDto
+        {
+            TransactionId = transaction.TransactionId,
+            TransactionTypeName = withdrawalRejectedType.TypeName,
+            Amount = transaction.Amount,
+            CurrencyCode = transaction.CurrencyCode,
+            BalanceAfter = transaction.BalanceAfter, // Sẽ giống BalanceBefore của giao dịch này
+            ReferenceId = transaction.ReferenceId,
+            PaymentMethod = transaction.PaymentMethod,
+            ExternalTransactionId = transaction.ExternalTransactionId,
+            Description = transaction.Description,
+            Status = transaction.Status,
+            TransactionDate = transaction.TransactionDate,
+            UpdatedAt = transaction.UpdatedAt
+        }, null);
+    }
+    public async Task<(RecipientInfoResponse? RecipientInfo, string? ErrorMessage)> VerifyRecipientForTransferAsync(VerifyRecipientRequest request, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Verifying recipient with email: {RecipientEmail}", request.RecipientEmail);
+
+        var recipientUser = await _unitOfWork.Users.Query()
+                                    .AsNoTracking() // Không cần theo dõi thay đổi cho truy vấn này
+                                    .FirstOrDefaultAsync(u => u.Email == request.RecipientEmail && u.IsActive, cancellationToken);
+
+        if (recipientUser == null)
+        {
+            _logger.LogWarning("Recipient email {RecipientEmail} not found or user is inactive.", request.RecipientEmail);
+            return (null, "Recipient email not found or user is inactive.");
+        }
+
+        // (Tùy chọn) Kiểm tra xem email người nhận đã được xác thực chưa nếu đó là yêu cầu
+        // if (!recipientUser.IsEmailVerified)
+        // {
+        //     _logger.LogWarning("Recipient email {RecipientEmail} (UserID: {UserId}) is not verified.", request.RecipientEmail, recipientUser.UserId);
+        //     return (null, "Recipient email is not verified.");
+        // }
+
+        var response = new RecipientInfoResponse
+        {
+            RecipientUserId = recipientUser.UserId,
+            RecipientUsername = recipientUser.Username,
+            RecipientFullName = recipientUser.FullName
+        };
+
+        _logger.LogInformation("Recipient verified: UserID {UserId}, Username {Username}", response.RecipientUserId, response.RecipientUsername);
+        return (response, null);
+    }
+
+    public async Task<(WalletTransactionDto? SenderTransaction, string? ErrorMessage)> ExecuteInternalTransferAsync(ClaimsPrincipal senderUserPrincipal, ExecuteInternalTransferRequest request, CancellationToken cancellationToken = default)
+    {
+        var senderUserId = GetUserIdFromPrincipal(senderUserPrincipal);
+        if (!senderUserId.HasValue)
+        {
+            return (null, "Sender not authenticated or identity is invalid.");
+        }
+
+        _logger.LogInformation("UserID {SenderUserId} attempting internal transfer to UserID {RecipientUserId} for Amount {Amount} {Currency}",
+                               senderUserId.Value, request.RecipientUserId, request.Amount, request.CurrencyCode);
+
+        if (senderUserId.Value == request.RecipientUserId)
+        {
+            _logger.LogWarning("UserID {SenderUserId} attempted to transfer funds to self.", senderUserId.Value);
+            return (null, "Cannot transfer funds to yourself.");
+        }
+
+        // Lấy thông tin ví và user của người gửi và người nhận trong một transaction
+        // Điều này quan trọng để đảm bảo tính nhất quán và tránh race condition.
+        // Tuy nhiên, UnitOfWork sẽ quản lý transaction khi gọi CompleteAsync.
+        // Chúng ta cần nạp cả User và Wallet để có đủ thông tin.
+
+        var sender = await _unitOfWork.Users.Query()
+                            .Include(u => u.Wallet)
+                            .FirstOrDefaultAsync(u => u.UserId == senderUserId.Value, cancellationToken);
+
+        var recipient = await _unitOfWork.Users.Query()
+                                .Include(u => u.Wallet)
+                                .FirstOrDefaultAsync(u => u.UserId == request.RecipientUserId && u.IsActive, cancellationToken); // Chỉ chuyển cho user active
+
+        if (sender == null || sender.Wallet == null)
+        {
+            _logger.LogError("Sender (UserID: {SenderUserId}) or their wallet not found.", senderUserId.Value);
+            return (null, "Sender's wallet information is missing or invalid.");
+        }
+        if (recipient == null || recipient.Wallet == null)
+        {
+            _logger.LogWarning("Recipient (UserID: {RecipientUserId}) or their wallet not found, or recipient is inactive.", request.RecipientUserId);
+            return (null, "Recipient user or their wallet not found, or recipient is inactive.");
+        }
+
+        // Kiểm tra số dư người gửi
+        if (sender.Wallet.Balance < request.Amount)
+        {
+            _logger.LogWarning("Insufficient balance for UserID {SenderUserId}. Requested: {RequestedAmount}, Available: {AvailableBalance}",
+                               senderUserId.Value, request.Amount, sender.Wallet.Balance);
+            return (null, "Insufficient wallet balance.");
+        }
+
+        // Lấy TransactionTypes
+        var transferSentType = await _transactionTypeRepository.GetByNameAsync("InternalTransferSent", cancellationToken);
+        var transferReceivedType = await _transactionTypeRepository.GetByNameAsync("InternalTransferReceived", cancellationToken);
+
+        if (transferSentType == null || transferReceivedType == null)
+        {
+            _logger.LogError("Required TransactionTypes 'InternalTransferSent' or 'InternalTransferReceived' not found.");
+            return (null, "System error: Internal transfer type configuration missing.");
+        }
+        if (transferSentType.IsCredit || !transferReceivedType.IsCredit)
+        {
+            _logger.LogError("TransactionTypes 'InternalTransferSent' (IsCredit=false expected) or 'InternalTransferReceived' (IsCredit=true expected) are misconfigured.");
+            return (null, "System error: Internal transfer type configuration error.");
+        }
+
+
+        var now = DateTime.UtcNow;
+        string commonReferenceId = $"INT_TR_{Guid.NewGuid().ToString("N").Substring(0, 12).ToUpper()}"; // Tạo một ID chung cho cặp giao dịch
+
+        // Tạo giao dịch ghi nợ cho người gửi
+        var senderTransaction = new WalletTransaction
+        {
+            WalletId = sender.Wallet.WalletId,
+            TransactionTypeId = transferSentType.TransactionTypeId,
+            Amount = request.Amount,
+            CurrencyCode = request.CurrencyCode.ToUpper(),
+            BalanceBefore = sender.Wallet.Balance,
+            BalanceAfter = sender.Wallet.Balance - request.Amount,
+            Description = $"Sent to {recipient.Email} (User ID: {recipient.UserId}). Notes: {request.Description ?? "N/A"}",
+            ReferenceId = commonReferenceId, // Hoặc ID của recipient transaction
+            Status = "Completed",
+            PaymentMethod = "InternalTransfer",
+            TransactionDate = now,
+            UpdatedAt = now
+        };
+
+        // Tạo giao dịch ghi có cho người nhận
+        var recipientTransaction = new WalletTransaction
+        {
+            WalletId = recipient.Wallet.WalletId,
+            TransactionTypeId = transferReceivedType.TransactionTypeId,
+            Amount = request.Amount,
+            CurrencyCode = request.CurrencyCode.ToUpper(),
+            BalanceBefore = recipient.Wallet.Balance,
+            BalanceAfter = recipient.Wallet.Balance + request.Amount,
+            Description = $"Received from {sender.Email} (User ID: {sender.UserId}). Notes: {request.Description ?? "N/A"}",
+            ReferenceId = commonReferenceId, // Hoặc ID của sender transaction
+            Status = "Completed",
+            PaymentMethod = "InternalTransfer",
+            TransactionDate = now,
+            UpdatedAt = now
+        };
+
+        // Cập nhật số dư ví
+        sender.Wallet.Balance -= request.Amount;
+        sender.Wallet.UpdatedAt = now;
+
+        recipient.Wallet.Balance += request.Amount;
+        recipient.Wallet.UpdatedAt = now;
+
+        // Thêm vào Unit of Work
+        await _unitOfWork.WalletTransactions.AddAsync(senderTransaction);
+        await _unitOfWork.WalletTransactions.AddAsync(recipientTransaction);
+        _unitOfWork.Wallets.Update(sender.Wallet);
+        _unitOfWork.Wallets.Update(recipient.Wallet);
+
+        try
+        {
+            await _unitOfWork.CompleteAsync(cancellationToken); // Lưu tất cả trong một transaction
+            _logger.LogInformation("Internal transfer successful: {Amount} {Currency} from UserID {SenderId} to UserID {RecipientId}. Sender TxID: {SenderTxId}, Recipient TxID: {RecipientTxId}",
+                                   request.Amount, request.CurrencyCode, senderUserId.Value, request.RecipientUserId, senderTransaction.TransactionId, recipientTransaction.TransactionId);
+
+            // Liên kết hai giao dịch (tùy chọn)
+            senderTransaction.RelatedTransactionId = recipientTransaction.TransactionId;
+            recipientTransaction.RelatedTransactionId = senderTransaction.TransactionId;
+            _unitOfWork.WalletTransactions.Update(senderTransaction);
+            _unitOfWork.WalletTransactions.Update(recipientTransaction);
+            await _unitOfWork.CompleteAsync(cancellationToken);
+
+
+            var senderTransactionDto = new WalletTransactionDto
+            {
+                TransactionId = senderTransaction.TransactionId,
+                TransactionTypeName = transferSentType.TypeName,
+                Amount = senderTransaction.Amount,
+                CurrencyCode = senderTransaction.CurrencyCode,
+                BalanceAfter = senderTransaction.BalanceAfter,
+                ReferenceId = $"TRANSFER_TO_USER_{recipient.UserId}", // Điều chỉnh ReferenceID cho response
+                PaymentMethod = senderTransaction.PaymentMethod,
+                Description = senderTransaction.Description,
+                Status = senderTransaction.Status,
+                TransactionDate = senderTransaction.TransactionDate,
+                UpdatedAt = senderTransaction.UpdatedAt
+            };
+            return (senderTransactionDto, null);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during internal transfer execution between UserID {SenderId} and UserID {RecipientId}.", senderUserId.Value, request.RecipientUserId);
+            return (null, "An error occurred while executing the transfer.");
+        }
     }
 }

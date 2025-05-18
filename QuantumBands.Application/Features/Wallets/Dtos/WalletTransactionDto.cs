@@ -14,4 +14,5 @@ public class WalletTransactionDto
     public string? Description { get; set; }
     public required string Status { get; set; }
     public DateTime TransactionDate { get; set; }
+    public DateTime UpdatedAt { get; set; }
 }

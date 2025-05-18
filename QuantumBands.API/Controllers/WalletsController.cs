@@ -1,14 +1,16 @@
 ﻿// QuantumBands.API/Controllers/WalletsController.cs
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using QuantumBands.Application.Common.Models;
+using QuantumBands.Application.Features.Wallets.Commands.BankDeposit;
+using QuantumBands.Application.Features.Wallets.Commands.CreateWithdrawal;
+using QuantumBands.Application.Features.Wallets.Commands.InternalTransfer;
 using QuantumBands.Application.Features.Wallets.Dtos;
+using QuantumBands.Application.Features.Wallets.Queries.GetTransactions;
 using QuantumBands.Application.Interfaces; // For IWalletService
 using System.Security.Claims; // For User property
-using System.Threading.Tasks;
 using System.Threading;
-using QuantumBands.Application.Common.Models;
-using QuantumBands.Application.Features.Wallets.Queries.GetTransactions;
-using QuantumBands.Application.Features.Wallets.Commands.BankDeposit;
+using System.Threading.Tasks;
 
 namespace QuantumBands.API.Controllers;
 
@@ -96,4 +98,90 @@ public class WalletsController : ControllerBase
         }
         return Ok(response);
     }
+    [HttpPost("withdrawals")] // Route: /api/v1/wallets/me/withdrawals
+    [ProducesResponseType(typeof(WithdrawalRequestDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> CreateWithdrawalRequest([FromBody] CreateWithdrawalRequest request, CancellationToken cancellationToken)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        _logger.LogInformation("User {UserId} initiating withdrawal request for Amount: {Amount} {Currency}", userId, request.Amount, request.CurrencyCode);
+
+        var (responseDto, errorMessage) = await _walletService.CreateWithdrawalRequestAsync(User, request, cancellationToken);
+
+        if (responseDto == null)
+        {
+            _logger.LogWarning("Withdrawal request creation failed for User {UserId}. Error: {ErrorMessage}", userId, errorMessage);
+            if (errorMessage != null)
+            {
+                if (errorMessage.Contains("not found")) return NotFound(new { Message = errorMessage });
+                if (errorMessage.Contains("Insufficient") || errorMessage.Contains("must be greater than 0") || errorMessage.Contains("required"))
+                {
+                    return BadRequest(new { Message = errorMessage });
+                }
+            }
+            return StatusCode(StatusCodes.Status500InternalServerError, new { Message = errorMessage ?? "Failed to create withdrawal request." });
+        }
+
+        // Trả về 201 Created với thông tin yêu cầu rút tiền
+        // Location header có thể trỏ đến một endpoint để xem chi tiết yêu cầu rút tiền (nếu có)
+        return CreatedAtAction(nameof(GetMyWalletTransactions), new { /* tham số cho GetMyWalletTransactions nếu có */ }, responseDto);
+        // Hoặc đơn giản là:
+        // return StatusCode(StatusCodes.Status201Created, responseDto);
+    }
+    [HttpPost("internal-transfer/verify-recipient")]
+    [ProducesResponseType(typeof(RecipientInfoResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> VerifyRecipient([FromBody] VerifyRecipientRequest request, CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Attempting to verify recipient email: {RecipientEmail}", request.RecipientEmail);
+        var (recipientInfo, errorMessage) = await _walletService.VerifyRecipientForTransferAsync(request, cancellationToken);
+
+        if (recipientInfo == null)
+        {
+            _logger.LogWarning("Recipient verification failed for email {RecipientEmail}. Error: {ErrorMessage}", request.RecipientEmail, errorMessage);
+            if (errorMessage != null && errorMessage.Contains("not found"))
+            {
+                return NotFound(new { Message = errorMessage });
+            }
+            return BadRequest(new { Message = errorMessage ?? "Failed to verify recipient." });
+        }
+        return Ok(recipientInfo);
+    }
+
+    [HttpPost("internal-transfer/execute")]
+    [ProducesResponseType(typeof(WalletTransactionDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)] // Nếu ví người gửi/nhận không tìm thấy
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> ExecuteTransfer([FromBody] ExecuteInternalTransferRequest request, CancellationToken cancellationToken)
+    {
+        var senderUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        _logger.LogInformation("User {SenderUserId} attempting to execute internal transfer to UserID {RecipientUserId} for Amount {Amount}",
+                               senderUserId, request.RecipientUserId, request.Amount);
+
+        var (senderTransactionDto, errorMessage) = await _walletService.ExecuteInternalTransferAsync(User, request, cancellationToken);
+
+        if (senderTransactionDto == null)
+        {
+            _logger.LogWarning("Internal transfer execution failed for sender {SenderUserId} to recipient {RecipientUserId}. Error: {ErrorMessage}",
+                               senderUserId, request.RecipientUserId, errorMessage);
+            if (errorMessage != null)
+            {
+                if (errorMessage.Contains("not found")) return NotFound(new { Message = errorMessage });
+                if (errorMessage.Contains("Insufficient") || errorMessage.Contains("yourself") || errorMessage.Contains("invalid"))
+                {
+                    return BadRequest(new { Message = errorMessage });
+                }
+            }
+            return StatusCode(StatusCodes.Status500InternalServerError, new { Message = errorMessage ?? "Failed to execute internal transfer." });
+        }
+        return Ok(senderTransactionDto);
+    }
+
 }

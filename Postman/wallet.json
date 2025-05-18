@@ -1,0 +1,623 @@
+{
+	"info": {
+		"_postman_id": "YOUR_WALLET_FULL_COLLECTION_ID",
+		"name": "QuantumBands API - All Wallet Features",
+		"description": "Postman Collection for all Wallet features including Get Wallet, Transactions, Bank Deposit, Admin Actions, Withdrawals, and Internal Transfers.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "YOUR_EXPORTER_ID"
+	},
+	"item": [
+		{
+			"name": "User Wallet Actions",
+			"item": [
+				{
+					"name": "BE-WALLET-001: Get My Wallet Profile (and QR Data)",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{jwtToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/wallets/me",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"wallets",
+								"me"
+							]
+						},
+						"description": "Lấy thông tin ví hiện tại của người dùng, bao gồm email để tạo QR code."
+					},
+					"response": []
+				},
+				{
+					"name": "BE-WALLET-002: Get My Wallet Transactions",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{jwtToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/wallets/me/transactions?pageNumber=1&pageSize=10&status=Completed&sortBy=TransactionDate&sortOrder=desc",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"wallets",
+								"me",
+								"transactions"
+							],
+							"query": [
+								{
+									"key": "pageNumber",
+									"value": "1"
+								},
+								{
+									"key": "pageSize",
+									"value": "10"
+								},
+								{
+									"key": "transactionType",
+									"value": "",
+									"disabled": true
+								},
+								{
+									"key": "status",
+									"value": "Completed",
+									"disabled": true
+								},
+								{
+									"key": "sortBy",
+									"value": "TransactionDate"
+								},
+								{
+									"key": "sortOrder",
+									"value": "desc"
+								}
+							]
+						},
+						"description": "Lấy lịch sử giao dịch ví của người dùng với phân trang và lọc."
+					},
+					"response": []
+				},
+				{
+					"name": "BE-WALLET-003 (User): Initiate Bank Deposit",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () { pm.response.to.have.status(200); });",
+									"if (pm.response.code === 200) {",
+									"    try {",
+									"        var jsonData = pm.response.json();",
+									"        if (jsonData && jsonData.transactionId) {",
+									"            pm.collectionVariables.set(\"bankDepositTransactionId\", jsonData.transactionId);",
+									"            console.log(\"bankDepositTransactionId set to: \" + jsonData.transactionId);",
+									"        }",
+									"        if (jsonData && jsonData.referenceCode) {",
+									"            pm.collectionVariables.set(\"bankDepositReferenceCode\", jsonData.referenceCode);",
+									"            console.log(\"bankDepositReferenceCode set to: \" + jsonData.referenceCode);",
+									"        }",
+									"    } catch (e) { console.log(\"Error parsing InitiateBankDeposit response: \" + e); }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{jwtToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"amountUSD\": 50.00\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/wallets/deposits/bank/initiate",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"wallets",
+								"deposits",
+								"bank",
+								"initiate"
+							]
+						},
+						"description": "Người dùng khởi tạo yêu cầu nạp tiền USD, nhận thông tin chuyển khoản VND."
+					},
+					"response": []
+				},
+				{
+					"name": "BE-WALLET-004 (User): Create Withdrawal Request",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201\", function () { pm.response.to.have.status(201); });",
+									"if (pm.response.code === 201) {",
+									"    try {",
+									"        var jsonData = pm.response.json();",
+									"        if (jsonData && jsonData.withdrawalRequestId) {",
+									"            pm.collectionVariables.set(\"withdrawalTransactionId\", jsonData.withdrawalRequestId);",
+									"            console.log(\"withdrawalTransactionId set to: \" + jsonData.withdrawalRequestId);",
+									"        }",
+									"    } catch (e) { console.log(\"Error parsing CreateWithdrawalRequest response: \" + e); }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{jwtToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"amount\": 10.00,\n  \"currencyCode\": \"USD\",\n  \"withdrawalMethodDetails\": \"Bank: VCB, Acc: 0012300456, Name: Test User, Branch: HN\",\n  \"notes\": \"Withdraw for personal use\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/wallets/me/withdrawals",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"wallets",
+								"me",
+								"withdrawals"
+							]
+						},
+						"description": "Người dùng tạo yêu cầu rút tiền."
+					},
+					"response": []
+				},
+				{
+					"name": "BE-WALLET-005 (User): Verify Recipient for Internal Transfer",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () { pm.response.to.have.status(200); });",
+									"if (pm.response.code === 200) {",
+									"    try {",
+									"        var jsonData = pm.response.json();",
+									"        if (jsonData && jsonData.recipientUserId) {",
+									"            pm.collectionVariables.set(\"recipientUserIdForTransfer\", jsonData.recipientUserId);",
+									"            console.log(\"recipientUserIdForTransfer set to: \" + jsonData.recipientUserId);",
+									"        }",
+									"    } catch (e) { console.log(\"Error parsing VerifyRecipient response: \" + e); }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{jwtToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"recipientEmail\": \"user_b@example.com\" \n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/wallets/internal-transfer/verify-recipient",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"wallets",
+								"internal-transfer",
+								"verify-recipient"
+							]
+						},
+						"description": "Xác minh email của người nhận trước khi chuyển tiền. Thay 'user_b@example.com' bằng email của một user khác trong hệ thống."
+					},
+					"response": []
+				},
+				{
+					"name": "BE-WALLET-005 (User): Execute Internal Transfer",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{jwtToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"recipientUserId\": {{recipientUserIdForTransfer}}, \n  \"amount\": 5.00,\n  \"currencyCode\": \"USD\",\n  \"description\": \"Transfer from Postman\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/wallets/internal-transfer/execute",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"wallets",
+								"internal-transfer",
+								"execute"
+							]
+						},
+						"description": "Thực hiện chuyển tiền sau khi đã xác minh người nhận. Sử dụng `{{recipientUserIdForTransfer}}` từ response của 'Verify Recipient'."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Admin Wallet Actions",
+			"description": "Actions performed by Admin users on wallets. Requires 'adminJwtToken'.",
+			"item": [
+				{
+					"name": "BE-WALLET-003 (Admin): Confirm Bank Deposit",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{adminJwtToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"transactionId\": {{bankDepositTransactionId}},\n  \"actualAmountVNDReceived\": 2500000,\n  \"adminNotes\": \"Confirmed bank deposit via Postman. Ref: {{bankDepositReferenceCode}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/admin/wallets/deposits/bank/confirm",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"admin",
+								"wallets",
+								"deposits",
+								"bank",
+								"confirm"
+							]
+						},
+						"description": "Admin xác nhận giao dịch nạp tiền qua ngân hàng."
+					},
+					"response": []
+				},
+				{
+					"name": "BE-WALLET-003 (Admin): Cancel Bank Deposit",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{adminJwtToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"transactionId\": {{bankDepositTransactionId}},\n  \"adminNotes\": \"Cancelled by Postman - Test cancellation.\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/admin/wallets/deposits/bank/cancel",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"admin",
+								"wallets",
+								"deposits",
+								"bank",
+								"cancel"
+							]
+						},
+						"description": "Admin hủy yêu cầu nạp tiền qua ngân hàng."
+					},
+					"response": []
+				},
+				{
+					"name": "BE-WALLET-003 (Admin): Direct Deposit",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{adminJwtToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"userId\": {{currentUserId}}, \n  \"amount\": 15.75,\n  \"currencyCode\": \"USD\",\n  \"description\": \"Admin direct deposit (bonus) via Postman\",\n  \"referenceId\": \"ADMIN_PM_BONUS_002\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/admin/wallets/deposit",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"admin",
+								"wallets",
+								"deposit"
+							]
+						},
+						"description": "Admin nạp tiền trực tiếp vào ví của người dùng. Thay `{{currentUserId}}` bằng ID của user bạn muốn nạp."
+					},
+					"response": []
+				},
+				{
+					"name": "BE-WALLET-004 (Admin): Approve Withdrawal Request",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{adminJwtToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"transactionId\": {{withdrawalTransactionId}},\n  \"adminNotes\": \"Withdrawal approved by Postman.\",\n  \"externalTransactionReference\": \"BANK_TRANSFER_OUT_XYZ789\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/admin/wallets/withdrawals/approve",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"admin",
+								"wallets",
+								"withdrawals",
+								"approve"
+							]
+						},
+						"description": "Admin duyệt yêu cầu rút tiền. Sử dụng `{{withdrawalTransactionId}}` từ response của 'Create Withdrawal Request'."
+					},
+					"response": []
+				},
+				{
+					"name": "BE-WALLET-004 (Admin): Reject Withdrawal Request",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{adminJwtToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"transactionId\": {{withdrawalTransactionId}},\n  \"adminNotes\": \"Withdrawal rejected by Postman - Insufficient details.\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/admin/wallets/withdrawals/reject",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"admin",
+								"wallets",
+								"withdrawals",
+								"reject"
+							]
+						},
+						"description": "Admin từ chối yêu cầu rút tiền. Sử dụng `{{withdrawalTransactionId}}` từ response của 'Create Withdrawal Request'."
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:YOUR_API_PORT",
+			"type": "string",
+			"description": "Thay YOUR_API_PORT bằng port API của bạn (ví dụ: 5100 cho http, 7100 cho https, hoặc 6020 nếu Docker)"
+		},
+		{
+			"key": "jwtToken",
+			"value": "",
+			"type": "string",
+			"description": "Tự động điền sau khi chạy request 'Login User' thành công"
+		},
+		{
+			"key": "adminJwtToken",
+			"value": "",
+			"type": "string",
+			"description": "Cần đăng nhập bằng tài khoản Admin và lưu token vào đây thủ công hoặc qua script test của request Login Admin"
+		},
+		{
+			"key": "currentUserId",
+			"value": "",
+			"type": "string",
+			"description": "Tự động điền sau khi chạy request 'Login User' thành công"
+		},
+		{
+			"key": "recipientUserIdForTransfer",
+			"value": "",
+			"type": "string",
+			"description": "Tự động điền sau khi chạy 'Verify Recipient for Internal Transfer' thành công"
+		},
+		{
+			"key": "bankDepositTransactionId",
+			"value": "",
+			"type": "string",
+			"description": "Tự động điền sau khi chạy 'Initiate Bank Deposit' thành công"
+		},
+		{
+			"key": "bankDepositReferenceCode",
+			"value": "",
+			"type": "string",
+			"description": "Tự động điền sau khi chạy 'Initiate Bank Deposit' thành công"
+		},
+		{
+			"key": "withdrawalTransactionId",
+			"value": "",
+			"type": "string",
+			"description": "Tự động điền sau khi chạy 'Create Withdrawal Request' thành công"
+		}
+	]
+}

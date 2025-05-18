@@ -1,6 +1,7 @@
 ﻿// QuantumBands.API/Controllers/AdminController.cs
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using QuantumBands.Application.Features.Wallets.Commands.AdminActions;
 using QuantumBands.Application.Features.Wallets.Commands.AdminDeposit;
 using QuantumBands.Application.Features.Wallets.Commands.BankDeposit;
 using QuantumBands.Application.Features.Wallets.Dtos;
@@ -102,6 +103,55 @@ public class AdminController : ControllerBase
                 if (errorMessage.Contains("cannot be cancelled") || errorMessage.Contains("Invalid")) return BadRequest(new { Message = errorMessage });
             }
             return StatusCode(StatusCodes.Status500InternalServerError, new { Message = errorMessage ?? "Failed to cancel bank deposit." });
+        }
+        return Ok(transactionDto);
+    }
+    [HttpPost("wallets/withdrawals/approve")] // Route: /api/v1/admin/wallets/withdrawals/approve
+    [ProducesResponseType(typeof(WalletTransactionDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ApproveWithdrawal([FromBody] ApproveWithdrawalRequest request, CancellationToken cancellationToken)
+    {
+        var adminUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        _logger.LogInformation("Admin {AdminId} attempting to approve withdrawal TransactionID: {TransactionId}", adminUserId, request.TransactionId);
+        var (transactionDto, errorMessage) = await _walletService.ApproveWithdrawalAsync(User, request, cancellationToken);
+
+        if (transactionDto == null)
+        {
+            _logger.LogWarning("Admin approve withdrawal failed for TransactionID {TransactionId}. Admin: {AdminId}, Error: {ErrorMessage}", request.TransactionId, adminUserId, errorMessage);
+            if (errorMessage != null)
+            {
+                if (errorMessage.Contains("not found")) return NotFound(new { Message = errorMessage });
+                if (errorMessage.Contains("not pending") || errorMessage.Contains("Insufficient") || errorMessage.Contains("Invalid")) return BadRequest(new { Message = errorMessage });
+            }
+            return StatusCode(StatusCodes.Status500InternalServerError, new { Message = errorMessage ?? "Failed to approve withdrawal request." });
+        }
+        return Ok(transactionDto);
+    }
+
+    [HttpPost("wallets/withdrawals/reject")] // Route: /api/v1/admin/wallets/withdrawals/reject
+    [ProducesResponseType(typeof(WalletTransactionDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> RejectWithdrawal([FromBody] RejectWithdrawalRequest request, CancellationToken cancellationToken)
+    {
+        var adminUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        _logger.LogInformation("Admin {AdminId} attempting to reject withdrawal TransactionID: {TransactionId}", adminUserId, request.TransactionId);
+        var (transactionDto, errorMessage) = await _walletService.RejectWithdrawalAsync(User, request, cancellationToken);
+
+        if (transactionDto == null)
+        {
+            _logger.LogWarning("Admin reject withdrawal failed for TransactionID {TransactionId}. Admin: {AdminId}, Error: {ErrorMessage}", request.TransactionId, adminUserId, errorMessage);
+            if (errorMessage != null)
+            {
+                if (errorMessage.Contains("not found")) return NotFound(new { Message = errorMessage });
+                if (errorMessage.Contains("cannot be rejected") || errorMessage.Contains("Invalid")) return BadRequest(new { Message = errorMessage });
+            }
+            return StatusCode(StatusCodes.Status500InternalServerError, new { Message = errorMessage ?? "Failed to reject withdrawal request." });
         }
         return Ok(transactionDto);
     }
