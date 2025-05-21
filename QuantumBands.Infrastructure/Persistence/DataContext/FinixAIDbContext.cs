@@ -142,7 +142,7 @@ public partial class FinixAIDbContext : DbContext
 
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
             entity.Property(e => e.CurrentSharePrice).HasComputedColumnSql("(case when [TotalSharesIssued]>(0) then [CurrentNetAssetValue]/[TotalSharesIssued] else (0) end)", true);
-            entity.Property(e => e.Eaname).HasDefaultValue("Quantum Bands AI");
+            entity.Property(e => e.EaName).HasDefaultValue("Quantum Bands AI");
             entity.Property(e => e.IsActive).HasDefaultValue(true);
             entity.Property(e => e.UpdatedAt).HasDefaultValueSql("(getutcdate())");
 

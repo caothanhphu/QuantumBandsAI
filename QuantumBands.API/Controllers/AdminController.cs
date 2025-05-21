@@ -2,12 +2,19 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using QuantumBands.Application.Common.Models;
+using QuantumBands.Application.Features.Admin.TradingAccounts.Commands;
+using QuantumBands.Application.Features.Admin.TradingAccounts.Dtos;
+using QuantumBands.Application.Features.Admin.Users.Commands.UpdateUserRole;
+using QuantumBands.Application.Features.Admin.Users.Commands.UpdateUserStatus;
+using QuantumBands.Application.Features.Admin.Users.Dtos;
+using QuantumBands.Application.Features.Admin.Users.Queries;
 using QuantumBands.Application.Features.Wallets.Commands.AdminActions;
 using QuantumBands.Application.Features.Wallets.Commands.AdminDeposit;
 using QuantumBands.Application.Features.Wallets.Commands.BankDeposit;
 using QuantumBands.Application.Features.Wallets.Dtos;
 using QuantumBands.Application.Features.Wallets.Queries.GetTransactions;
 using QuantumBands.Application.Interfaces;
+using QuantumBands.Application.Services;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
@@ -19,13 +26,20 @@ namespace QuantumBands.API.Controllers;
 [Route("api/v1/admin")] // Route cơ sở cho các API của Admin
 public class AdminController : ControllerBase
 {
+    private readonly IUserService _userService;
     private readonly IWalletService _walletService;
+    private readonly ITradingAccountService _tradingAccountService; // Inject service mới
     private readonly ILogger<AdminController> _logger;
-    // Inject các services khác nếu AdminController quản lý nhiều hơn Wallet
 
-    public AdminController(IWalletService walletService, ILogger<AdminController> logger)
+    public AdminController(
+        IUserService userService,
+        IWalletService walletService,
+        ITradingAccountService tradingAccountService, // Thêm vào constructor
+        ILogger<AdminController> logger)
     {
+        _userService = userService;
         _walletService = walletService;
+        _tradingAccountService = tradingAccountService; // Gán
         _logger = logger;
     }
 
@@ -187,5 +201,96 @@ public class AdminController : ControllerBase
         var result = await _walletService.GetAdminPendingWithdrawalsAsync(User, query, cancellationToken);
         return Ok(result);
     }
+    // --- USER MANAGEMENT ENDPOINTS ---
+    [HttpGet("users")] // Route: /api/v1/admin/users
+    [ProducesResponseType(typeof(PaginatedList<AdminUserViewDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GetUsers([FromQuery] GetAdminUsersQuery query, CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Admin requesting list of all users with query: {@Query}", query);
+        var result = await _userService.GetAdminAllUsersAsync(query, cancellationToken);
+        return Ok(result);
+    }
 
+    [HttpPut("users/{userId}/status")] // Route: /api/v1/admin/users/{userId}/status
+    [ProducesResponseType(typeof(AdminUserViewDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpdateUserStatus(int userId, [FromBody] UpdateUserStatusRequest request, CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Admin attempting to update status for UserID: {UserId} to IsActive: {IsActive}", userId, request.IsActive);
+        var (updatedUser, errorMessage) = await _userService.UpdateUserStatusByAdminAsync(userId, request, cancellationToken);
+
+        if (updatedUser == null)
+        {
+            if (errorMessage != null && errorMessage.Contains("not found")) return NotFound(new { Message = errorMessage });
+            return BadRequest(new { Message = errorMessage ?? "Failed to update user status." });
+        }
+        return Ok(updatedUser);
+    }
+
+    [HttpPut("users/{userId}/role")] // Route: /api/v1/admin/users/{userId}/role
+    [ProducesResponseType(typeof(AdminUserViewDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpdateUserRole(int userId, [FromBody] UpdateUserRoleRequest request, CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Admin attempting to update role for UserID: {UserId} to RoleID: {RoleId}", userId, request.RoleId);
+        var (updatedUser, errorMessage) = await _userService.UpdateUserRoleByAdminAsync(userId, request, cancellationToken);
+
+        if (updatedUser == null)
+        {
+            if (errorMessage != null && errorMessage.Contains("not found")) return NotFound(new { Message = errorMessage });
+            if (errorMessage != null && errorMessage.Contains("Invalid Role ID")) return BadRequest(new { Message = errorMessage });
+            return BadRequest(new { Message = errorMessage ?? "Failed to update user role." });
+        }
+        return Ok(updatedUser);
+    }
+    [HttpPost("trading-accounts")] // Route: /api/v1/admin/trading-accounts
+    [ProducesResponseType(typeof(TradingAccountDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> CreateTradingAccount([FromBody] CreateTradingAccountRequest request, CancellationToken cancellationToken)
+    {
+        var adminUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        _logger.LogInformation("Admin {AdminId} attempting to create trading account: {AccountName}", adminUserId, request.AccountName);
+
+        var (accountDto, errorMessage) = await _tradingAccountService.CreateTradingAccountAsync(request, User, cancellationToken);
+
+        if (accountDto == null)
+        {
+            if (errorMessage != null && errorMessage.Contains("already exists"))
+            {
+                return Conflict(new { Message = errorMessage });
+            }
+            return BadRequest(new { Message = errorMessage ?? "Failed to create trading account." });
+        }
+        // Trả về 201 Created với DTO và Location header (nếu có endpoint GetById)
+        // Giả sử sẽ có endpoint GET /api/v1/trading-accounts/{id} (chưa tạo trong ticket này)
+        //return CreatedAtAction("GetTradingAccountById", "TradingAccounts", new { accountId = accountDto.TradingAccountId }, accountDto);
+        // Nếu chưa có GetTradingAccountById, dùng:
+        return StatusCode(StatusCodes.Status201Created, accountDto);
+    }
+
+    [HttpPost("trading-accounts/{accountId}/initial-offerings")] // Route: /api/v1/admin/trading-accounts/{accountId}/initial-offerings
+    [ProducesResponseType(typeof(InitialShareOfferingDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> CreateInitialShareOffering(int accountId, [FromBody] CreateInitialShareOfferingRequest request, CancellationToken cancellationToken)
+    {
+        var adminUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        _logger.LogInformation("Admin {AdminId} attempting to create initial share offering for TradingAccountID: {TradingAccountId}", adminUserId, accountId);
+
+        var (offeringDto, errorMessage) = await _tradingAccountService.CreateInitialShareOfferingAsync(accountId, request, User, cancellationToken);
+
+        if (offeringDto == null)
+        {
+            if (errorMessage != null && errorMessage.Contains("not found")) return NotFound(new { Message = errorMessage });
+            if (errorMessage != null && (errorMessage.Contains("exceeds available shares") || errorMessage.Contains("Invalid"))) return BadRequest(new { Message = errorMessage });
+            return BadRequest(new { Message = errorMessage ?? "Failed to create initial share offering." });
+        }
+        // Trả về 201 Created với DTO và Location header (nếu có endpoint GetOfferingById)
+        // return CreatedAtAction("GetOfferingById", new { accountId = accountId, offeringId = offeringDto.OfferingId }, offeringDto);
+        return StatusCode(StatusCodes.Status201Created, offeringDto);
+    }
 }

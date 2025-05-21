@@ -17,6 +17,8 @@ public class UnitOfWork : IUnitOfWork
     public IGenericRepository<Wallet> Wallets { get; private set; }
     public IGenericRepository<WalletTransaction> WalletTransactions { get; private set; }
 
+    public IGenericRepository<InitialShareOffering> InitialShareOfferings { get; private set; }
+    public IGenericRepository<TradingAccount> TradingAccounts { get; private set; }
     public UnitOfWork(FinixAIDbContext context)
     {
         _context = context;

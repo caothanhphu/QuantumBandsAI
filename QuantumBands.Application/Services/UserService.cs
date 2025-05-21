@@ -1,21 +1,27 @@
 ﻿// QuantumBands.Application/Services/UserService.cs
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration; // Để lấy Issuer từ config
+using Microsoft.Extensions.Logging;
+using QuantumBands.Application.Common.Models;
+using QuantumBands.Application.Features.Admin.Users.Commands.UpdateUserStatus;
+using QuantumBands.Application.Features.Admin.Users.Commands.UpdateUserRole;
+using QuantumBands.Application.Features.Admin.Users.Dtos;
+using QuantumBands.Application.Features.Admin.Users.Queries;
 using QuantumBands.Application.Features.Authentication;
+using QuantumBands.Application.Features.Users.Commands.ChangePassword; // For Include
+using QuantumBands.Application.Features.Users.Commands.Disable2FA;
+using QuantumBands.Application.Features.Users.Commands.Enable2FA;
+using QuantumBands.Application.Features.Users.Commands.Setup2FA;
 using QuantumBands.Application.Features.Users.Commands.UpdateProfile;
+using QuantumBands.Application.Features.Users.Commands.Verify2FA;
 using QuantumBands.Application.Interfaces;
 using QuantumBands.Domain.Entities;
-using Microsoft.Extensions.Logging;
-using System.Security.Claims;
-using System.Threading.Tasks;
-using System.Threading;
 using System;
-using Microsoft.EntityFrameworkCore;
 using System.IdentityModel.Tokens.Jwt;
-using QuantumBands.Application.Features.Users.Commands.ChangePassword; // For Include
-using QuantumBands.Application.Features.Users.Commands.Setup2FA;
-using QuantumBands.Application.Features.Users.Commands.Enable2FA;
-using QuantumBands.Application.Features.Users.Commands.Verify2FA;
-using QuantumBands.Application.Features.Users.Commands.Disable2FA;
-using Microsoft.Extensions.Configuration; // Để lấy Issuer từ config
+using System.Linq.Expressions;
+using System.Security.Claims;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace QuantumBands.Application.Services;
 
@@ -374,6 +380,193 @@ public class UserService : IUserService
         {
             _logger.LogError(ex, "Error disabling 2FA for UserID {UserId}", userId.Value);
             return (false, "An error occurred while disabling 2FA.");
+        }
+    }
+    public async Task<PaginatedList<AdminUserViewDto>> GetAdminAllUsersAsync(GetAdminUsersQuery query, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Admin fetching all users with query: {@Query}", query);
+
+        var usersQuery = _unitOfWork.Users.Query()
+                            .Include(u => u.Role) // To fetch RoleName
+                            .Include(u => u.Wallet) // To fetch WalletBalance
+                            .AsQueryable(); // Ensure the type remains IQueryable<User>
+
+        // Apply filters
+        if (!string.IsNullOrWhiteSpace(query.SearchTerm))
+        {
+            string searchTermLower = query.SearchTerm.ToLower();
+            usersQuery = usersQuery.Where(u =>
+                (u.Username != null && u.Username.ToLower().Contains(searchTermLower)) ||
+                (u.Email != null && u.Email.ToLower().Contains(searchTermLower)) ||
+                (u.FullName != null && u.FullName.ToLower().Contains(searchTermLower))
+            );
+        }
+        if (query.RoleId.HasValue)
+        {
+            usersQuery = usersQuery.Where(u => u.RoleId == query.RoleId.Value);
+        }
+        if (query.IsActive.HasValue)
+        {
+            usersQuery = usersQuery.Where(u => u.IsActive == query.IsActive.Value);
+        }
+        if (query.IsEmailVerified.HasValue)
+        {
+            usersQuery = usersQuery.Where(u => u.IsEmailVerified == query.IsEmailVerified.Value);
+        }
+        if (query.DateFrom.HasValue)
+        {
+            usersQuery = usersQuery.Where(u => u.CreatedAt >= query.DateFrom.Value.Date);
+        }
+        if (query.DateTo.HasValue)
+        {
+            usersQuery = usersQuery.Where(u => u.CreatedAt < query.DateTo.Value.Date.AddDays(1));
+        }
+
+        // Áp dụng Sắp xếp
+        bool isDescending = query.SortOrder?.ToLower() == "desc";
+        Expression<Func<User, object>> orderByExpression;
+
+        switch (query.SortBy?.ToLowerInvariant())
+        {
+            case "userid": orderByExpression = u => u.UserId; break;
+            case "username": orderByExpression = u => u.Username; break;
+            case "email": orderByExpression = u => u.Email; break;
+            case "fullname": orderByExpression = u => u.FullName!; break; // Thêm ! nếu FullName có thể null
+            case "rolename": orderByExpression = u => u.Role.RoleName; break;
+            case "isactive": orderByExpression = u => u.IsActive; break;
+            case "isemailverified": orderByExpression = u => u.IsEmailVerified; break;
+            case "createdat": default: orderByExpression = u => u.CreatedAt; break;
+        }
+
+        usersQuery = isDescending
+            ? usersQuery.OrderByDescending(orderByExpression)
+            : usersQuery.OrderBy(orderByExpression);
+
+        var paginatedUsers = await PaginatedList<User>.CreateAsync(
+            usersQuery,
+            query.ValidatedPageNumber,
+            query.ValidatedPageSize,
+            cancellationToken);
+
+        var dtos = paginatedUsers.Items.Select(u => new AdminUserViewDto
+        {
+            UserId = u.UserId,
+            Username = u.Username,
+            Email = u.Email,
+            FullName = u.FullName,
+            RoleName = u.Role?.RoleName ?? "N/A", // Xử lý trường hợp Role có thể null
+            IsActive = u.IsActive,
+            IsEmailVerified = u.IsEmailVerified,
+            CreatedAt = u.CreatedAt,
+            WalletBalance = u.Wallet?.Balance, // Lấy balance, có thể null nếu không có wallet
+            WalletCurrency = u.Wallet?.CurrencyCode // Lấy currency, có thể null
+        }).ToList();
+
+        return new PaginatedList<AdminUserViewDto>(
+            dtos,
+            paginatedUsers.TotalCount,
+            paginatedUsers.PageNumber,
+            paginatedUsers.PageSize);
+    }
+
+    public async Task<(AdminUserViewDto? User, string? ErrorMessage)> UpdateUserStatusByAdminAsync(int userId, UpdateUserStatusRequest request, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Admin attempting to update status for UserID: {UserId} to IsActive: {IsActive}", userId, request.IsActive);
+
+        var user = await _unitOfWork.Users.Query()
+                            .Include(u => u.Role)
+                            .Include(u => u.Wallet)
+                            .FirstOrDefaultAsync(u => u.UserId == userId, cancellationToken);
+
+        if (user == null)
+        {
+            _logger.LogWarning("UpdateUserStatusByAdminAsync: User with ID {UserId} not found.", userId);
+            return (null, "User not found.");
+        }
+
+        user.IsActive = request.IsActive;
+        user.UpdatedAt = DateTime.UtcNow;
+
+        _unitOfWork.Users.Update(user);
+        try
+        {
+            await _unitOfWork.CompleteAsync(cancellationToken);
+            _logger.LogInformation("Status updated successfully for UserID: {UserId}. New IsActive: {IsActive}", userId, request.IsActive);
+
+            var updatedUserDto = new AdminUserViewDto
+            {
+                UserId = user.UserId,
+                Username = user.Username,
+                Email = user.Email,
+                FullName = user.FullName,
+                RoleName = user.Role?.RoleName ?? "N/A",
+                IsActive = user.IsActive,
+                IsEmailVerified = user.IsEmailVerified,
+                CreatedAt = user.CreatedAt,
+                WalletBalance = user.Wallet?.Balance,
+                WalletCurrency = user.Wallet?.CurrencyCode
+            };
+            return (updatedUserDto, null);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating status for UserID: {UserId}", userId);
+            return (null, "An error occurred while updating user status.");
+        }
+    }
+
+    public async Task<(AdminUserViewDto? User, string? ErrorMessage)> UpdateUserRoleByAdminAsync(int userId, UpdateUserRoleRequest request, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Admin attempting to update role for UserID: {UserId} to RoleID: {RoleId}", userId, request.RoleId);
+
+        var user = await _unitOfWork.Users.Query()
+                            .Include(u => u.Wallet) // Nạp Wallet để trả về DTO đầy đủ
+                            .FirstOrDefaultAsync(u => u.UserId == userId, cancellationToken);
+
+        if (user == null)
+        {
+            _logger.LogWarning("UpdateUserRoleByAdminAsync: User with ID {UserId} not found.", userId);
+            return (null, "User not found.");
+        }
+
+        var newRole = await _unitOfWork.UserRoles.GetByIdAsync(request.RoleId); // Giả sử UserRoles repository có GetByIdAsync
+        if (newRole == null)
+        {
+            _logger.LogWarning("UpdateUserRoleByAdminAsync: Role with ID {RoleId} not found.", request.RoleId);
+            return (null, "Invalid Role ID provided.");
+        }
+
+        user.RoleId = request.RoleId;
+        user.UpdatedAt = DateTime.UtcNow;
+
+        _unitOfWork.Users.Update(user);
+        try
+        {
+            await _unitOfWork.CompleteAsync(cancellationToken);
+            _logger.LogInformation("Role updated successfully for UserID: {UserId}. New RoleID: {RoleId}", userId, request.RoleId);
+
+            // Nạp lại Role để lấy RoleName cho DTO
+            user.Role = newRole; // Gán trực tiếp đối tượng Role đã lấy được
+
+            var updatedUserDto = new AdminUserViewDto
+            {
+                UserId = user.UserId,
+                Username = user.Username,
+                Email = user.Email,
+                FullName = user.FullName,
+                RoleName = user.Role.RoleName, // Bây giờ sẽ có RoleName
+                IsActive = user.IsActive,
+                IsEmailVerified = user.IsEmailVerified,
+                CreatedAt = user.CreatedAt,
+                WalletBalance = user.Wallet?.Balance,
+                WalletCurrency = user.Wallet?.CurrencyCode
+            };
+            return (updatedUserDto, null);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating role for UserID: {UserId}", userId);
+            return (null, "An error occurred while updating user role.");
         }
     }
 }

@@ -21,7 +21,7 @@ public partial class TradingAccount
 
     [Column("EAName")]
     [StringLength(100)]
-    public string? Eaname { get; set; }
+    public string? EaName { get; set; }
 
     [StringLength(100)]
     public string? BrokerPlatformIdentifier { get; set; }
