@@ -1,16 +1,19 @@
 ﻿// QuantumBands.Application/Services/TradingAccountService.cs
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using QuantumBands.Application.Common.Models;
 using QuantumBands.Application.Features.Admin.TradingAccounts.Commands;
 using QuantumBands.Application.Features.Admin.TradingAccounts.Dtos;
+using QuantumBands.Application.Features.TradingAccounts.Queries;
 using QuantumBands.Application.Interfaces;
 using QuantumBands.Application.Interfaces.Repositories; // Assuming specific repositories if needed
 using QuantumBands.Domain.Entities;
-using Microsoft.Extensions.Logging;
-using System.Security.Claims;
-using System.Threading.Tasks;
-using System.Threading;
 using System;
-using Microsoft.EntityFrameworkCore;
 using System.IdentityModel.Tokens.Jwt; // For FirstOrDefaultAsync, SumAsync
+using System.Linq.Expressions;
+using System.Security.Claims;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace QuantumBands.Application.Services;
 
@@ -181,5 +184,121 @@ public class TradingAccountService : ITradingAccountService
             UpdatedAt = offering.UpdatedAt
         };
         return (dto, null);
+    }
+    public async Task<PaginatedList<TradingAccountDto>> GetPublicTradingAccountsAsync(GetPublicTradingAccountsQuery query, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Fetching public trading accounts with query: {@Query}", query);
+
+        var accountsQuery = _unitOfWork.TradingAccounts.Query()
+                                .Include(ta => ta.CreatedByUser)
+                                .AsQueryable(); // Ensure the query is treated as IQueryable
+
+        // Apply Filter
+        if (query.IsActive.HasValue)
+        {
+            accountsQuery = accountsQuery.Where(ta => ta.IsActive == query.IsActive.Value);
+        }
+        else
+        {
+            // Default to only active accounts if no filter is provided
+            accountsQuery = accountsQuery.Where(ta => ta.IsActive == true);
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.SearchTerm))
+        {
+            string searchTermLower = query.SearchTerm.ToLower();
+            accountsQuery = accountsQuery.Where(ta =>
+                (ta.AccountName != null && ta.AccountName.ToLower().Contains(searchTermLower)) ||
+                (ta.Description != null && ta.Description.ToLower().Contains(searchTermLower))
+            );
+        }
+
+        // Apply Sorting
+        bool isDescending = query.SortOrder?.ToLower() == "desc";
+        Expression<Func<TradingAccount, object>> orderByExpression;
+
+        switch (query.SortBy?.ToLowerInvariant())
+        {
+            case "currentshareprice":
+                orderByExpression = ta => (ta.TotalSharesIssued > 0 ? ta.CurrentNetAssetValue / ta.TotalSharesIssued : 0);
+                break;
+            case "managementfeerate":
+                orderByExpression = ta => ta.ManagementFeeRate;
+                break;
+            case "createdat":
+                orderByExpression = ta => ta.CreatedAt;
+                break;
+            case "accountname":
+            default:
+                orderByExpression = ta => ta.AccountName;
+                break;
+        }
+
+        accountsQuery = isDescending
+            ? accountsQuery.OrderByDescending(orderByExpression)
+            : accountsQuery.OrderBy(orderByExpression);
+
+        var paginatedAccounts = await PaginatedList<TradingAccount>.CreateAsync(
+            accountsQuery,
+            query.ValidatedPageNumber,
+            query.ValidatedPageSize,
+            cancellationToken);
+
+        var dtos = paginatedAccounts.Items.Select(ta => new TradingAccountDto
+        {
+            TradingAccountId = ta.TradingAccountId,
+            AccountName = ta.AccountName,
+            Description = ta.Description,
+            EaName = ta.EaName,
+            BrokerPlatformIdentifier = ta.BrokerPlatformIdentifier,
+            InitialCapital = ta.InitialCapital,
+            TotalSharesIssued = ta.TotalSharesIssued,
+            CurrentNetAssetValue = ta.CurrentNetAssetValue,
+            CurrentSharePrice = ta.TotalSharesIssued > 0 ? ta.CurrentNetAssetValue / ta.TotalSharesIssued : 0,
+            ManagementFeeRate = ta.ManagementFeeRate,
+            IsActive = ta.IsActive,
+            CreatedByUserId = ta.CreatedByUserId,
+            CreatorUsername = ta.CreatedByUser?.Username ?? "N/A",
+            CreatedAt = ta.CreatedAt,
+            UpdatedAt = ta.UpdatedAt
+        }).ToList();
+
+        return new PaginatedList<TradingAccountDto>(
+            dtos,
+            paginatedAccounts.TotalCount,
+            paginatedAccounts.PageNumber,
+            paginatedAccounts.PageSize);
+    }
+
+    public async Task<TradingAccountDto?> GetTradingAccountByIdAsync(int accountId, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Fetching trading account by ID: {AccountId}", accountId);
+        var account = await _unitOfWork.TradingAccounts.Query()
+                            .Include(ta => ta.CreatedByUser)
+                            .FirstOrDefaultAsync(ta => ta.TradingAccountId == accountId, cancellationToken);
+
+        if (account == null)
+        {
+            return null;
+        }
+
+        return new TradingAccountDto
+        {
+            TradingAccountId = account.TradingAccountId,
+            AccountName = account.AccountName,
+            Description = account.Description,
+            EaName = account.EaName,
+            BrokerPlatformIdentifier = account.BrokerPlatformIdentifier,
+            InitialCapital = account.InitialCapital,
+            TotalSharesIssued = account.TotalSharesIssued,
+            CurrentNetAssetValue = account.CurrentNetAssetValue,
+            CurrentSharePrice = account.TotalSharesIssued > 0 ? account.CurrentNetAssetValue / account.TotalSharesIssued : 0,
+            ManagementFeeRate = account.ManagementFeeRate,
+            IsActive = account.IsActive,
+            CreatedByUserId = account.CreatedByUserId,
+            CreatorUsername = account.CreatedByUser?.Username ?? "N/A",
+            CreatedAt = account.CreatedAt,
+            UpdatedAt = account.UpdatedAt
+        };
     }
 }
