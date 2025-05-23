@@ -187,4 +187,73 @@ public class SharePortfolioService : ISharePortfolioService
             return (false, "Failed to update portfolio after sell transaction.");
         }
     }
+
+    public async Task<(bool Success, string? ErrorMessage)> ReleaseHeldSharesAsync(
+    int userId,
+    int tradingAccountId,
+    long quantityToRelease,
+    string reason,
+    CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Attempting to release {QuantityToRelease} held shares for UserID {UserId}, TradingAccountID {TradingAccountId}. Reason: {Reason}",
+                               quantityToRelease, userId, tradingAccountId, reason);
+
+        if (quantityToRelease <= 0)
+        {
+            _logger.LogInformation("Quantity to release is zero or negative for UserID {UserId}, TradingAccountID {TradingAccountId}. No shares released.", userId, tradingAccountId);
+            return (true, "No shares needed to be released.");
+        }
+
+        var portfolioItem = await _unitOfWork.SharePortfolios.Query()
+                                .FirstOrDefaultAsync(sp => sp.UserId == userId && sp.TradingAccountId == tradingAccountId, cancellationToken);
+
+        if (portfolioItem == null)
+        {
+            _logger.LogWarning("ReleaseHeldShares: Portfolio item not found for UserID {UserId} and TradingAccountID {TradingAccountId}. Cannot release shares.", userId, tradingAccountId);
+            // Tùy thuộc vào logic "tạm giữ" của bạn, đây có thể là lỗi hoặc không.
+            // Nếu "tạm giữ" là giảm Quantity, thì việc không tìm thấy là bất thường.
+            // Nếu "tạm giữ" là một trường riêng (HeldQuantity), thì bạn cần cập nhật trường đó.
+            return (false, "Portfolio item not found to release shares from.");
+        }
+
+        // Giả định 1: Nếu "tạm giữ" nghĩa là có một trường `HeldQuantity` trong SharePortfolio
+        // if (portfolioItem.HeldQuantity < quantityToRelease)
+        // {
+        //     _logger.LogWarning("Attempting to release {QuantityToRelease} shares, but only {HeldQuantity} are held for UserID {UserId}, TAID {TradingAccountId}.",
+        //                        quantityToRelease, portfolioItem.HeldQuantity, userId, tradingAccountId);
+        //     // Có thể chỉ giải phóng số lượng đang bị giữ
+        //     quantityToRelease = portfolioItem.HeldQuantity;
+        // }
+        // portfolioItem.HeldQuantity -= quantityToRelease;
+        // portfolioItem.LastUpdatedAt = DateTime.UtcNow;
+        // _unitOfWork.SharePortfolios.Update(portfolioItem);
+        // _logger.LogInformation("{QuantityToRelease} shares released (HeldQuantity updated) for UserID {UserId}, TradingAccountID {TradingAccountId}.",
+        //                        quantityToRelease, userId, tradingAccountId);
+
+
+        // Giả định 2: Nếu "tạm giữ" chỉ là logic kiểm tra lúc đặt lệnh bán, và SharePortfolio.Quantity
+        // chưa bị trừ cho các lệnh bán CHƯA KHỚP. Thì việc "giải phóng" đơn giản là lệnh bán đó bị hủy,
+        // và không cần thay đổi gì ở SharePortfolio.Quantity.
+        // Trong trường hợp này, phương thức này có thể chỉ log lại.
+        _logger.LogInformation("Conceptual release of {QuantityToRelease} shares for UserID {UserId}, TradingAccountID {TradingAccountId} due to order cancellation. Actual quantity in portfolio remains unchanged until a trade executes.",
+                               quantityToRelease, userId, tradingAccountId);
+
+
+        // Nếu bạn có cơ chế "AvailableQuantity" riêng, bạn sẽ cập nhật nó ở đây.
+        // Ví dụ: portfolioItem.AvailableQuantity += quantityToRelease;
+
+        // Vì BE-PORTFOLIO-002 cập nhật Quantity khi MUA/BÁN (đã khớp),
+        // việc hủy một lệnh bán CHƯA KHỚP không nên thay đổi Quantity hiện tại.
+        // Nó chỉ làm cho số lượng đó không còn "cam kết" cho lệnh bán bị hủy nữa.
+        // Do đó, có thể không có thay đổi DB trực tiếp ở đây cho SharePortfolio.Quantity.
+
+        // Tuy nhiên, nếu logic PlaceOrderAsync của bạn đã TRỪ `HeldQuantity` khỏi `AvailableQuantity`
+        // (mà không thay đổi `TotalQuantity`), thì ở đây bạn cần CỘNG `HeldQuantity` lại vào `AvailableQuantity`.
+        // Để đơn giản, service này hiện tại không thay đổi DB, chỉ log.
+        // Việc chính là lệnh bán bị hủy.
+
+        // await _unitOfWork.CompleteAsync(cancellationToken); // Chỉ gọi nếu có thay đổi DB thực sự ở đây
+
+        return (true, "Shares conceptually released from hold.");
+    }
 }

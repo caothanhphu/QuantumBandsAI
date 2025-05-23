@@ -1,16 +1,19 @@
 ﻿// QuantumBands.Application/Services/ExchangeService.cs
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using QuantumBands.Application.Common.Models;
 using QuantumBands.Application.Features.Exchange.Commands.CreateOrder;
 using QuantumBands.Application.Features.Exchange.Dtos;
+using QuantumBands.Application.Features.Exchange.Queries;
 using QuantumBands.Application.Interfaces;
 using QuantumBands.Application.Interfaces.Repositories; // Nếu có specific repositories
 using QuantumBands.Domain.Entities;
-using Microsoft.Extensions.Logging;
-using System.Security.Claims;
-using System.Threading.Tasks;
-using System.Threading;
 using System;
-using Microsoft.EntityFrameworkCore;
 using System.IdentityModel.Tokens.Jwt; // For Include, FirstOrDefaultAsync
+using System.Linq.Expressions;
+using System.Security.Claims;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace QuantumBands.Application.Services;
 
@@ -366,5 +369,562 @@ public class ExchangeService : IExchangeService
 
         return (totalCostBeforeNewTrade + newTradeCost) / newTotalFilledQuantity;
     }
-    // ... (Các phương thức khác của ExchangeService)
+    public async Task<PaginatedList<ShareOrderDto>> GetMyOrdersAsync(ClaimsPrincipal currentUser, GetMyShareOrdersQuery query, CancellationToken cancellationToken = default)
+    {
+        var userId = GetUserIdFromPrincipal(currentUser);
+        if (!userId.HasValue)
+        {
+            _logger.LogWarning("GetMyOrdersAsync: User is not authenticated.");
+            return new PaginatedList<ShareOrderDto>(new List<ShareOrderDto>(), 0, query.ValidatedPageNumber, query.ValidatedPageSize);
+        }
+
+        _logger.LogInformation("Fetching orders for UserID: {UserId} with query: {@Query}", userId.Value, query);
+
+        var ordersQuery = _unitOfWork.ShareOrders.Query()
+                            .Where(o => o.UserId == userId.Value)
+                            .Include(o => o.TradingAccount)
+                            .Include(o => o.ShareOrderSide)
+                            .Include(o => o.ShareOrderType)
+                            .Include(o => o.ShareOrderStatus)
+                            .AsQueryable();
+
+        // Áp dụng Filter
+        if (query.TradingAccountId.HasValue)
+        {
+            ordersQuery = ordersQuery.Where(o => o.TradingAccountId == query.TradingAccountId.Value);
+        }
+        if (!string.IsNullOrWhiteSpace(query.Status))
+        {
+            var statusFilters = query.Status.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                                       .Select(s => s.ToLowerInvariant())
+                                       .ToList();
+            if (statusFilters.Any())
+            {
+                ordersQuery = ordersQuery.Where(o => statusFilters.Contains(o.ShareOrderStatus.StatusName.ToLower()));
+            }
+        }
+        if (!string.IsNullOrWhiteSpace(query.OrderSide))
+        {
+            ordersQuery = ordersQuery.Where(o => o.ShareOrderSide.SideName.Equals(query.OrderSide, StringComparison.OrdinalIgnoreCase));
+        }
+        if (!string.IsNullOrWhiteSpace(query.OrderType))
+        {
+            ordersQuery = ordersQuery.Where(o => o.ShareOrderType.TypeName.Equals(query.OrderType, StringComparison.OrdinalIgnoreCase));
+        }
+        if (query.DateFrom.HasValue)
+        {
+            ordersQuery = ordersQuery.Where(o => o.OrderDate >= query.DateFrom.Value.Date);
+        }
+        if (query.DateTo.HasValue)
+        {
+            ordersQuery = ordersQuery.Where(o => o.OrderDate < query.DateTo.Value.Date.AddDays(1));
+        }
+
+        // Áp dụng Sắp xếp
+        bool isDescending = query.SortOrder?.ToLower() == "desc";
+        Expression<Func<ShareOrder, object>> orderByExpression;
+
+        switch (query.SortBy?.ToLowerInvariant())
+        {
+            case "tradingaccountname":
+                orderByExpression = o => o.TradingAccount.AccountName;
+                break;
+            case "quantityordered":
+                orderByExpression = o => o.QuantityOrdered;
+                break;
+            case "limitprice":
+                orderByExpression = o => o.LimitPrice!; // Thêm ! nếu bạn chắc chắn nó không null khi sort
+                break;
+            case "status":
+                orderByExpression = o => o.ShareOrderStatus.StatusName;
+                break;
+            case "orderdate":
+            default:
+                orderByExpression = o => o.OrderDate;
+                break;
+        }
+
+        ordersQuery = isDescending
+            ? ordersQuery.OrderByDescending(orderByExpression)
+            : ordersQuery.OrderBy(orderByExpression);
+
+        var paginatedOrders = await PaginatedList<ShareOrder>.CreateAsync(
+            ordersQuery,
+            query.ValidatedPageNumber,
+            query.ValidatedPageSize,
+            cancellationToken);
+
+        var dtos = paginatedOrders.Items.Select(o => new ShareOrderDto
+        {
+            OrderId = o.OrderId,
+            UserId = o.UserId,
+            TradingAccountId = o.TradingAccountId,
+            TradingAccountName = o.TradingAccount.AccountName,
+            OrderSide = o.ShareOrderSide.SideName,
+            OrderType = o.ShareOrderType.TypeName,
+            QuantityOrdered = o.QuantityOrdered,
+            QuantityFilled = o.QuantityFilled,
+            LimitPrice = o.LimitPrice,
+            AverageFillPrice = o.AverageFillPrice,
+            OrderStatus = o.ShareOrderStatus.StatusName,
+            OrderDate = o.OrderDate,
+            UpdatedAt = o.UpdatedAt,
+            TransactionFee = o.TransactionFeeAmount // Lấy từ TransactionFeeAmount của entity
+        }).ToList();
+
+        return new PaginatedList<ShareOrderDto>(
+            dtos,
+            paginatedOrders.TotalCount,
+            paginatedOrders.PageNumber,
+            paginatedOrders.PageSize);
+    }
+    public async Task<(ShareOrderDto? CancelledOrder, string? ErrorMessage)> CancelOrderAsync(long orderId, ClaimsPrincipal currentUser, CancellationToken cancellationToken = default)
+    {
+        var userId = GetUserIdFromPrincipal(currentUser);
+        if (!userId.HasValue)
+        {
+            return (null, "User not authenticated.");
+        }
+
+        _logger.LogInformation("UserID {UserId} attempting to cancel ShareOrderID: {OrderId}", userId.Value, orderId);
+
+        var orderToCancel = await _unitOfWork.ShareOrders.Query()
+            .Include(o => o.ShareOrderStatus)
+            .Include(o => o.ShareOrderSide)
+            .Include(o => o.TradingAccount) // Cần để tính toán số tiền refund nếu là lệnh Market đã tạm giữ
+            .Include(o => o.ShareOrderType)
+            .FirstOrDefaultAsync(o => o.OrderId == orderId, cancellationToken);
+
+        if (orderToCancel == null)
+        {
+            _logger.LogWarning("CancelOrderAsync: OrderID {OrderId} not found.", orderId);
+            return (null, $"Order with ID {orderId} not found.");
+        }
+
+        if (orderToCancel.UserId != userId.Value)
+        {
+            _logger.LogWarning("User {UserId} attempted to cancel order {OrderId} belonging to another user {OrderUserId}.", userId.Value, orderId, orderToCancel.UserId);
+            return (null, "You are not authorized to cancel this order.");
+        }
+
+        var currentStatusName = orderToCancel.ShareOrderStatus.StatusName;
+        bool canCancel = currentStatusName.Equals(nameof(OrderStatus.Open), StringComparison.OrdinalIgnoreCase) ||
+                         currentStatusName.Equals(nameof(OrderStatus.PartiallyFilled), StringComparison.OrdinalIgnoreCase);
+
+        if (!canCancel)
+        {
+            _logger.LogInformation("Order {OrderId} cannot be cancelled. Current status: {OrderStatus}", orderId, currentStatusName);
+            return (null, $"Order cannot be cancelled as it is already '{currentStatusName}'.");
+        }
+
+        var statusCancelled = await _shareOrderStatusRepository.GetByNameAsync(nameof(OrderStatus.Cancelled), cancellationToken);
+        if (statusCancelled == null)
+        {
+            _logger.LogError("System error: 'Cancelled' order status not found in database.");
+            return (null, "System error: Order status configuration missing.");
+        }
+
+        long quantityRemainingToCancel = orderToCancel.QuantityOrdered - orderToCancel.QuantityFilled;
+
+        if (quantityRemainingToCancel > 0)
+        {
+            if (orderToCancel.ShareOrderSide.SideName.Equals("Buy", StringComparison.OrdinalIgnoreCase))
+            {
+                // Tính toán số tiền đã tạm giữ cho phần chưa khớp của lệnh mua
+                // Giả định: khi đặt lệnh mua, tiền đã được tạm giữ dựa trên limitPrice (cho lệnh Limit)
+                // hoặc một ước tính giá thị trường (cho lệnh Market).
+                // Nếu là lệnh Market và không có giá tham chiếu rõ ràng lúc đặt lệnh, việc tính amountToRefund phức tạp.
+                // Ở đây, chúng ta ưu tiên LimitPrice nếu có.
+                decimal pricePerShareToRefund = (decimal)(orderToCancel.LimitPrice ?? orderToCancel.TradingAccount.CurrentSharePrice); // Cần cơ chế lấy giá tốt hơn cho Market Order
+                decimal amountToRefund = quantityRemainingToCancel * pricePerShareToRefund;
+                // Cộng thêm phí giao dịch đã tạm tính cho phần chưa khớp (nếu có)
+                // Ví dụ: if (orderToCancel.TransactionFeeRate.HasValue) {
+                //            amountToRefund += amountToRefund * orderToCancel.TransactionFeeRate.Value;
+                //        }
+
+                if (amountToRefund > 0)
+                {
+                    var (refundSuccess, refundMessage, _) = await _walletService.ReleaseHeldFundsForOrderAsync(
+                        orderToCancel.UserId,
+                        orderToCancel.OrderId,
+                        amountToRefund,
+                        "USD", // Giả sử TradingAccount có thông tin CurrencyCode cho giao dịch này
+                                                                                    // Hoặc lấy từ Wallet của user nếu tất cả là USD
+                        "Order Cancelled - Fund Release",
+                        cancellationToken);
+
+                    if (!refundSuccess)
+                    {
+                        _logger.LogError("Failed to release held funds for cancelled Buy Order {OrderId}: {ErrorMessage}", orderId, refundMessage);
+                        return (null, $"Failed to release held funds: {refundMessage}. Please contact support.");
+                    }
+                    _logger.LogInformation("Funds {AmountToRefund} {Currency} released for cancelled Buy Order {OrderId}.", amountToRefund, "USD", orderId);
+                }
+            }
+            else // Sell Order
+            {
+                // Giải phóng số cổ phần đã tạm giữ (phần chưa khớp)
+                var (releaseSuccess, releaseMessage) = await _portfolioService.ReleaseHeldSharesAsync(
+                    orderToCancel.UserId,
+                    orderToCancel.TradingAccountId,
+                    quantityRemainingToCancel,
+                    "Order Cancelled",
+                    cancellationToken);
+
+                if (!releaseSuccess)
+                {
+                    _logger.LogError("Failed to release held shares for cancelled Sell Order {OrderId}: {ErrorMessage}", orderId, releaseMessage);
+                    return (null, $"Failed to release held shares: {releaseMessage}. Please contact support.");
+                }
+                _logger.LogInformation("{QuantityToRelease} shares released for cancelled Sell Order {OrderId}.", quantityRemainingToCancel, orderId);
+            }
+        }
+
+        orderToCancel.OrderStatusId = statusCancelled.OrderStatusId;
+        orderToCancel.UpdatedAt = DateTime.UtcNow;
+
+        _unitOfWork.ShareOrders.Update(orderToCancel);
+        try
+        {
+            await _unitOfWork.CompleteAsync(cancellationToken); // Lưu tất cả thay đổi (order status, wallet, portfolio)
+            _logger.LogInformation("Order {OrderId} cancelled successfully by UserID {UserId}.", orderId, userId.Value);
+
+            var cancelledOrderDto = new ShareOrderDto
+            {
+                OrderId = orderToCancel.OrderId,
+                UserId = orderToCancel.UserId,
+                TradingAccountId = orderToCancel.TradingAccountId,
+                TradingAccountName = orderToCancel.TradingAccount.AccountName,
+                OrderSide = orderToCancel.ShareOrderSide.SideName,
+                OrderType = orderToCancel.ShareOrderType.TypeName,
+                QuantityOrdered = orderToCancel.QuantityOrdered,
+                QuantityFilled = orderToCancel.QuantityFilled,
+                LimitPrice = orderToCancel.LimitPrice,
+                AverageFillPrice = orderToCancel.AverageFillPrice,
+                OrderStatus = statusCancelled.StatusName,
+                OrderDate = orderToCancel.OrderDate,
+                UpdatedAt = orderToCancel.UpdatedAt,
+                TransactionFee = orderToCancel.TransactionFeeAmount
+            };
+            return (cancelledOrderDto, "Order cancelled successfully.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error committing changes for cancelling order {OrderId} for UserID {UserId}.", orderId, userId.Value);
+            return (null, "An error occurred while finalizing order cancellation.");
+        }
+    }
+    public async Task<(OrderBookDto? OrderBook, string? ErrorMessage)> GetOrderBookAsync(
+    int tradingAccountId,
+    GetOrderBookQuery query,
+    CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Fetching order book for TradingAccountID: {TradingAccountId} with Depth: {Depth}",
+                               tradingAccountId, query.ValidatedDepth);
+
+        var tradingAccount = await _unitOfWork.TradingAccounts.GetByIdAsync(tradingAccountId);
+        if (tradingAccount == null)
+        {
+            _logger.LogWarning("GetOrderBookAsync: TradingAccountID {TradingAccountId} not found.", tradingAccountId);
+            return (null, $"Trading account with ID {tradingAccountId} not found.");
+        }
+
+        // Lấy ID của các trạng thái và loại lệnh cần thiết
+        var statusOpen = await _shareOrderStatusRepository.GetByNameAsync(nameof(OrderStatus.Open), cancellationToken);
+        var statusPartiallyFilled = await _shareOrderStatusRepository.GetByNameAsync(nameof(OrderStatus.PartiallyFilled), cancellationToken);
+        var orderTypeLimit = await _unitOfWork.ShareOrderTypes.Query() // Giả sử có repo này
+                                    .FirstOrDefaultAsync(ot => ot.TypeName.Equals("Limit", StringComparison.OrdinalIgnoreCase), cancellationToken);
+
+        if (statusOpen == null || statusPartiallyFilled == null || orderTypeLimit == null)
+        {
+            _logger.LogError("System error: Required order statuses (Open, PartiallyFilled) or order type 'Limit' not found.");
+            return (null, "System configuration error for order book.");
+        }
+
+        var relevantStatusIds = new List<int> { statusOpen.OrderStatusId, statusPartiallyFilled.OrderStatusId };
+
+        // Lấy các lệnh Mua (Bids)
+        var bids = await _unitOfWork.ShareOrders.Query()
+            .Where(o => o.TradingAccountId == tradingAccountId &&
+                        o.ShareOrderSide.SideName == "Buy" && // Lệnh Mua
+                        o.OrderTypeId == orderTypeLimit.OrderTypeId && // Chỉ lệnh Limit
+                        relevantStatusIds.Contains(o.OrderStatusId) && // Trạng thái Open hoặc PartiallyFilled
+                        o.LimitPrice.HasValue &&
+                        (o.QuantityOrdered - o.QuantityFilled) > 0) // Còn số lượng chưa khớp
+            .GroupBy(o => o.LimitPrice.Value) // Nhóm theo giá
+            .Select(g => new OrderBookEntryDto
+            {
+                Price = g.Key,
+                TotalQuantity = g.Sum(o => o.QuantityOrdered - o.QuantityFilled)
+            })
+            .OrderByDescending(b => b.Price) // Giá mua cao nhất ở trên
+            .Take(query.ValidatedDepth)
+            .ToListAsync(cancellationToken);
+
+        // Lấy các lệnh Bán (Asks)
+        var asks = await _unitOfWork.ShareOrders.Query()
+            .Where(o => o.TradingAccountId == tradingAccountId &&
+                        o.ShareOrderSide.SideName == "Sell" && // Lệnh Bán
+                        o.OrderTypeId == orderTypeLimit.OrderTypeId && // Chỉ lệnh Limit
+                        relevantStatusIds.Contains(o.OrderStatusId) && // Trạng thái Open hoặc PartiallyFilled
+                        o.LimitPrice.HasValue &&
+                        (o.QuantityOrdered - o.QuantityFilled) > 0) // Còn số lượng chưa khớp
+            .GroupBy(o => o.LimitPrice.Value) // Nhóm theo giá
+            .Select(g => new OrderBookEntryDto
+            {
+                Price = g.Key,
+                TotalQuantity = g.Sum(o => o.QuantityOrdered - o.QuantityFilled)
+            })
+            .OrderBy(a => a.Price) // Giá bán thấp nhất ở trên
+            .Take(query.ValidatedDepth)
+            .ToListAsync(cancellationToken);
+
+        // (Tùy chọn) Lấy giá khớp lệnh gần nhất
+        var lastTrade = await _unitOfWork.ShareTrades.Query()
+                            .Where(st => st.TradingAccountId == tradingAccountId)
+                            .OrderByDescending(st => st.TradeDate)
+                            .FirstOrDefaultAsync(cancellationToken);
+
+        var orderBookDto = new OrderBookDto
+        {
+            TradingAccountId = tradingAccount.TradingAccountId,
+            TradingAccountName = tradingAccount.AccountName,
+            LastTradePrice = lastTrade?.TradePrice,
+            Timestamp = DateTime.UtcNow,
+            Bids = bids,
+            Asks = asks
+        };
+
+        return (orderBookDto, null);
+    }
+    public async Task<(MarketDataResponse? Data, string? ErrorMessage)> GetMarketDataAsync(GetMarketDataQuery query, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Fetching market data with query: {@Query}", query);
+
+        List<int> targetAccountIds = new List<int>();
+        if (!string.IsNullOrWhiteSpace(query.TradingAccountIds))
+        {
+            try
+            {
+                targetAccountIds = query.TradingAccountIds
+                                       .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                                       .Select(int.Parse)
+                                       .Distinct()
+                                       .ToList();
+                if (!targetAccountIds.Any()) // Nếu sau khi parse không có ID nào hợp lệ
+                {
+                    _logger.LogInformation("No valid trading account IDs provided in the filter, fetching for all active accounts.");
+                    // Để trống targetAccountIds sẽ lấy tất cả active bên dưới
+                }
+            }
+            catch (FormatException)
+            {
+                _logger.LogWarning("Invalid format for tradingAccountIds: {TradingAccountIds}", query.TradingAccountIds);
+                return (null, "Invalid format for tradingAccountIds. Must be comma-separated integers.");
+            }
+        }
+
+        IQueryable<TradingAccount> accountsQuery = _unitOfWork.TradingAccounts.Query().Where(ta => ta.IsActive);
+        if (targetAccountIds.Any())
+        {
+            accountsQuery = accountsQuery.Where(ta => targetAccountIds.Contains(ta.TradingAccountId));
+        }
+
+        var accounts = await accountsQuery.Select(ta => new { ta.TradingAccountId, ta.AccountName }).ToListAsync(cancellationToken);
+
+        if (!accounts.Any())
+        {
+            return (new MarketDataResponse { GeneratedAt = DateTime.UtcNow }, null); // Trả về rỗng nếu không có account nào khớp
+        }
+
+        var marketDataResponse = new MarketDataResponse { GeneratedAt = DateTime.UtcNow };
+
+        // Lấy ID của các trạng thái và loại lệnh cần thiết một lần
+        var statusOpen = await _shareOrderStatusRepository.GetByNameAsync(nameof(OrderStatus.Open), cancellationToken);
+        var statusPartiallyFilled = await _shareOrderStatusRepository.GetByNameAsync(nameof(OrderStatus.PartiallyFilled), cancellationToken);
+        var orderTypeLimit = await _unitOfWork.ShareOrderTypes.Query()
+                                    .FirstOrDefaultAsync(ot => ot.TypeName.Equals("Limit", StringComparison.OrdinalIgnoreCase), cancellationToken);
+
+        if (statusOpen == null || statusPartiallyFilled == null || orderTypeLimit == null)
+        {
+            _logger.LogError("System error: Required order statuses (Open, PartiallyFilled) or order type 'Limit' not found for market data.");
+            return (null, "System configuration error for market data.");
+        }
+        var relevantStatusIds = new List<int> { statusOpen.OrderStatusId, statusPartiallyFilled.OrderStatusId };
+
+        foreach (var account in accounts)
+        {
+            var accountMarketData = new TradingAccountMarketDataDto
+            {
+                TradingAccountId = account.TradingAccountId,
+                TradingAccountName = account.AccountName
+            };
+
+            // Lấy Best Bids (Top 3)
+            accountMarketData.BestBids = await _unitOfWork.ShareOrders.Query()
+                .Where(o => o.TradingAccountId == account.TradingAccountId &&
+                            o.ShareOrderSide.SideName == "Buy" &&
+                            o.OrderTypeId == orderTypeLimit.OrderTypeId &&
+                            relevantStatusIds.Contains(o.OrderStatusId) &&
+                            o.LimitPrice.HasValue && (o.QuantityOrdered - o.QuantityFilled) > 0)
+                .GroupBy(o => o.LimitPrice.Value)
+                .Select(g => new OrderBookEntryDto { Price = g.Key, TotalQuantity = g.Sum(o => o.QuantityOrdered - o.QuantityFilled) })
+                .OrderByDescending(b => b.Price)
+                .Take(3)
+                .ToListAsync(cancellationToken);
+
+            // Lấy Best Asks (Top 3)
+            accountMarketData.BestAsks = await _unitOfWork.ShareOrders.Query()
+                .Where(o => o.TradingAccountId == account.TradingAccountId &&
+                            o.ShareOrderSide.SideName == "Sell" &&
+                            o.OrderTypeId == orderTypeLimit.OrderTypeId &&
+                            relevantStatusIds.Contains(o.OrderStatusId) &&
+                            o.LimitPrice.HasValue && (o.QuantityOrdered - o.QuantityFilled) > 0)
+                .GroupBy(o => o.LimitPrice.Value)
+                .Select(g => new OrderBookEntryDto { Price = g.Key, TotalQuantity = g.Sum(o => o.QuantityOrdered - o.QuantityFilled) })
+                .OrderBy(a => a.Price)
+                .Take(3)
+                .ToListAsync(cancellationToken);
+
+            // Lấy Recent Trades
+            accountMarketData.RecentTrades = await _unitOfWork.ShareTrades.Query()
+                .Where(st => st.TradingAccountId == account.TradingAccountId)
+                .OrderByDescending(st => st.TradeDate)
+                .Take(query.ValidatedRecentTradesLimit)
+                .Select(st => new SimpleTradeDto { Price = st.TradePrice, Quantity = st.QuantityTraded, TradeTime = st.TradeDate })
+                .ToListAsync(cancellationToken);
+
+            // (Tùy chọn) Lấy LastTradePrice
+            if (accountMarketData.RecentTrades.Any())
+            {
+                accountMarketData.LastTradePrice = accountMarketData.RecentTrades.First().Price;
+            }
+            else
+            {
+                var lastTradeFromDb = await _unitOfWork.ShareTrades.Query()
+                                        .Where(st => st.TradingAccountId == account.TradingAccountId)
+                                        .OrderByDescending(st => st.TradeDate)
+                                        .Select(st => (decimal?)st.TradePrice) // Select nullable decimal
+                                        .FirstOrDefaultAsync(cancellationToken);
+                accountMarketData.LastTradePrice = lastTradeFromDb;
+            }
+
+
+            marketDataResponse.Items.Add(accountMarketData);
+        }
+
+        return (marketDataResponse, null);
+    }
+
+    public async Task<PaginatedList<MyShareTradeDto>> GetMyTradesAsync(ClaimsPrincipal currentUser, GetMyShareTradesQuery query, CancellationToken cancellationToken = default)
+    {
+        var userId = GetUserIdFromPrincipal(currentUser);
+        if (!userId.HasValue)
+        {
+            _logger.LogWarning("GetMyTradesAsync: User is not authenticated.");
+            return new PaginatedList<MyShareTradeDto>(new List<MyShareTradeDto>(), 0, query.ValidatedPageNumber, query.ValidatedPageSize);
+        }
+
+        _logger.LogInformation("Fetching trades for UserID: {UserId} with query: {@Query}", userId.Value, query);
+
+        var tradesQuery = _unitOfWork.ShareTrades.Query()
+            .Include(st => st.TradingAccount)
+            // Nạp BuyOrder và SellOrder để xác định vai trò của user và phí
+            .Include(st => st.BuyOrder).ThenInclude(bo => bo.ShareOrderSide)
+            .Include(st => st.SellOrder).ThenInclude(so => so.ShareOrderSide) // SellOrder có thể null nếu khớp với InitialOffering
+            .Where(st => st.BuyerUserId == userId.Value || st.SellerUserId == userId.Value);
+
+        // Áp dụng Filter
+        if (query.TradingAccountId.HasValue)
+        {
+            tradesQuery = tradesQuery.Where(st => st.TradingAccountId == query.TradingAccountId.Value);
+        }
+        if (!string.IsNullOrWhiteSpace(query.OrderSide))
+        {
+            if (query.OrderSide.Equals("Buy", StringComparison.OrdinalIgnoreCase))
+            {
+                tradesQuery = tradesQuery.Where(st => st.BuyerUserId == userId.Value);
+            }
+            else if (query.OrderSide.Equals("Sell", StringComparison.OrdinalIgnoreCase))
+            {
+                tradesQuery = tradesQuery.Where(st => st.SellerUserId == userId.Value);
+            }
+        }
+        if (query.DateFrom.HasValue)
+        {
+            tradesQuery = tradesQuery.Where(st => st.TradeDate >= query.DateFrom.Value.Date);
+        }
+        if (query.DateTo.HasValue)
+        {
+            tradesQuery = tradesQuery.Where(st => st.TradeDate < query.DateTo.Value.Date.AddDays(1));
+        }
+
+        // Áp dụng Sắp xếp
+        bool isDescending = query.SortOrder?.ToLower() == "desc";
+        Expression<Func<ShareTrade, object>> orderByExpression;
+
+        switch (query.SortBy?.ToLowerInvariant())
+        {
+            case "tradingaccountname":
+                orderByExpression = st => st.TradingAccount.AccountName;
+                break;
+            case "quantitytraded":
+                orderByExpression = st => st.QuantityTraded;
+                break;
+            case "tradeprice":
+                orderByExpression = st => st.TradePrice;
+                break;
+            case "tradedate":
+            default:
+                orderByExpression = st => st.TradeDate;
+                break;
+        }
+
+        tradesQuery = isDescending
+            ? tradesQuery.OrderByDescending(orderByExpression)
+            : tradesQuery.OrderBy(orderByExpression);
+
+        var paginatedTrades = await PaginatedList<ShareTrade>.CreateAsync(
+            tradesQuery,
+            query.ValidatedPageNumber,
+            query.ValidatedPageSize,
+            cancellationToken);
+
+        var dtos = paginatedTrades.Items.Select(st =>
+        {
+            string userOrderSide = "Unknown";
+            decimal? userFeeAmount = null;
+
+            if (st.BuyerUserId == userId.Value)
+            {
+                userOrderSide = st.BuyOrder?.ShareOrderSide?.SideName ?? "Buy"; // Lấy từ lệnh mua gốc
+                userFeeAmount = st.BuyerFeeAmount;
+            }
+            else if (st.SellerUserId == userId.Value)
+            {
+                // Nếu khớp với InitialOffering, SellOrder có thể null
+                userOrderSide = st.SellOrder?.ShareOrderSide?.SideName ?? "Sell"; // Lấy từ lệnh bán gốc
+                userFeeAmount = st.SellerFeeAmount;
+            }
+
+            return new MyShareTradeDto
+            {
+                TradeId = st.TradeId,
+                TradingAccountId = st.TradingAccountId,
+                TradingAccountName = st.TradingAccount.AccountName,
+                OrderSide = userOrderSide,
+                QuantityTraded = st.QuantityTraded,
+                TradePrice = st.TradePrice,
+                TotalValue = st.QuantityTraded * st.TradePrice,
+                FeeAmount = userFeeAmount,
+                TradeDate = st.TradeDate
+            };
+        }).ToList();
+
+        return new PaginatedList<MyShareTradeDto>(
+            dtos,
+            paginatedTrades.TotalCount,
+            paginatedTrades.PageNumber,
+            paginatedTrades.PageSize);
+    }
 }

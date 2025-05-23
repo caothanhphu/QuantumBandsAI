@@ -1112,4 +1112,85 @@ public class WalletService : IWalletService
             paginatedTransactions.PageNumber,
             paginatedTransactions.PageSize);
     }
+    public async Task<(bool Success, string? ErrorMessage, WalletTransactionDto? Transaction)> ReleaseHeldFundsForOrderAsync(
+    int userId,
+    long cancelledOrderId,
+    decimal amountToRelease,
+    string currencyCode,
+    string reason,
+    CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Attempting to release held funds for UserID {UserId}, Cancelled OrderID {CancelledOrderId}, Amount: {Amount}",
+                               userId, cancelledOrderId, amountToRelease);
+
+        if (amountToRelease <= 0)
+        {
+            _logger.LogInformation("Amount to release is zero or negative for OrderID {CancelledOrderId}, no funds released.", cancelledOrderId);
+            return (true, "No funds needed to be released.", null); // Coi như thành công vì không có gì để làm
+        }
+
+        var userWallet = await _unitOfWork.Wallets.Query()
+                                 .FirstOrDefaultAsync(w => w.UserId == userId, cancellationToken);
+        if (userWallet == null)
+        {
+            _logger.LogError("ReleaseHeldFunds: Wallet not found for UserID {UserId}.", userId);
+            return (false, "User wallet not found.", null);
+        }
+
+        var refundTransactionType = await _transactionTypeRepository.GetByNameAsync("OrderCancellationFundRelease", cancellationToken);
+        if (refundTransactionType == null)
+        {
+            _logger.LogError("ReleaseHeldFunds: TransactionType 'OrderCancellationFundRelease' not found.");
+            return (false, "System error: Refund transaction type configuration missing.", null);
+        }
+        if (!refundTransactionType.IsCredit)
+        {
+            _logger.LogError("ReleaseHeldFunds: TransactionType 'OrderCancellationFundRelease' is incorrectly configured (should be IsCredit=true).");
+            return (false, "System error: Refund transaction type misconfigured.", null);
+        }
+
+        var now = DateTime.UtcNow;
+        var transaction = new WalletTransaction
+        {
+            WalletId = userWallet.WalletId,
+            TransactionTypeId = refundTransactionType.TransactionTypeId,
+            Amount = amountToRelease,
+            CurrencyCode = currencyCode.ToUpper(),
+            BalanceBefore = userWallet.Balance,
+            BalanceAfter = userWallet.Balance + amountToRelease, // Cộng tiền lại
+            Description = $"{reason}. Ref OrderID: {cancelledOrderId}",
+            ReferenceId = $"REFUND_ORD_{cancelledOrderId}",
+            Status = "Completed", // Giao dịch hoàn tiền này là completed
+            PaymentMethod = "SystemRefund", // Hoặc một payment method phù hợp
+            TransactionDate = now,
+            UpdatedAt = now
+        };
+
+        userWallet.Balance += amountToRelease;
+        userWallet.UpdatedAt = now;
+
+        await _unitOfWork.WalletTransactions.AddAsync(transaction);
+        _unitOfWork.Wallets.Update(userWallet);
+        // Việc lưu (CompleteAsync) sẽ được thực hiện bởi ExchangeService sau khi tất cả các bước hủy lệnh thành công
+
+        _logger.LogInformation("Held funds released for UserID {UserId}, Cancelled OrderID {CancelledOrderId}. Amount: {Amount}. New Wallet Balance (pending save): {NewBalance}",
+                               userId, cancelledOrderId, amountToRelease, userWallet.Balance);
+
+        var dto = new WalletTransactionDto // Tạo DTO để trả về nếu cần
+        {
+            TransactionId = 0, // ID sẽ được gán sau khi CompleteAsync
+            TransactionTypeName = refundTransactionType.TypeName,
+            Amount = transaction.Amount,
+            CurrencyCode = transaction.CurrencyCode,
+            BalanceAfter = transaction.BalanceAfter,
+            ReferenceId = transaction.ReferenceId,
+            PaymentMethod = transaction.PaymentMethod,
+            Description = transaction.Description,
+            Status = transaction.Status,
+            TransactionDate = transaction.TransactionDate,
+            UpdatedAt = transaction.UpdatedAt
+        };
+
+        return (true, "Funds successfully marked for release.", dto);
+    }
 }

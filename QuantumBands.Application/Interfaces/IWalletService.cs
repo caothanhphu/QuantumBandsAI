@@ -28,6 +28,13 @@ public interface IWalletService
     Task<(WalletTransactionDto? SenderTransaction, string? ErrorMessage)> ExecuteInternalTransferAsync(ClaimsPrincipal senderUser, ExecuteInternalTransferRequest request, CancellationToken cancellationToken = default);
     Task<PaginatedList<AdminPendingBankDepositDto>> GetAdminPendingBankDepositsAsync(ClaimsPrincipal adminUser, GetAdminPendingBankDepositsQuery query, CancellationToken cancellationToken = default);
     Task<PaginatedList<WithdrawalRequestAdminViewDto>> GetAdminPendingWithdrawalsAsync(ClaimsPrincipal adminUser, GetAdminPendingWithdrawalsQuery query, CancellationToken cancellationToken = default);
+    Task<(bool Success, string? ErrorMessage, WalletTransactionDto? Transaction)> ReleaseHeldFundsForOrderAsync(
+    int userId,
+    long cancelledOrderId,
+    decimal amountToRelease,
+    string currencyCode,
+    string reason,
+    CancellationToken cancellationToken = default);
 
     // Các phương thức khác liên quan đến wallet sẽ được thêm vào đây sau
 }

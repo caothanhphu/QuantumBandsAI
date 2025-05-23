@@ -124,6 +124,37 @@ public partial class FinixAIDbContext : DbContext
 
         });
 
+        modelBuilder.Entity<ShareTrade>(entity =>
+        {
+            entity.HasKey(e => e.TradeId); // Khai báo khóa chính
+
+            entity.Property(e => e.TradeId).HasColumnName("TradeID"); // Ánh xạ tên cột
+
+            entity.Property(e => e.TradingAccountId).HasColumnName("TradingAccountID");
+            entity.Property(e => e.BuyOrderId).HasColumnName("BuyOrderID");
+            entity.Property(e => e.SellOrderId).HasColumnName("SellOrderID"); // Nullable
+            entity.Property(e => e.InitialShareOfferingId).HasColumnName("InitialShareOfferingID"); // Nullable
+            entity.Property(e => e.BuyerUserId).HasColumnName("BuyerUserID");
+            entity.Property(e => e.SellerUserId).HasColumnName("SellerUserID");
+
+            entity.Property(e => e.QuantityTraded);
+
+            entity.Property(e => e.TradePrice).HasColumnType("decimal(18, 8)");
+
+            entity.Property(e => e.BuyerFeeAmount)
+                  .HasColumnType("decimal(18, 8)")
+                  .HasDefaultValueSql("((0))"); // Lấy default value từ DB
+
+            entity.Property(e => e.SellerFeeAmount)
+                  .HasColumnType("decimal(18, 8)")
+                  .HasDefaultValueSql("((0))");
+
+            entity.Property(e => e.TradeDate)
+                  .HasDefaultValueSql("(getutcdate())");
+
+            
+        });
+
         modelBuilder.Entity<ShareOrderSide>(entity =>
         {
             entity.HasKey(e => e.OrderSideId).HasName("PK__ShareOrd__903F74128F1A11B1");
