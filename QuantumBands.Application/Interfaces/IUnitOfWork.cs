@@ -1,4 +1,5 @@
 ﻿// QuantumBands.Application/Interfaces/IUnitOfWork.cs
+using QuantumBands.Application.Interfaces.Repositories;
 using QuantumBands.Domain.Entities;
 
 namespace QuantumBands.Application.Interfaces;
@@ -15,5 +16,11 @@ public interface IUnitOfWork : IDisposable
     IGenericRepository<EAClosedTrade> EAClosedTrades { get; } // Thêm mới
     IGenericRepository<TradingAccountSnapshot> TradingAccountSnapshots { get; } // Thêm mới
     IGenericRepository<SharePortfolio> SharePortfolios { get; } // Thêm mới
+    IGenericRepository<ShareOrder> ShareOrders { get; }
+    IGenericRepository<ShareOrderType> ShareOrderTypes { get; }
+    IGenericRepository<ShareOrderSide> ShareOrderSides { get; }
+    IGenericRepository<ShareOrderStatus> ShareOrderStatuses { get; }
+    IGenericRepository<ShareTrade> ShareTrades { get; } // Thêm repo mới
+
     Task<int> CompleteAsync(CancellationToken cancellationToken = default);
 }

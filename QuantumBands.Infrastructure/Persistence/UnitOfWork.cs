@@ -23,6 +23,11 @@ public class UnitOfWork : IUnitOfWork
     public IGenericRepository<EAClosedTrade> EAClosedTrades { get; private set; }
     public IGenericRepository<TradingAccountSnapshot> TradingAccountSnapshots { get; private set; }
     public IGenericRepository<SharePortfolio> SharePortfolios { get; private set; }
+    public IGenericRepository<ShareOrder> ShareOrders { get; private set; }
+    public IGenericRepository<ShareOrderType> ShareOrderTypes { get; private set; }
+    public IGenericRepository<ShareOrderSide> ShareOrderSides { get; private set; }
+    public IGenericRepository<ShareOrderStatus> ShareOrderStatuses { get; private set; }
+    public IGenericRepository<ShareTrade> ShareTrades { get; private set; } // Thêm repo mới
 
     public UnitOfWork(FinixAIDbContext context)
     {
@@ -37,6 +42,11 @@ public class UnitOfWork : IUnitOfWork
         EAClosedTrades = new GenericRepository<EAClosedTrade>(_context); // Khởi tạo generic repository
         TradingAccountSnapshots = new GenericRepository<TradingAccountSnapshot>(_context); // Khởi tạo generic repository
         SharePortfolios = new GenericRepository<SharePortfolio>(_context); // Khởi tạo generic repository
+        ShareOrders = new GenericRepository<ShareOrder>(_context); // Khởi tạo generic repository
+        ShareOrderTypes = new GenericRepository<ShareOrderType>(_context); // Khởi tạo generic repository
+        ShareOrderSides = new GenericRepository<ShareOrderSide>(_context); // Khởi tạo generic repository
+        ShareOrderStatuses = new GenericRepository<ShareOrderStatus>(_context); // Khởi tạo generic repository
+        ShareTrades = new GenericRepository<ShareTrade>(_context); // Khởi tạo generic repository
     }
 
     public async Task<int> CompleteAsync(CancellationToken cancellationToken = default)

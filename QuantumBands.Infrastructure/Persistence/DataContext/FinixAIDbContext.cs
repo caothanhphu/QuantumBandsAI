@@ -21,6 +21,7 @@ public partial class FinixAIDbContext : DbContext
     public virtual DbSet<EAOpenPosition> EaopenPositions { get; set; }
 
     public virtual DbSet<InitialShareOffering> InitialShareOfferings { get; set; }
+    public virtual DbSet<ShareOrder> ShareOrders { get; set; }
 
     public virtual DbSet<ShareOrderSide> ShareOrderSides { get; set; }
 
@@ -93,6 +94,34 @@ public partial class FinixAIDbContext : DbContext
             entity.HasOne(d => d.TradingAccount).WithMany(p => p.InitialShareOfferings)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_InitialShareOfferings_TradingAccountID");
+        });
+
+        modelBuilder.Entity<ShareOrder>(entity =>
+        {
+            entity.HasKey(e => e.OrderId); // Khai báo khóa chính (nếu không dùng Data Annotation [Key])
+
+            entity.Property(e => e.OrderId).HasColumnName("OrderID"); // Ánh xạ tên cột
+
+            entity.Property(e => e.UserId).HasColumnName("UserID");
+            entity.Property(e => e.TradingAccountId).HasColumnName("TradingAccountID");
+            entity.Property(e => e.OrderSideId).HasColumnName("OrderSideID");
+            entity.Property(e => e.OrderTypeId).HasColumnName("OrderTypeID");
+            entity.Property(e => e.OrderStatusId).HasColumnName("OrderStatusID");
+
+            entity.Property(e => e.QuantityOrdered);
+            entity.Property(e => e.QuantityFilled)
+                  .HasDefaultValueSql("((0))"); // Ví dụ default value từ DB
+
+            entity.Property(e => e.LimitPrice).HasColumnType("decimal(18, 8)");
+            entity.Property(e => e.AverageFillPrice).HasColumnType("decimal(18, 8)");
+            entity.Property(e => e.TransactionFeeRate).HasColumnType("decimal(6, 5)");
+            entity.Property(e => e.TransactionFeeAmount).HasColumnType("decimal(18, 8)");
+
+            entity.Property(e => e.OrderDate)
+                  .HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.UpdatedAt)
+                  .HasDefaultValueSql("(getutcdate())");
+
         });
 
         modelBuilder.Entity<ShareOrderSide>(entity =>
