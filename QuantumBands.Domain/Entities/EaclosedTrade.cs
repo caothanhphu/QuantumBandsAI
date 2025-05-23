@@ -6,7 +6,7 @@ namespace QuantumBands.Domain.Entities;
 
 [Table("EAClosedTrades")]
 [Index("TradingAccountId", "EaticketId", Name = "UQ_EAClosedTrades_Account_Ticket", IsUnique = true)]
-public partial class EaclosedTrade
+public partial class EAClosedTrade
 {
     [Key]
     [Column("ClosedTradeID")]
@@ -18,7 +18,7 @@ public partial class EaclosedTrade
     [Column("EATicketID")]
     [StringLength(50)]
     [Unicode(false)]
-    public string EaticketId { get; set; } = null!;
+    public string EaTicketId { get; set; } = null!;
 
     [StringLength(20)]
     public string Symbol { get; set; } = null!;
@@ -46,7 +46,7 @@ public partial class EaclosedTrade
     public decimal? Commission { get; set; }
 
     [Column("RealizedPAndL", TypeName = "decimal(18, 2)")]
-    public decimal RealizedPandL { get; set; }
+    public decimal RealizedPAndL { get; set; }
 
     [Column("IsProcessedForDailyPAndL")]
     public bool IsProcessedForDailyPandL { get; set; }

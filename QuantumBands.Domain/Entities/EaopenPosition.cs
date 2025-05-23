@@ -8,7 +8,7 @@ namespace QuantumBands.Domain.Entities;
 
 [Table("EAOpenPositions")]
 [Index("TradingAccountId", "EaticketId", Name = "UQ_EAOpenPositions_Account_Ticket", IsUnique = true)]
-public partial class EaopenPosition
+public partial class EAOpenPosition
 {
     [Key]
     [Column("OpenPositionID")]
@@ -20,7 +20,7 @@ public partial class EaopenPosition
     [Column("EATicketID")]
     [StringLength(50)]
     [Unicode(false)]
-    public string EaticketId { get; set; } = null!;
+    public string EaTicketId { get; set; } = null!;
 
     [StringLength(20)]
     public string Symbol { get; set; } = null!;
@@ -46,7 +46,7 @@ public partial class EaopenPosition
     public decimal? Commission { get; set; }
 
     [Column("FloatingPAndL", TypeName = "decimal(18, 2)")]
-    public decimal FloatingPandL { get; set; }
+    public decimal FloatingPAndL { get; set; }
 
     public DateTime LastUpdateTime { get; set; }
 

@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using QuantumBands.Application.Common.Models;
 using QuantumBands.Application.Features.Admin.TradingAccounts.Commands;
 using QuantumBands.Application.Features.Admin.TradingAccounts.Dtos;
+using QuantumBands.Application.Features.TradingAccounts.Dtos;
 using QuantumBands.Application.Features.TradingAccounts.Queries;
 using QuantumBands.Application.Interfaces;
 using QuantumBands.Application.Interfaces.Repositories; // Assuming specific repositories if needed
@@ -270,19 +271,108 @@ public class TradingAccountService : ITradingAccountService
             paginatedAccounts.PageSize);
     }
 
-    public async Task<TradingAccountDto?> GetTradingAccountByIdAsync(int accountId, CancellationToken cancellationToken = default)
+    public async Task<(TradingAccountDetailDto? Detail, string? ErrorMessage)> GetTradingAccountDetailsAsync(
+        int accountId,
+        GetTradingAccountDetailsQuery query,
+        CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Fetching trading account by ID: {AccountId}", accountId);
+        _logger.LogInformation("Fetching details for TradingAccountID: {AccountId} with query {@Query}", accountId, query);
+
         var account = await _unitOfWork.TradingAccounts.Query()
-                            .Include(ta => ta.CreatedByUser)
+                            .Include(ta => ta.CreatedByUser) // Để lấy CreatorUsername
+                            .AsNoTracking() // Không cần theo dõi cho truy vấn đọc chi tiết
                             .FirstOrDefaultAsync(ta => ta.TradingAccountId == accountId, cancellationToken);
 
         if (account == null)
         {
-            return null;
+            _logger.LogWarning("TradingAccountID {AccountId} not found.", accountId);
+            return (null, $"Trading account with ID {accountId} not found.");
         }
 
-        return new TradingAccountDto
+        // 1. Lấy Open Positions (giới hạn)
+        var openPositions = await _unitOfWork.EAOpenPositions.Query()
+            .Where(op => op.TradingAccountId == accountId)
+            .OrderByDescending(op => op.OpenTime) // Ví dụ: sắp xếp theo thời gian mở mới nhất
+            .Take(query.ValidatedOpenPositionsLimit)
+            .Select(op => new EAOpenPositionDto
+            {
+                OpenPositionId = op.OpenPositionId,
+                EaTicketId = op.EaTicketId,
+                Symbol = op.Symbol,
+                TradeType = op.TradeType,
+                VolumeLots = op.VolumeLots,
+                OpenPrice = op.OpenPrice,
+                OpenTime = op.OpenTime,
+                CurrentMarketPrice = op.CurrentMarketPrice,
+                // Fix for CS0266 and CS8629: Ensure nullable decimal is handled safely with a null-coalescing operator or explicit cast.
+                Swap = op.Swap ?? 0m,
+                Commission = op.Commission ?? 0m,
+                FloatingPAndL = op.FloatingPAndL,
+                LastUpdateTime = op.LastUpdateTime
+            })
+            .ToListAsync(cancellationToken);
+
+        // 2. Lấy Closed Trades History (phân trang)
+        var closedTradesQuery = _unitOfWork.EAClosedTrades.Query()
+            .Where(ct => ct.TradingAccountId == accountId)
+            .OrderByDescending(ct => ct.CloseTime); // Sắp xếp theo thời gian đóng mới nhất
+
+        var paginatedClosedTrades = await PaginatedList<EAClosedTrade>.CreateAsync(
+            closedTradesQuery,
+            query.ValidatedClosedTradesPageNumber,
+            query.ValidatedClosedTradesPageSize,
+            cancellationToken);
+
+        var closedTradesDtos = paginatedClosedTrades.Items.Select(ct => new EAClosedTradeDto
+        {
+            ClosedTradeId = ct.ClosedTradeId,
+            EaTicketId = ct.EaTicketId,
+            Symbol = ct.Symbol,
+            TradeType = ct.TradeType,
+            VolumeLots = ct.VolumeLots,
+            OpenPrice = ct.OpenPrice,
+            OpenTime = ct.OpenTime,
+            ClosePrice = ct.ClosePrice,
+            CloseTime = ct.CloseTime,
+            Swap = ct.Swap ?? 0m,
+            Commission = ct.Commission ?? 0m,
+            RealizedPAndL = ct.RealizedPAndL,
+            RecordedAt = ct.RecordedAt
+        }).ToList();
+        var closedTradesHistoryPaginatedDto = new PaginatedList<EAClosedTradeDto>(
+            closedTradesDtos, paginatedClosedTrades.TotalCount, paginatedClosedTrades.PageNumber, paginatedClosedTrades.PageSize);
+
+
+        // 3. Lấy Daily Snapshots Info (phân trang)
+        var snapshotsQuery = _unitOfWork.TradingAccountSnapshots.Query()
+            .Where(s => s.TradingAccountId == accountId)
+            .OrderByDescending(s => s.SnapshotDate); // Sắp xếp theo ngày snapshot mới nhất
+
+        var paginatedSnapshots = await PaginatedList<TradingAccountSnapshot>.CreateAsync(
+            snapshotsQuery,
+            query.ValidatedSnapshotsPageNumber,
+            query.ValidatedSnapshotsPageSize,
+            cancellationToken);
+
+        var snapshotDtos = paginatedSnapshots.Items.Select(s => new TradingAccountSnapshotDto
+        {
+            SnapshotId = s.SnapshotId,
+            SnapshotDate = s.SnapshotDate,
+            OpeningNAV = s.OpeningNAV,
+            RealizedPAndLForTheDay = s.RealizedPandLforTheDay,
+            UnrealizedPAndLForTheDay = s.UnrealizedPandLforTheDay,
+            ManagementFeeDeducted = s.ManagementFeeDeducted,
+            ProfitDistributed = s.ProfitDistributed,
+            ClosingNAV = s.ClosingNav,
+            ClosingSharePrice = s.ClosingSharePrice,
+            CreatedAt = s.CreatedAt
+        }).ToList();
+        var dailySnapshotsInfoPaginatedDto = new PaginatedList<TradingAccountSnapshotDto>(
+            snapshotDtos, paginatedSnapshots.TotalCount, paginatedSnapshots.PageNumber, paginatedSnapshots.PageSize);
+
+
+        // Tạo DTO chi tiết
+        var detailDto = new TradingAccountDetailDto
         {
             TradingAccountId = account.TradingAccountId,
             AccountName = account.AccountName,
@@ -298,7 +388,193 @@ public class TradingAccountService : ITradingAccountService
             CreatedByUserId = account.CreatedByUserId,
             CreatorUsername = account.CreatedByUser?.Username ?? "N/A",
             CreatedAt = account.CreatedAt,
-            UpdatedAt = account.UpdatedAt
+            UpdatedAt = account.UpdatedAt,
+            OpenPositions = openPositions,
+            ClosedTradesHistory = closedTradesHistoryPaginatedDto,
+            DailySnapshotsInfo = dailySnapshotsInfoPaginatedDto
         };
+
+        return (detailDto, null);
+    }
+    public async Task<(TradingAccountDto? Account, string? ErrorMessage)> UpdateTradingAccountAsync(
+    int accountId,
+    UpdateTradingAccountRequest request,
+    ClaimsPrincipal adminUserPrincipal,
+    CancellationToken cancellationToken = default)
+    {
+        var adminUserId = GetUserIdFromPrincipal(adminUserPrincipal);
+        if (!adminUserId.HasValue) return (null, "Admin user not authenticated.");
+
+        _logger.LogInformation("Admin {AdminUserId} attempting to update TradingAccountID: {TradingAccountId}", adminUserId.Value, accountId);
+
+        var tradingAccount = await _unitOfWork.TradingAccounts.Query()
+                                    .Include(ta => ta.CreatedByUser) // Để lấy CreatorUsername cho DTO response
+                                    .FirstOrDefaultAsync(ta => ta.TradingAccountId == accountId, cancellationToken);
+
+        if (tradingAccount == null)
+        {
+            _logger.LogWarning("UpdateTradingAccountAsync: TradingAccountID {TradingAccountId} not found.", accountId);
+            return (null, $"Trading account with ID {accountId} not found.");
+        }
+
+        // Kiểm tra xem admin hiện tại có phải là người tạo quỹ không, hoặc có quyền admin cao hơn không
+        // (Tùy theo yêu cầu nghiệp vụ, ở đây giả sử Admin nào cũng có thể sửa)
+
+        bool hasChanges = false;
+
+        if (request.Description != null && tradingAccount.Description != request.Description)
+        {
+            tradingAccount.Description = request.Description;
+            hasChanges = true;
+        }
+        if (request.EaName != null && tradingAccount.EaName != request.EaName)
+        {
+            tradingAccount.EaName = request.EaName;
+            hasChanges = true;
+        }
+        if (request.ManagementFeeRate.HasValue && tradingAccount.ManagementFeeRate != request.ManagementFeeRate.Value)
+        {
+            tradingAccount.ManagementFeeRate = request.ManagementFeeRate.Value;
+            hasChanges = true;
+        }
+        if (request.IsActive.HasValue && tradingAccount.IsActive != request.IsActive.Value)
+        {
+            tradingAccount.IsActive = request.IsActive.Value;
+            hasChanges = true;
+        }
+
+        // Acceptance Criteria: Không cho phép thay đổi TotalSharesIssued sau khi đã có giao dịch cổ phần.
+        // Hiện tại DTO không cho phép thay đổi TotalSharesIssued và InitialCapital, nên điều kiện này được đáp ứng.
+        // Nếu sau này cho phép, cần thêm logic kiểm tra:
+        // bool hasTransactions = await _unitOfWork.InitialShareOfferings.Query()
+        //                            .AnyAsync(iso => iso.TradingAccountId == accountId && iso.SharesSold > 0, cancellationToken);
+        // if (hasTransactions && (request.TotalSharesIssued.HasValue && tradingAccount.TotalSharesIssued != request.TotalSharesIssued.Value))
+        // {
+        //     return (null, "Cannot change TotalSharesIssued after shares have been offered or sold.");
+        // }
+
+        if (!hasChanges)
+        {
+            _logger.LogInformation("No changes detected for TradingAccountID {TradingAccountId}.", accountId);
+            // Vẫn trả về thông tin hiện tại nếu không có gì thay đổi
+        }
+        else
+        {
+            tradingAccount.UpdatedAt = DateTime.UtcNow;
+            _unitOfWork.TradingAccounts.Update(tradingAccount); // EF Core chỉ update các trường đã thay đổi
+            try
+            {
+                await _unitOfWork.CompleteAsync(cancellationToken);
+                _logger.LogInformation("TradingAccountID {TradingAccountId} updated successfully by Admin {AdminUserId}.", accountId, adminUserId.Value);
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                _logger.LogError(ex, "Concurrency error while updating TradingAccountID: {TradingAccountId}", accountId);
+                return (null, "Could not update trading account due to a concurrency conflict. Please try again.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating TradingAccountID: {TradingAccountId}", accountId);
+                return (null, "An error occurred while updating the trading account.");
+            }
+        }
+
+        var dto = new TradingAccountDto
+        {
+            TradingAccountId = tradingAccount.TradingAccountId,
+            AccountName = tradingAccount.AccountName, // Tên không đổi qua endpoint này
+            Description = tradingAccount.Description,
+            EaName = tradingAccount.EaName,
+            BrokerPlatformIdentifier = tradingAccount.BrokerPlatformIdentifier,
+            InitialCapital = tradingAccount.InitialCapital,
+            TotalSharesIssued = tradingAccount.TotalSharesIssued,
+            CurrentNetAssetValue = tradingAccount.CurrentNetAssetValue,
+            CurrentSharePrice = tradingAccount.TotalSharesIssued > 0 ? tradingAccount.CurrentNetAssetValue / tradingAccount.TotalSharesIssued : 0,
+            ManagementFeeRate = tradingAccount.ManagementFeeRate,
+            IsActive = tradingAccount.IsActive,
+            CreatedByUserId = tradingAccount.CreatedByUserId,
+            CreatorUsername = tradingAccount.CreatedByUser?.Username ?? "N/A",
+            CreatedAt = tradingAccount.CreatedAt,
+            UpdatedAt = tradingAccount.UpdatedAt
+        };
+        return (dto, null);
+    }
+    public async Task<(PaginatedList<InitialShareOfferingDto>? Offerings, string? ErrorMessage)> GetInitialShareOfferingsAsync(
+    int tradingAccountId,
+    GetInitialOfferingsQuery query,
+    CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Fetching initial share offerings for TradingAccountID: {TradingAccountId} with query: {@Query}", tradingAccountId, query);
+
+        var tradingAccountExists = await _unitOfWork.TradingAccounts.Query()
+                                        .AnyAsync(ta => ta.TradingAccountId == tradingAccountId, cancellationToken);
+        if (!tradingAccountExists)
+        {
+            _logger.LogWarning("TradingAccountID {TradingAccountId} not found when fetching offerings.", tradingAccountId);
+            return (null, $"Trading account with ID {tradingAccountId} not found.");
+        }
+
+        var offeringsQuery = _unitOfWork.InitialShareOfferings.Query()
+                                .Include(iso => iso.AdminUser) // Để lấy AdminUsername
+                                .Where(iso => iso.TradingAccountId == tradingAccountId);
+
+        // Áp dụng Filter theo Status
+        if (!string.IsNullOrWhiteSpace(query.Status))
+        {
+            // So sánh không phân biệt hoa thường với tên của Enum member
+            offeringsQuery = offeringsQuery.Where(iso => iso.Status.Equals(query.Status, StringComparison.OrdinalIgnoreCase));
+        }
+
+        // Áp dụng Sắp xếp
+        bool isDescending = query.SortOrder?.ToLower() == "desc";
+        Expression<Func<InitialShareOffering, object>> orderByExpression;
+
+        switch (query.SortBy?.ToLowerInvariant())
+        {
+            case "offeringpricepershare":
+                orderByExpression = iso => iso.OfferingPricePerShare;
+                break;
+            case "sharesoffered":
+                orderByExpression = iso => iso.SharesOffered;
+                break;
+            case "offeringstartdate":
+            default:
+                orderByExpression = iso => iso.OfferingStartDate;
+                break;
+        }
+
+        offeringsQuery = isDescending
+            ? offeringsQuery.OrderByDescending(orderByExpression)
+            : offeringsQuery.OrderBy(orderByExpression);
+
+        var paginatedOfferings = await PaginatedList<InitialShareOffering>.CreateAsync(
+            offeringsQuery,
+            query.ValidatedPageNumber,
+            query.ValidatedPageSize,
+            cancellationToken);
+
+        var dtos = paginatedOfferings.Items.Select(iso => new InitialShareOfferingDto
+        {
+            OfferingId = iso.OfferingId,
+            TradingAccountId = iso.TradingAccountId,
+            AdminUserId = iso.AdminUserId,
+            AdminUsername = iso.AdminUser?.Username ?? "N/A", // Lấy username từ navigation property
+            SharesOffered = iso.SharesOffered,
+            SharesSold = iso.SharesSold,
+            OfferingPricePerShare = iso.OfferingPricePerShare,
+            FloorPricePerShare = iso.FloorPricePerShare,
+            CeilingPricePerShare = iso.CeilingPricePerShare,
+            OfferingStartDate = iso.OfferingStartDate,
+            OfferingEndDate = iso.OfferingEndDate,
+            Status = iso.Status,
+            CreatedAt = iso.CreatedAt,
+            UpdatedAt = iso.UpdatedAt
+        }).ToList();
+
+        return (new PaginatedList<InitialShareOfferingDto>(
+            dtos,
+            paginatedOfferings.TotalCount,
+            paginatedOfferings.PageNumber,
+            paginatedOfferings.PageSize), null);
     }
 }

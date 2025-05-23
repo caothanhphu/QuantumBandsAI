@@ -19,7 +19,7 @@ public partial class TradingAccountSnapshot
     public DateOnly SnapshotDate { get; set; }
 
     [Column("OpeningNAV", TypeName = "decimal(18, 2)")]
-    public decimal OpeningNav { get; set; }
+    public decimal OpeningNAV { get; set; }
 
     [Column("RealizedPAndLForTheDay", TypeName = "decimal(18, 2)")]
     public decimal RealizedPandLforTheDay { get; set; }

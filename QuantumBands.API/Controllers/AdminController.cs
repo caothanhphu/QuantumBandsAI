@@ -293,4 +293,35 @@ public class AdminController : ControllerBase
         // return CreatedAtAction("GetOfferingById", new { accountId = accountId, offeringId = offeringDto.OfferingId }, offeringDto);
         return StatusCode(StatusCodes.Status201Created, offeringDto);
     }
+
+    [HttpPut("trading-accounts/{accountId}")] // Route: /api/v1/admin/trading-accounts/{accountId}
+    [ProducesResponseType(typeof(TradingAccountDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpdateTradingAccount(int accountId, [FromBody] UpdateTradingAccountRequest request, CancellationToken cancellationToken)
+    {
+        var adminUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        _logger.LogInformation("Admin {AdminId} attempting to update TradingAccountID: {TradingAccountId}", adminUserId, accountId);
+
+        if (request == null) // FluentValidation sẽ bắt, nhưng kiểm tra thêm cũng tốt
+        {
+            return BadRequest(new { Message = "Request body cannot be null." });
+        }
+
+        var (accountDto, errorMessage) = await _tradingAccountService.UpdateTradingAccountAsync(accountId, request, User, cancellationToken);
+
+        if (accountDto == null)
+        {
+            _logger.LogWarning("Failed to update TradingAccountID {TradingAccountId}. Admin: {AdminId}, Error: {ErrorMessage}", accountId, adminUserId, errorMessage);
+            if (errorMessage != null)
+            {
+                if (errorMessage.Contains("not found")) return NotFound(new { Message = errorMessage });
+                if (errorMessage.Contains("concurrency conflict")) return Conflict(new { Message = errorMessage });
+            }
+            return BadRequest(new { Message = errorMessage ?? "Failed to update trading account." });
+        }
+        return Ok(accountDto);
+    }
 }

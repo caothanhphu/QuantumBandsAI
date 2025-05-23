@@ -16,9 +16,9 @@ public partial class FinixAIDbContext : DbContext
     {
     }
 
-    public virtual DbSet<EaclosedTrade> EaclosedTrades { get; set; }
+    public virtual DbSet<EAClosedTrade> EaclosedTrades { get; set; }
 
-    public virtual DbSet<EaopenPosition> EaopenPositions { get; set; }
+    public virtual DbSet<EAOpenPosition> EaopenPositions { get; set; }
 
     public virtual DbSet<InitialShareOffering> InitialShareOfferings { get; set; }
 
@@ -51,7 +51,7 @@ public partial class FinixAIDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder.Entity<EaclosedTrade>(entity =>
+        modelBuilder.Entity<EAClosedTrade>(entity =>
         {
             entity.HasKey(e => e.ClosedTradeId).HasName("PK__EAClosed__9C45B584F04B6DEB");
 
@@ -64,7 +64,7 @@ public partial class FinixAIDbContext : DbContext
                 .HasConstraintName("FK_EAClosedTrades_TradingAccountID");
         });
 
-        modelBuilder.Entity<EaopenPosition>(entity =>
+        modelBuilder.Entity<EAOpenPosition>(entity =>
         {
             entity.HasKey(e => e.OpenPositionId).HasName("PK__EAOpenPo__A2749288012FED3A");
 

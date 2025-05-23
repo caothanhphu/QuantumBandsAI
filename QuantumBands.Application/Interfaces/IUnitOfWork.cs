@@ -11,6 +11,9 @@ public interface IUnitOfWork : IDisposable
     IGenericRepository<WalletTransaction> WalletTransactions { get; }
     IGenericRepository<TradingAccount> TradingAccounts { get; }
     IGenericRepository<InitialShareOffering> InitialShareOfferings { get; }
-
+    IGenericRepository<EAOpenPosition> EAOpenPositions { get; } // Thêm mới
+    IGenericRepository<EAClosedTrade> EAClosedTrades { get; } // Thêm mới
+    IGenericRepository<TradingAccountSnapshot> TradingAccountSnapshots { get; } // Thêm mới
+    IGenericRepository<SharePortfolio> SharePortfolios { get; } // Thêm mới
     Task<int> CompleteAsync(CancellationToken cancellationToken = default);
 }

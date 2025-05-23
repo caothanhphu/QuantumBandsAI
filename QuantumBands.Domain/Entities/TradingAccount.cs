@@ -54,10 +54,10 @@ public partial class TradingAccount
     public virtual User CreatedByUser { get; set; } = null!;
 
     [InverseProperty("TradingAccount")]
-    public virtual ICollection<EaclosedTrade> EaclosedTrades { get; set; } = new List<EaclosedTrade>();
+    public virtual ICollection<EAClosedTrade> EaclosedTrades { get; set; } = new List<EAClosedTrade>();
 
     [InverseProperty("TradingAccount")]
-    public virtual ICollection<EaopenPosition> EaopenPositions { get; set; } = new List<EaopenPosition>();
+    public virtual ICollection<EAOpenPosition> EaopenPositions { get; set; } = new List<EAOpenPosition>();
 
     [InverseProperty("TradingAccount")]
     public virtual ICollection<InitialShareOffering> InitialShareOfferings { get; set; } = new List<InitialShareOffering>();

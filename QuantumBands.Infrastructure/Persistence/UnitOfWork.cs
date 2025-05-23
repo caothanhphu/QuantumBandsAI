@@ -19,6 +19,11 @@ public class UnitOfWork : IUnitOfWork
 
     public IGenericRepository<InitialShareOffering> InitialShareOfferings { get; private set; }
     public IGenericRepository<TradingAccount> TradingAccounts { get; private set; }
+    public IGenericRepository<EAOpenPosition> EAOpenPositions { get; private set; }
+    public IGenericRepository<EAClosedTrade> EAClosedTrades { get; private set; }
+    public IGenericRepository<TradingAccountSnapshot> TradingAccountSnapshots { get; private set; }
+    public IGenericRepository<SharePortfolio> SharePortfolios { get; private set; }
+
     public UnitOfWork(FinixAIDbContext context)
     {
         _context = context;
@@ -26,6 +31,12 @@ public class UnitOfWork : IUnitOfWork
         Users = new GenericRepository<User>(_context); // Khởi tạo generic repository
         Wallets = new GenericRepository<Wallet>(_context); // Khởi tạo generic repository
         WalletTransactions = new GenericRepository<WalletTransaction>(_context); // Khởi tạo generic repository
+        InitialShareOfferings = new GenericRepository<InitialShareOffering>(_context); // Khởi tạo generic repository
+        TradingAccounts = new GenericRepository<TradingAccount>(_context); // Khởi tạo generic repository
+        EAOpenPositions = new GenericRepository<EAOpenPosition>(_context); // Khởi tạo generic repository
+        EAClosedTrades = new GenericRepository<EAClosedTrade>(_context); // Khởi tạo generic repository
+        TradingAccountSnapshots = new GenericRepository<TradingAccountSnapshot>(_context); // Khởi tạo generic repository
+        SharePortfolios = new GenericRepository<SharePortfolio>(_context); // Khởi tạo generic repository
     }
 
     public async Task<int> CompleteAsync(CancellationToken cancellationToken = default)
