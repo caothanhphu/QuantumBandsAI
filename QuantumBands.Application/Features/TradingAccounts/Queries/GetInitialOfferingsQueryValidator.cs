@@ -1,6 +1,7 @@
 ﻿// QuantumBands.Application/Features/TradingAccounts/Queries/GetInitialOfferingsQueryValidator.cs
 using FluentValidation;
 using QuantumBands.Domain.Entities; // For OfferingStatus enum
+using QuantumBands.Domain.Entities.Enums;
 using System.Collections.Generic;
 using System.Linq;
 

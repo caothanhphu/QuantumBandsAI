@@ -15,4 +15,7 @@ public partial class ShareOrderType
 
     [StringLength(20)]
     public string TypeName { get; set; } = null!;
+
+    [InverseProperty("OrderType")]
+    public virtual ICollection<ShareOrder> ShareOrders { get; set; } = new List<ShareOrder>();
 }

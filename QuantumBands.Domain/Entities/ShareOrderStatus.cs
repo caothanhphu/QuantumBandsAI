@@ -5,15 +5,6 @@ using System.ComponentModel.DataAnnotations.Schema;
 using Microsoft.EntityFrameworkCore;
 
 namespace QuantumBands.Domain.Entities;
-public enum OrderStatus
-{
-    Open,
-    PartiallyFilled,
-    Filled,
-    Cancelled,
-    Expired,
-    PendingExecution // Thêm trạng thái này nếu cần cho lệnh Market
-}
 
 [Index("StatusName", Name = "UQ__ShareOrd__05E7698A1417F64A", IsUnique = true)]
 public partial class ShareOrderStatus
@@ -24,4 +15,7 @@ public partial class ShareOrderStatus
 
     [StringLength(20)]
     public string StatusName { get; set; } = null!;
+
+    [InverseProperty("OrderStatus")]
+    public virtual ICollection<ShareOrder> ShareOrders { get; set; } = new List<ShareOrder>();
 }

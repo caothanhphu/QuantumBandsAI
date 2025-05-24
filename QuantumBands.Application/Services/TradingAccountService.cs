@@ -9,6 +9,7 @@ using QuantumBands.Application.Features.TradingAccounts.Queries;
 using QuantumBands.Application.Interfaces;
 using QuantumBands.Application.Interfaces.Repositories; // Assuming specific repositories if needed
 using QuantumBands.Domain.Entities;
+using QuantumBands.Domain.Entities.Enums;
 using System;
 using System.IdentityModel.Tokens.Jwt; // For FirstOrDefaultAsync, SumAsync
 using System.Linq.Expressions;
@@ -73,7 +74,7 @@ public class TradingAccountService : ITradingAccountService
         {
             AccountName = request.AccountName,
             Description = request.Description,
-            EaName = request.EaName,
+            Eaname = request.EaName,
             BrokerPlatformIdentifier = request.BrokerPlatformIdentifier,
             InitialCapital = request.InitialCapital,
             TotalSharesIssued = request.TotalSharesIssued,
@@ -96,7 +97,7 @@ public class TradingAccountService : ITradingAccountService
             TradingAccountId = tradingAccount.TradingAccountId,
             AccountName = tradingAccount.AccountName,
             Description = tradingAccount.Description,
-            EaName = tradingAccount.EaName,
+            EaName = tradingAccount.Eaname,
             BrokerPlatformIdentifier = tradingAccount.BrokerPlatformIdentifier,
             InitialCapital = tradingAccount.InitialCapital,
             TotalSharesIssued = tradingAccount.TotalSharesIssued,
@@ -250,7 +251,7 @@ public class TradingAccountService : ITradingAccountService
             TradingAccountId = ta.TradingAccountId,
             AccountName = ta.AccountName,
             Description = ta.Description,
-            EaName = ta.EaName,
+            EaName = ta.Eaname,
             BrokerPlatformIdentifier = ta.BrokerPlatformIdentifier,
             InitialCapital = ta.InitialCapital,
             TotalSharesIssued = ta.TotalSharesIssued,
@@ -297,7 +298,7 @@ public class TradingAccountService : ITradingAccountService
             .Select(op => new EAOpenPositionDto
             {
                 OpenPositionId = op.OpenPositionId,
-                EaTicketId = op.EaTicketId,
+                EaTicketId = op.EaticketId,
                 Symbol = op.Symbol,
                 TradeType = op.TradeType,
                 VolumeLots = op.VolumeLots,
@@ -307,7 +308,7 @@ public class TradingAccountService : ITradingAccountService
                 // Fix for CS0266 and CS8629: Ensure nullable decimal is handled safely with a null-coalescing operator or explicit cast.
                 Swap = op.Swap ?? 0m,
                 Commission = op.Commission ?? 0m,
-                FloatingPAndL = op.FloatingPAndL,
+                FloatingPAndL = op.FloatingPandL,
                 LastUpdateTime = op.LastUpdateTime
             })
             .ToListAsync(cancellationToken);
@@ -317,7 +318,7 @@ public class TradingAccountService : ITradingAccountService
             .Where(ct => ct.TradingAccountId == accountId)
             .OrderByDescending(ct => ct.CloseTime); // Sắp xếp theo thời gian đóng mới nhất
 
-        var paginatedClosedTrades = await PaginatedList<EAClosedTrade>.CreateAsync(
+        var paginatedClosedTrades = await PaginatedList<EaclosedTrade>.CreateAsync(
             closedTradesQuery,
             query.ValidatedClosedTradesPageNumber,
             query.ValidatedClosedTradesPageSize,
@@ -326,7 +327,7 @@ public class TradingAccountService : ITradingAccountService
         var closedTradesDtos = paginatedClosedTrades.Items.Select(ct => new EAClosedTradeDto
         {
             ClosedTradeId = ct.ClosedTradeId,
-            EaTicketId = ct.EaTicketId,
+            EaTicketId = ct.EaticketId,
             Symbol = ct.Symbol,
             TradeType = ct.TradeType,
             VolumeLots = ct.VolumeLots,
@@ -336,7 +337,7 @@ public class TradingAccountService : ITradingAccountService
             CloseTime = ct.CloseTime,
             Swap = ct.Swap ?? 0m,
             Commission = ct.Commission ?? 0m,
-            RealizedPAndL = ct.RealizedPAndL,
+            RealizedPAndL = ct.RealizedPandL,
             RecordedAt = ct.RecordedAt
         }).ToList();
         var closedTradesHistoryPaginatedDto = new PaginatedList<EAClosedTradeDto>(
@@ -358,7 +359,7 @@ public class TradingAccountService : ITradingAccountService
         {
             SnapshotId = s.SnapshotId,
             SnapshotDate = s.SnapshotDate,
-            OpeningNAV = s.OpeningNAV,
+            OpeningNAV = s.OpeningNav,
             RealizedPAndLForTheDay = s.RealizedPandLforTheDay,
             UnrealizedPAndLForTheDay = s.UnrealizedPandLforTheDay,
             ManagementFeeDeducted = s.ManagementFeeDeducted,
@@ -377,7 +378,7 @@ public class TradingAccountService : ITradingAccountService
             TradingAccountId = account.TradingAccountId,
             AccountName = account.AccountName,
             Description = account.Description,
-            EaName = account.EaName,
+            EaName = account.Eaname,
             BrokerPlatformIdentifier = account.BrokerPlatformIdentifier,
             InitialCapital = account.InitialCapital,
             TotalSharesIssued = account.TotalSharesIssued,
@@ -427,9 +428,9 @@ public class TradingAccountService : ITradingAccountService
             tradingAccount.Description = request.Description;
             hasChanges = true;
         }
-        if (request.EaName != null && tradingAccount.EaName != request.EaName)
+        if (request.EaName != null && tradingAccount.Eaname != request.EaName)
         {
-            tradingAccount.EaName = request.EaName;
+            tradingAccount.Eaname = request.EaName;
             hasChanges = true;
         }
         if (request.ManagementFeeRate.HasValue && tradingAccount.ManagementFeeRate != request.ManagementFeeRate.Value)
@@ -484,7 +485,7 @@ public class TradingAccountService : ITradingAccountService
             TradingAccountId = tradingAccount.TradingAccountId,
             AccountName = tradingAccount.AccountName, // Tên không đổi qua endpoint này
             Description = tradingAccount.Description,
-            EaName = tradingAccount.EaName,
+            EaName = tradingAccount.Eaname,
             BrokerPlatformIdentifier = tradingAccount.BrokerPlatformIdentifier,
             InitialCapital = tradingAccount.InitialCapital,
             TotalSharesIssued = tradingAccount.TotalSharesIssued,

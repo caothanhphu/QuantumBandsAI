@@ -16,16 +16,16 @@ public class DailySnapshotService : IDailySnapshotService
 {
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<DailySnapshotService> _logger;
-    // private readonly IProfitDistributionService _profitDistributionService; // Inject if BE-PROFIT-DIST is ready
+    private readonly IProfitDistributionService _profitDistributionService; // Inject if BE-PROFIT-DIST is ready
 
     public DailySnapshotService(
         IUnitOfWork unitOfWork,
-        ILogger<DailySnapshotService> logger
-        /* IProfitDistributionService profitDistributionService */)
+        ILogger<DailySnapshotService> logger,
+        IProfitDistributionService profitDistributionService )
     {
         _unitOfWork = unitOfWork;
         _logger = logger;
-        // _profitDistributionService = profitDistributionService;
+        _profitDistributionService = profitDistributionService;
     }
 
     public async Task<string> CreateDailySnapshotsAsync(DateTime snapshotDateInput, CancellationToken cancellationToken = default)
@@ -81,13 +81,13 @@ public class DailySnapshotService : IDailySnapshotService
                                  ct.CloseTime.Date == snapshotDate) // Trades closed on the snapshot date
                     .ToListAsync(cancellationToken);
 
-                decimal realizedPAndLForTheDay = tradesToProcess.Sum(ct => ct.RealizedPAndL);
+                decimal realizedPAndLForTheDay = tradesToProcess.Sum(ct => ct.RealizedPandL);
 
                 // 3. UnrealizedPAndLForTheDay (Sum of FloatingPAndL from current open positions)
                 // This value is taken at the moment the snapshot is created.
                 decimal currentTotalFloatingPAndL = await _unitOfWork.EAOpenPositions.Query()
                     .Where(op => op.TradingAccountId == account.TradingAccountId)
-                    .SumAsync(op => (decimal?)op.FloatingPAndL ?? 0, cancellationToken); // Cast to nullable decimal
+                    .SumAsync(op => (decimal?)op.FloatingPandL ?? 0, cancellationToken); // Cast to nullable decimal
 
                 // 4. ManagementFeeDeducted
                 decimal managementFeeDeducted = 0;
@@ -98,16 +98,52 @@ public class DailySnapshotService : IDailySnapshotService
                     _logger.LogInformation("Calculated management fee for TA_ID {TradingAccountId}: {FeeAmount}", account.TradingAccountId, managementFeeDeducted);
                 }
 
-                // 5. ProfitDistributed (Placeholder - from separate epic)
-                decimal profitDistributed = 0;
-                // if (realizedPAndLForTheDay - managementFeeDeducted > 0)
-                // {
-                //     profitDistributed = await _profitDistributionService.CalculateAndDistributeProfitAsync(
-                //         account.TradingAccountId,
-                //         realizedPAndLForTheDay - managementFeeDeducted,
-                //         snapshotDate,
-                //         cancellationToken);
-                // }
+                // --- BẮT ĐẦU TÍCH HỢP PROFIT DISTRIBUTION ---
+                // Tạo bản ghi snapshot nháp để lấy ID (nếu cần ID trước khi gọi ProfitDistribution)
+                // Hoặc truyền null/0 và cập nhật sau. Để đơn giản, sẽ tạo snapshot trước.
+                var tempSnapshotForId = new TradingAccountSnapshot { TradingAccountId = account.TradingAccountId, SnapshotDate = DateOnly.FromDateTime(snapshotDate), CreatedAt = DateTime.UtcNow };
+                // Không AddAsync và CompleteAsync ở đây nếu không muốn có ID ngay.
+                // ProfitDistributionService sẽ cần TradingAccountSnapshotID.
+                // Cách tiếp cận: Tạo snapshot, lưu để lấy ID, rồi mới gọi ProfitDistribution.
+
+                // Bước 1: Tạo và lưu snapshot ban đầu (chưa có ProfitDistributed và ManagementFee)
+                var initialSnapshot = new TradingAccountSnapshot
+                {
+                    TradingAccountId = account.TradingAccountId,
+                    SnapshotDate = DateOnly.FromDateTime(snapshotDate),
+                    OpeningNav = openingNAV,
+                    RealizedPandLforTheDay = realizedPAndLForTheDay,
+                    UnrealizedPandLforTheDay = currentTotalFloatingPAndL,
+                    ManagementFeeDeducted = 0, // Sẽ được cập nhật bởi ProfitDistributionService
+                    ProfitDistributed = 0,     // Sẽ được cập nhật bởi ProfitDistributionService
+                    ClosingNav = 0,            // Sẽ được tính toán lại sau
+                    ClosingSharePrice = 0,     // Sẽ được tính toán lại sau
+                    CreatedAt = DateTime.UtcNow
+                };
+                await _unitOfWork.TradingAccountSnapshots.AddAsync(initialSnapshot);
+                await _unitOfWork.CompleteAsync(cancellationToken); // Lưu để lấy initialSnapshot.SnapshotId
+
+                // Gọi ProfitDistributionService
+                var (managementFee, profitDistributed) = await _profitDistributionService.CalculateAndDistributeProfitAsync(
+                    account,
+                    realizedPAndLForTheDay,
+                    snapshotDate,
+                    initialSnapshot.SnapshotId, // Truyền ID của snapshot vừa tạo
+                    cancellationToken);
+
+                // Cập nhật lại snapshot với thông tin phí và lợi nhuận đã chia
+                initialSnapshot.ManagementFeeDeducted = managementFee;
+                initialSnapshot.ProfitDistributed = profitDistributed;
+
+                // Tính lại ClosingNAV và ClosingSharePrice
+                initialSnapshot.ClosingNav = account.CurrentNetAssetValue - initialSnapshot.ManagementFeeDeducted - initialSnapshot.ProfitDistributed;
+                initialSnapshot.ClosingSharePrice = (account.TotalSharesIssued > 0)
+                    ? Math.Round(initialSnapshot.ClosingNav / account.TotalSharesIssued, 8)
+                    : 0;
+
+                _unitOfWork.TradingAccountSnapshots.Update(initialSnapshot);
+                // --- KẾT THÚC TÍCH HỢP PROFIT DISTRIBUTION ---
+
 
                 // 6. ClosingNAV
                 // Option: Simpler ClosingNAV based on pushed Equity
@@ -128,7 +164,7 @@ public class DailySnapshotService : IDailySnapshotService
                 {
                     TradingAccountId = account.TradingAccountId,
                     SnapshotDate = DateOnly.FromDateTime(snapshotDate),
-                    OpeningNAV = openingNAV,
+                    OpeningNav = openingNAV,
                     RealizedPandLforTheDay = realizedPAndLForTheDay,
                     UnrealizedPandLforTheDay = currentTotalFloatingPAndL, // This is the sum at snapshot time
                     ManagementFeeDeducted = managementFeeDeducted,

@@ -34,33 +34,52 @@ public partial class User
     public bool IsEmailVerified { get; set; }
 
     public bool TwoFactorEnabled { get; set; }
-    [StringLength(256)]
-    public string? TwoFactorSecretKey { get; set; } = null!;
 
     public DateTime? LastLoginDate { get; set; }
 
     public DateTime CreatedAt { get; set; }
 
     public DateTime UpdatedAt { get; set; }
+
+    [StringLength(256)]
+    public string? EmailVerificationToken { get; set; }
+
     public DateTime? EmailVerificationTokenExpiry { get; set; }
+
     [StringLength(256)]
-    public string? EmailVerificationToken { get; set; } = null!;
-    public DateTime? PasswordResetTokenExpiry { get; set; }
-    [StringLength(256)]
-    public string? PasswordResetToken { get; set; } = null!;
+    public string? RefreshToken { get; set; }
+
     public DateTime? RefreshTokenExpiry { get; set; }
+
     [StringLength(256)]
-    public string? RefreshToken { get; set; } = null!;
+    public string? PasswordResetToken { get; set; }
+
+    public DateTime? PasswordResetTokenExpiry { get; set; }
+
+    [StringLength(256)]
+    public string? TwoFactorSecretKey { get; set; }
 
     [InverseProperty("AdminUser")]
     public virtual ICollection<InitialShareOffering> InitialShareOfferings { get; set; } = new List<InitialShareOffering>();
+
+    [InverseProperty("User")]
+    public virtual ICollection<ProfitDistributionLog> ProfitDistributionLogs { get; set; } = new List<ProfitDistributionLog>();
 
     [ForeignKey("RoleId")]
     [InverseProperty("Users")]
     public virtual UserRole Role { get; set; } = null!;
 
     [InverseProperty("User")]
+    public virtual ICollection<ShareOrder> ShareOrders { get; set; } = new List<ShareOrder>();
+
+    [InverseProperty("User")]
     public virtual ICollection<SharePortfolio> SharePortfolios { get; set; } = new List<SharePortfolio>();
+
+    [InverseProperty("BuyerUser")]
+    public virtual ICollection<ShareTrade> ShareTradeBuyerUsers { get; set; } = new List<ShareTrade>();
+
+    [InverseProperty("SellerUser")]
+    public virtual ICollection<ShareTrade> ShareTradeSellerUsers { get; set; } = new List<ShareTrade>();
 
     [InverseProperty("UpdatedByUser")]
     public virtual ICollection<SystemSetting> SystemSettings { get; set; } = new List<SystemSetting>();

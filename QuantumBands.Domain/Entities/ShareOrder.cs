@@ -1,55 +1,94 @@
-﻿// QuantumBands.Domain/Entities/ShareOrder.cs
-using System;
+﻿using System;
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.EntityFrameworkCore;
 
 namespace QuantumBands.Domain.Entities;
 
-public class ShareOrder
+[Index("OrderDate", Name = "IX_ShareOrders_OrderDate", AllDescending = true)]
+[Index("TradingAccountId", "OrderStatusId", Name = "IX_ShareOrders_TradingAccountID_StatusID")]
+[Index("UserId", Name = "IX_ShareOrders_UserID")]
+public partial class ShareOrder
 {
-    [Key] // Đánh dấu là khóa chính
-    [DatabaseGenerated(DatabaseGeneratedOption.Identity)] // Giá trị được tự động sinh bởi database
-    public long OrderId { get; set; } // Tên thuộc tính PascalCase
+    [Key]
+    [Column("OrderID")]
+    public long OrderId { get; set; }
 
+    [Column("UserID")]
     public int UserId { get; set; }
-    public virtual User User { get; set; } = null!; // Navigation property tới User
 
+    [Column("TradingAccountID")]
     public int TradingAccountId { get; set; }
-    public virtual TradingAccount TradingAccount { get; set; } = null!; // Navigation property tới TradingAccount
 
+    [Column("OrderSideID")]
     public int OrderSideId { get; set; }
-    public virtual ShareOrderSide ShareOrderSide { get; set; } = null!; // Navigation property
+    public virtual ShareOrderSide ShareOrderSide { get; set; } = null!; // Thuộc tính Navigation
 
+    [Column("OrderTypeID")]
     public int OrderTypeId { get; set; }
-    public virtual ShareOrderType ShareOrderType { get; set; } = null!; // Navigation property
+    public virtual ShareOrderType ShareOrderType { get; set; } = null!;
 
+    [Column("OrderStatusID")]
     public int OrderStatusId { get; set; }
-    public virtual ShareOrderStatus ShareOrderStatus { get; set; } = null!; // Navigation property
+    public virtual ShareOrderStatus ShareOrderStatus { get; set; } = null!;
 
     public long QuantityOrdered { get; set; }
-    public long QuantityFilled { get; set; } // DEFAULT 0 được xử lý bởi DB hoặc khi khởi tạo đối tượng
 
-    [Column(TypeName = "decimal(18, 8)")] // Chỉ định kiểu dữ liệu SQL
-    public decimal? LimitPrice { get; set; } // Nullable
+    public long QuantityFilled { get; set; }
 
     [Column(TypeName = "decimal(18, 8)")]
-    public decimal? AverageFillPrice { get; set; } // Nullable
+    public decimal? LimitPrice { get; set; }
+
+    [Column(TypeName = "decimal(18, 8)")]
+    public decimal? AverageFillPrice { get; set; }
 
     [Column(TypeName = "decimal(6, 5)")]
-    public decimal? TransactionFeeRate { get; set; } // Nullable
+    public decimal? TransactionFeeRate { get; set; }
 
     [Column(TypeName = "decimal(18, 8)")]
-    public decimal? TransactionFeeAmount { get; set; } // Nullable
+    public decimal? TransactionFeeAmount { get; set; }
 
-    public DateTime OrderDate { get; set; } // DEFAULT GETUTCDATE() được xử lý bởi DB hoặc khi khởi tạo đối tượng
-    public DateTime? ExpirationDate { get; set; } // Nullable
-    public DateTime UpdatedAt { get; set; } // DEFAULT GETUTCDATE() được xử lý bởi DB hoặc khi khởi tạo đối tượng
+    public DateTime OrderDate { get; set; }
 
-    // Constructor để khởi tạo giá trị mặc định nếu cần (ví dụ: cho các trường không tự động bởi DB)
+    public DateTime? ExpirationDate { get; set; }
+
+    public DateTime UpdatedAt { get; set; }
+
+    [ForeignKey("OrderSideId")]
+    [InverseProperty("ShareOrders")]
+    public virtual ShareOrderSide OrderSide { get; set; } = null!;
+
+    [ForeignKey("OrderStatusId")]
+    [InverseProperty("ShareOrders")]
+    public virtual ShareOrderStatus OrderStatus { get; set; } = null!;
+
+    [ForeignKey("OrderTypeId")]
+    [InverseProperty("ShareOrders")]
+    public virtual ShareOrderType OrderType { get; set; } = null!;
+
+    [InverseProperty("BuyOrder")]
+    public virtual ICollection<ShareTrade> ShareTradeBuyOrders { get; set; } = new List<ShareTrade>();
+
+    [InverseProperty("SellOrder")]
+    public virtual ICollection<ShareTrade> ShareTradeSellOrders { get; set; } = new List<ShareTrade>();
+
+    [ForeignKey("TradingAccountId")]
+    [InverseProperty("ShareOrders")]
+    public virtual TradingAccount TradingAccount { get; set; } = null!;
+
+    [ForeignKey("UserId")]
+    [InverseProperty("ShareOrders")]
+    public virtual User User { get; set; } = null!;
+    // Navigation properties cho ShareTrades (nếu cần cho lỗi này)
+    public virtual ICollection<ShareTrade> BuyTrades { get; set; } = new List<ShareTrade>();
+    public virtual ICollection<ShareTrade> SellTrades { get; set; } = new List<ShareTrade>();
+
+
     public ShareOrder()
     {
         OrderDate = DateTime.UtcNow;
         UpdatedAt = DateTime.UtcNow;
-        QuantityFilled = 0; // Mặc định trong C# nếu DB không set
+        QuantityFilled = 0;
     }
 }

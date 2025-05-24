@@ -8,6 +8,7 @@ using QuantumBands.Application.Features.Exchange.Queries;
 using QuantumBands.Application.Interfaces;
 using QuantumBands.Application.Interfaces.Repositories; // Nếu có specific repositories
 using QuantumBands.Domain.Entities;
+using QuantumBands.Domain.Entities.Enums;
 using System;
 using System.IdentityModel.Tokens.Jwt; // For Include, FirstOrDefaultAsync
 using System.Linq.Expressions;
@@ -201,8 +202,8 @@ public class ExchangeService : IExchangeService
                 .ThenInclude(u => u.Wallet) // Cần Wallet để trừ/cộng tiền
             .Include(o => o.TradingAccount)
             .FirstOrDefaultAsync(o => o.OrderId == orderId &&
-                                     (o.ShareOrderStatus.StatusName == nameof(OrderStatus.Open) ||
-                                      o.ShareOrderStatus.StatusName == nameof(OrderStatus.PartiallyFilled)),
+                                     (o.ShareOrderStatus.StatusName == nameof(ShareOrderStatusName.Open) ||
+                                      o.ShareOrderStatus.StatusName == nameof(ShareOrderStatusName.PartiallyFilled)),
                                  cancellationToken);
 
         if (orderToMatch == null)
@@ -219,9 +220,9 @@ public class ExchangeService : IExchangeService
         long remainingQuantityToFill = orderToMatch.QuantityOrdered - orderToMatch.QuantityFilled;
 
         // Lấy các ID trạng thái cần thiết
-        var statusOpenId = (await _shareOrderStatusRepository.GetByNameAsync(nameof(OrderStatus.Open), cancellationToken))?.OrderStatusId;
-        var statusPartiallyFilledId = (await _shareOrderStatusRepository.GetByNameAsync(nameof(OrderStatus.PartiallyFilled), cancellationToken))?.OrderStatusId;
-        var statusFilledId = (await _shareOrderStatusRepository.GetByNameAsync(nameof(OrderStatus.Filled), cancellationToken))?.OrderStatusId;
+        var statusOpenId = (await _shareOrderStatusRepository.GetByNameAsync(nameof(ShareOrderStatusName.Open), cancellationToken))?.OrderStatusId;
+        var statusPartiallyFilledId = (await _shareOrderStatusRepository.GetByNameAsync(nameof(ShareOrderStatusName.PartiallyFilled), cancellationToken))?.OrderStatusId;
+        var statusFilledId = (await _shareOrderStatusRepository.GetByNameAsync(nameof(ShareOrderStatusName.Filled), cancellationToken))?.OrderStatusId;
 
         if (!statusOpenId.HasValue || !statusPartiallyFilledId.HasValue || !statusFilledId.HasValue)
         {
@@ -242,7 +243,7 @@ public class ExchangeService : IExchangeService
                 .Where(o => o.TradingAccountId == orderToMatch.TradingAccountId &&
                             o.ShareOrderSide.SideName == "Sell" &&
                             o.UserId != orderToMatch.UserId && // Không khớp với chính mình
-                            (o.ShareOrderStatus.StatusName == nameof(OrderStatus.Open) || o.ShareOrderStatus.StatusName == nameof(OrderStatus.PartiallyFilled)) &&
+                            (o.ShareOrderStatus.StatusName == nameof(ShareOrderStatusName.Open) || o.ShareOrderStatus.StatusName == nameof(ShareOrderStatusName.PartiallyFilled)) &&
                             o.LimitPrice.HasValue && // Chỉ khớp lệnh Limit với Limit (ví dụ đơn giản)
                             (orderToMatch.LimitPrice.HasValue ? o.LimitPrice.Value <= orderToMatch.LimitPrice.Value : true) // Giá bán <= giá mua giới hạn (hoặc bất kỳ nếu lệnh mua là Market)
                        )
@@ -508,8 +509,8 @@ public class ExchangeService : IExchangeService
         }
 
         var currentStatusName = orderToCancel.ShareOrderStatus.StatusName;
-        bool canCancel = currentStatusName.Equals(nameof(OrderStatus.Open), StringComparison.OrdinalIgnoreCase) ||
-                         currentStatusName.Equals(nameof(OrderStatus.PartiallyFilled), StringComparison.OrdinalIgnoreCase);
+        bool canCancel = currentStatusName.Equals(nameof(ShareOrderStatusName.Open), StringComparison.OrdinalIgnoreCase) ||
+                         currentStatusName.Equals(nameof(   ShareOrderStatusName.PartiallyFilled), StringComparison.OrdinalIgnoreCase);
 
         if (!canCancel)
         {
@@ -517,7 +518,7 @@ public class ExchangeService : IExchangeService
             return (null, $"Order cannot be cancelled as it is already '{currentStatusName}'.");
         }
 
-        var statusCancelled = await _shareOrderStatusRepository.GetByNameAsync(nameof(OrderStatus.Cancelled), cancellationToken);
+        var statusCancelled = await _shareOrderStatusRepository.GetByNameAsync(nameof(ShareOrderStatusName.Cancelled), cancellationToken);
         if (statusCancelled == null)
         {
             _logger.LogError("System error: 'Cancelled' order status not found in database.");
@@ -630,8 +631,8 @@ public class ExchangeService : IExchangeService
         }
 
         // Lấy ID của các trạng thái và loại lệnh cần thiết
-        var statusOpen = await _shareOrderStatusRepository.GetByNameAsync(nameof(OrderStatus.Open), cancellationToken);
-        var statusPartiallyFilled = await _shareOrderStatusRepository.GetByNameAsync(nameof(OrderStatus.PartiallyFilled), cancellationToken);
+        var statusOpen = await _shareOrderStatusRepository.GetByNameAsync(nameof(ShareOrderStatusName.Open), cancellationToken);
+        var statusPartiallyFilled = await _shareOrderStatusRepository.GetByNameAsync(nameof(ShareOrderStatusName.PartiallyFilled), cancellationToken);
         var orderTypeLimit = await _unitOfWork.ShareOrderTypes.Query() // Giả sử có repo này
                                     .FirstOrDefaultAsync(ot => ot.TypeName.Equals("Limit", StringComparison.OrdinalIgnoreCase), cancellationToken);
 
@@ -740,8 +741,8 @@ public class ExchangeService : IExchangeService
         var marketDataResponse = new MarketDataResponse { GeneratedAt = DateTime.UtcNow };
 
         // Lấy ID của các trạng thái và loại lệnh cần thiết một lần
-        var statusOpen = await _shareOrderStatusRepository.GetByNameAsync(nameof(OrderStatus.Open), cancellationToken);
-        var statusPartiallyFilled = await _shareOrderStatusRepository.GetByNameAsync(nameof(OrderStatus.PartiallyFilled), cancellationToken);
+        var statusOpen = await _shareOrderStatusRepository.GetByNameAsync(nameof(ShareOrderStatusName.Open), cancellationToken);
+        var statusPartiallyFilled = await _shareOrderStatusRepository.GetByNameAsync(nameof(ShareOrderStatusName.PartiallyFilled), cancellationToken);
         var orderTypeLimit = await _unitOfWork.ShareOrderTypes.Query()
                                     .FirstOrDefaultAsync(ot => ot.TypeName.Equals("Limit", StringComparison.OrdinalIgnoreCase), cancellationToken);
 

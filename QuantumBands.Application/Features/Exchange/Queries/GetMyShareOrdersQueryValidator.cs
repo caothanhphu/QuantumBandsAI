@@ -1,6 +1,7 @@
 ﻿// QuantumBands.Application/Features/Exchange/Queries/GetMyOrders/GetMyShareOrdersQueryValidator.cs
 using FluentValidation;
 using QuantumBands.Domain.Entities; // For ShareOrderStatusName
+using QuantumBands.Domain.Entities.Enums;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -14,7 +15,7 @@ public class GetMyShareOrdersQueryValidator : AbstractValidator<GetMyShareOrders
         "orderdate", "tradingaccountname", "quantityordered", "limitprice", "status"
     };
 
-    private readonly List<string> _allowedStatusValues = System.Enum.GetNames(typeof(OrderStatus))
+    private readonly List<string> _allowedStatusValues = System.Enum.GetNames(typeof(ShareOrderStatusName))
                                                                 .Select(s => s.ToLowerInvariant())
                                                                 .ToList();
     private readonly List<string> _allowedOrderSides = new List<string> { "buy", "sell" };
@@ -37,7 +38,7 @@ public class GetMyShareOrdersQueryValidator : AbstractValidator<GetMyShareOrders
                 var statuses = statusString.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
                 return statuses.All(s => _allowedStatusValues.Contains(s.ToLowerInvariant()));
             })
-            .WithMessage(x => $"Invalid status value(s) provided. Allowed statuses are: {string.Join(", ", System.Enum.GetNames(typeof(OrderStatus)))}.")
+            .WithMessage(x => $"Invalid status value(s) provided. Allowed statuses are: {string.Join(", ", System.Enum.GetNames(typeof(ShareOrderStatusName)))}.")
             .When(x => !string.IsNullOrEmpty(x.Status));
 
         RuleFor(x => x.OrderSide)

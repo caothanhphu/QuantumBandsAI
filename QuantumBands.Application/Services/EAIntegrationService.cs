@@ -53,7 +53,7 @@ public class EAIntegrationService : IEAIntegrationService
                                         .ToListAsync(cancellationToken);
 
         var pushedPositionsMap = request.OpenPositions.ToDictionary(p => p.EaTicketId);
-        var dbPositionsMap = existingDbPositions.ToDictionary(p => p.EaTicketId);
+        var dbPositionsMap = existingDbPositions.ToDictionary(p => p.EaticketId);
 
         int addedCount = 0;
         int updatedCount = 0;
@@ -73,7 +73,7 @@ public class EAIntegrationService : IEAIntegrationService
                 dbPos.CurrentMarketPrice = pushedPosDto.CurrentMarketPrice;
                 dbPos.Swap = pushedPosDto.Swap;
                 dbPos.Commission = pushedPosDto.Commission;
-                dbPos.FloatingPAndL = pushedPosDto.FloatingPAndL;
+                dbPos.FloatingPandL = pushedPosDto.FloatingPAndL;
                 dbPos.LastUpdateTime = DateTime.UtcNow;
                 _unitOfWork.EAOpenPositions.Update(dbPos);
                 updatedCount++;
@@ -81,10 +81,10 @@ public class EAIntegrationService : IEAIntegrationService
             else
             {
                 // Thêm lệnh mới
-                var newDbPos = new EAOpenPosition
+                var newDbPos = new EaopenPosition
                 {
                     TradingAccountId = tradingAccountId,
-                    EaTicketId = pushedPosDto.EaTicketId,
+                    EaticketId = pushedPosDto.EaTicketId,
                     Symbol = pushedPosDto.Symbol,
                     TradeType = pushedPosDto.TradeType,
                     VolumeLots = pushedPosDto.VolumeLots,
@@ -93,7 +93,7 @@ public class EAIntegrationService : IEAIntegrationService
                     CurrentMarketPrice = pushedPosDto.CurrentMarketPrice,
                     Swap = pushedPosDto.Swap,
                     Commission = pushedPosDto.Commission,
-                    FloatingPAndL = pushedPosDto.FloatingPAndL,
+                    FloatingPandL = pushedPosDto.FloatingPAndL,
                     LastUpdateTime = DateTime.UtcNow
                 };
                 await _unitOfWork.EAOpenPositions.AddAsync(newDbPos);
@@ -102,10 +102,10 @@ public class EAIntegrationService : IEAIntegrationService
         }
 
         // Xóa các lệnh không còn trong danh sách push (coi như đã đóng từ phía EA)
-        var positionsToRemove = new List<EAOpenPosition>();
+        var positionsToRemove = new List<EaopenPosition>();
         foreach (var dbPos in existingDbPositions)
         {
-            if (!pushedPositionsMap.ContainsKey(dbPos.EaTicketId))
+            if (!pushedPositionsMap.ContainsKey(dbPos.EaticketId))
             {
                 positionsToRemove.Add(dbPos);
                 removedCount++;
@@ -157,12 +157,12 @@ public class EAIntegrationService : IEAIntegrationService
 
         int addedCount = 0;
         int skippedCount = 0;
-        var newTradesToInsert = new List<EAClosedTrade>();
+        var newTradesToInsert = new List<EaclosedTrade>();
 
         // Lấy danh sách các ticket ID đã tồn tại cho tài khoản này để tránh query nhiều lần trong vòng lặp
         var existingTicketIds = await _unitOfWork.EAClosedTrades.Query()
                                     .Where(ct => ct.TradingAccountId == tradingAccountId)
-                                    .Select(ct => ct.EaTicketId)
+                                    .Select(ct => ct.EaticketId)
                                     .ToListAsync(cancellationToken);
         var existingTicketIdSet = new HashSet<string>(existingTicketIds);
 
@@ -176,10 +176,10 @@ public class EAIntegrationService : IEAIntegrationService
                 continue;
             }
 
-            var newClosedTrade = new EAClosedTrade
+            var newClosedTrade = new EaclosedTrade
             {
                 TradingAccountId = tradingAccountId,
-                EaTicketId = closedTradeDto.EaTicketId,
+                EaticketId = closedTradeDto.EaTicketId,
                 Symbol = closedTradeDto.Symbol,
                 TradeType = closedTradeDto.TradeType,
                 VolumeLots = closedTradeDto.VolumeLots,
@@ -189,13 +189,13 @@ public class EAIntegrationService : IEAIntegrationService
                 CloseTime = closedTradeDto.CloseTime,
                 Swap = closedTradeDto.Swap,
                 Commission = closedTradeDto.Commission,
-                RealizedPAndL = closedTradeDto.RealizedPAndL,
+                RealizedPandL = closedTradeDto.RealizedPAndL,
                 IsProcessedForDailyPandL = false, // Mặc định cho lệnh mới
                 RecordedAt = DateTime.UtcNow
             };
             newTradesToInsert.Add(newClosedTrade);
             addedCount++;
-            existingTicketIdSet.Add(newClosedTrade.EaTicketId); // Thêm vào set để tránh trường hợp push trùng lặp trong cùng 1 batch
+            existingTicketIdSet.Add(newClosedTrade.EaticketId); // Thêm vào set để tránh trường hợp push trùng lặp trong cùng 1 batch
         }
 
         if (newTradesToInsert.Any())

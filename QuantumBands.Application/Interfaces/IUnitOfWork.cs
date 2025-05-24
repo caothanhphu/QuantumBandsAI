@@ -12,8 +12,8 @@ public interface IUnitOfWork : IDisposable
     IGenericRepository<WalletTransaction> WalletTransactions { get; }
     IGenericRepository<TradingAccount> TradingAccounts { get; }
     IGenericRepository<InitialShareOffering> InitialShareOfferings { get; }
-    IGenericRepository<EAOpenPosition> EAOpenPositions { get; } // Thêm mới
-    IGenericRepository<EAClosedTrade> EAClosedTrades { get; } // Thêm mới
+    IGenericRepository<EaopenPosition> EAOpenPositions { get; } // Thêm mới
+    IGenericRepository<EaclosedTrade> EAClosedTrades { get; } // Thêm mới
     IGenericRepository<TradingAccountSnapshot> TradingAccountSnapshots { get; } // Thêm mới
     IGenericRepository<SharePortfolio> SharePortfolios { get; } // Thêm mới
     IGenericRepository<ShareOrder> ShareOrders { get; }
@@ -21,6 +21,6 @@ public interface IUnitOfWork : IDisposable
     IGenericRepository<ShareOrderSide> ShareOrderSides { get; }
     IGenericRepository<ShareOrderStatus> ShareOrderStatuses { get; }
     IGenericRepository<ShareTrade> ShareTrades { get; } // Thêm repo mới
-
+    IGenericRepository<ProfitDistributionLog> ProfitDistributionLogs { get; } // Thêm repo mới
     Task<int> CompleteAsync(CancellationToken cancellationToken = default);
 }

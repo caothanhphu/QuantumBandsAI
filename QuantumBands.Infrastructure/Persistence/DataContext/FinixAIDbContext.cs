@@ -16,11 +16,14 @@ public partial class FinixAIDbContext : DbContext
     {
     }
 
-    public virtual DbSet<EAClosedTrade> EaclosedTrades { get; set; }
+    public virtual DbSet<EaclosedTrade> EaclosedTrades { get; set; }
 
-    public virtual DbSet<EAOpenPosition> EaopenPositions { get; set; }
+    public virtual DbSet<EaopenPosition> EaopenPositions { get; set; }
 
     public virtual DbSet<InitialShareOffering> InitialShareOfferings { get; set; }
+
+    public virtual DbSet<ProfitDistributionLog> ProfitDistributionLogs { get; set; }
+
     public virtual DbSet<ShareOrder> ShareOrders { get; set; }
 
     public virtual DbSet<ShareOrderSide> ShareOrderSides { get; set; }
@@ -30,6 +33,8 @@ public partial class FinixAIDbContext : DbContext
     public virtual DbSet<ShareOrderType> ShareOrderTypes { get; set; }
 
     public virtual DbSet<SharePortfolio> SharePortfolios { get; set; }
+
+    public virtual DbSet<ShareTrade> ShareTrades { get; set; }
 
     public virtual DbSet<SystemSetting> SystemSettings { get; set; }
 
@@ -52,7 +57,7 @@ public partial class FinixAIDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder.Entity<EAClosedTrade>(entity =>
+        modelBuilder.Entity<EaclosedTrade>(entity =>
         {
             entity.HasKey(e => e.ClosedTradeId).HasName("PK__EAClosed__9C45B584F04B6DEB");
 
@@ -65,7 +70,7 @@ public partial class FinixAIDbContext : DbContext
                 .HasConstraintName("FK_EAClosedTrades_TradingAccountID");
         });
 
-        modelBuilder.Entity<EAOpenPosition>(entity =>
+        modelBuilder.Entity<EaopenPosition>(entity =>
         {
             entity.HasKey(e => e.OpenPositionId).HasName("PK__EAOpenPo__A2749288012FED3A");
 
@@ -96,63 +101,53 @@ public partial class FinixAIDbContext : DbContext
                 .HasConstraintName("FK_InitialShareOfferings_TradingAccountID");
         });
 
-        modelBuilder.Entity<ShareOrder>(entity =>
+        modelBuilder.Entity<ProfitDistributionLog>(entity =>
         {
-            entity.HasKey(e => e.OrderId); // Khai báo khóa chính (nếu không dùng Data Annotation [Key])
+            entity.HasKey(e => e.DistributionLogId).HasName("PK__ProfitDi__64005710E76B9257");
 
-            entity.Property(e => e.OrderId).HasColumnName("OrderID"); // Ánh xạ tên cột
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
 
-            entity.Property(e => e.UserId).HasColumnName("UserID");
-            entity.Property(e => e.TradingAccountId).HasColumnName("TradingAccountID");
-            entity.Property(e => e.OrderSideId).HasColumnName("OrderSideID");
-            entity.Property(e => e.OrderTypeId).HasColumnName("OrderTypeID");
-            entity.Property(e => e.OrderStatusId).HasColumnName("OrderStatusID");
+            entity.HasOne(d => d.TradingAccount).WithMany(p => p.ProfitDistributionLogs)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ProfitDistributionLogs_TradingAccountID");
 
-            entity.Property(e => e.QuantityOrdered);
-            entity.Property(e => e.QuantityFilled)
-                  .HasDefaultValueSql("((0))"); // Ví dụ default value từ DB
+            entity.HasOne(d => d.TradingAccountSnapshot).WithMany(p => p.ProfitDistributionLogs)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ProfitDistributionLogs_SnapshotID");
 
-            entity.Property(e => e.LimitPrice).HasColumnType("decimal(18, 8)");
-            entity.Property(e => e.AverageFillPrice).HasColumnType("decimal(18, 8)");
-            entity.Property(e => e.TransactionFeeRate).HasColumnType("decimal(6, 5)");
-            entity.Property(e => e.TransactionFeeAmount).HasColumnType("decimal(18, 8)");
+            entity.HasOne(d => d.User).WithMany(p => p.ProfitDistributionLogs)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ProfitDistributionLogs_UserID");
 
-            entity.Property(e => e.OrderDate)
-                  .HasDefaultValueSql("(getutcdate())");
-            entity.Property(e => e.UpdatedAt)
-                  .HasDefaultValueSql("(getutcdate())");
-
+            entity.HasOne(d => d.WalletTransaction).WithMany(p => p.ProfitDistributionLogs).HasConstraintName("FK_ProfitDistributionLogs_WalletTransactionID");
         });
 
-        modelBuilder.Entity<ShareTrade>(entity =>
+        modelBuilder.Entity<ShareOrder>(entity =>
         {
-            entity.HasKey(e => e.TradeId); // Khai báo khóa chính
+            entity.HasKey(e => e.OrderId).HasName("PK__ShareOrd__C3905BAF6F52EEFD");
 
-            entity.Property(e => e.TradeId).HasColumnName("TradeID"); // Ánh xạ tên cột
+            entity.Property(e => e.OrderDate).HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("(getutcdate())");
 
-            entity.Property(e => e.TradingAccountId).HasColumnName("TradingAccountID");
-            entity.Property(e => e.BuyOrderId).HasColumnName("BuyOrderID");
-            entity.Property(e => e.SellOrderId).HasColumnName("SellOrderID"); // Nullable
-            entity.Property(e => e.InitialShareOfferingId).HasColumnName("InitialShareOfferingID"); // Nullable
-            entity.Property(e => e.BuyerUserId).HasColumnName("BuyerUserID");
-            entity.Property(e => e.SellerUserId).HasColumnName("SellerUserID");
+            entity.HasOne(d => d.OrderSide).WithMany(p => p.ShareOrders)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ShareOrders_OrderSideID");
 
-            entity.Property(e => e.QuantityTraded);
+            entity.HasOne(d => d.OrderStatus).WithMany(p => p.ShareOrders)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ShareOrders_OrderStatusID");
 
-            entity.Property(e => e.TradePrice).HasColumnType("decimal(18, 8)");
+            entity.HasOne(d => d.OrderType).WithMany(p => p.ShareOrders)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ShareOrders_OrderTypeID");
 
-            entity.Property(e => e.BuyerFeeAmount)
-                  .HasColumnType("decimal(18, 8)")
-                  .HasDefaultValueSql("((0))"); // Lấy default value từ DB
+            entity.HasOne(d => d.TradingAccount).WithMany(p => p.ShareOrders)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ShareOrders_TradingAccountID");
 
-            entity.Property(e => e.SellerFeeAmount)
-                  .HasColumnType("decimal(18, 8)")
-                  .HasDefaultValueSql("((0))");
-
-            entity.Property(e => e.TradeDate)
-                  .HasDefaultValueSql("(getutcdate())");
-
-            
+            entity.HasOne(d => d.User).WithMany(p => p.ShareOrders)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ShareOrders_UserID");
         });
 
         modelBuilder.Entity<ShareOrderSide>(entity =>
@@ -185,6 +180,33 @@ public partial class FinixAIDbContext : DbContext
                 .HasConstraintName("FK_SharePortfolios_UserID");
         });
 
+        modelBuilder.Entity<ShareTrade>(entity =>
+        {
+            entity.HasKey(e => e.TradeId).HasName("PK__ShareTra__3028BABB7AC7A68D");
+
+            entity.Property(e => e.TradeDate).HasDefaultValueSql("(getutcdate())");
+
+            entity.HasOne(d => d.BuyOrder).WithMany(p => p.ShareTradeBuyOrders)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ShareTrades_BuyOrderID");
+
+            entity.HasOne(d => d.BuyerUser).WithMany(p => p.ShareTradeBuyerUsers)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ShareTrades_BuyerUserID");
+
+            entity.HasOne(d => d.InitialShareOffering).WithMany(p => p.ShareTrades).HasConstraintName("FK_ShareTrades_InitialShareOfferingID");
+
+            entity.HasOne(d => d.SellOrder).WithMany(p => p.ShareTradeSellOrders).HasConstraintName("FK_ShareTrades_SellOrderID");
+
+            entity.HasOne(d => d.SellerUser).WithMany(p => p.ShareTradeSellerUsers)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ShareTrades_SellerUserID");
+
+            entity.HasOne(d => d.TradingAccount).WithMany(p => p.ShareTrades)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ShareTrades_TradingAccountID");
+        });
+
         modelBuilder.Entity<SystemSetting>(entity =>
         {
             entity.HasKey(e => e.SettingId).HasName("PK__SystemSe__54372AFDA4FA27A3");
@@ -202,7 +224,7 @@ public partial class FinixAIDbContext : DbContext
 
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
             entity.Property(e => e.CurrentSharePrice).HasComputedColumnSql("(case when [TotalSharesIssued]>(0) then [CurrentNetAssetValue]/[TotalSharesIssued] else (0) end)", true);
-            entity.Property(e => e.EaName).HasDefaultValue("Quantum Bands AI");
+            entity.Property(e => e.Eaname).HasDefaultValue("Quantum Bands AI");
             entity.Property(e => e.IsActive).HasDefaultValue(true);
             entity.Property(e => e.UpdatedAt).HasDefaultValueSql("(getutcdate())");
 
@@ -262,8 +284,9 @@ public partial class FinixAIDbContext : DbContext
         {
             entity.HasKey(e => e.TransactionId).HasName("PK__WalletTr__55433A4BB64337D4");
 
-            entity.Property(e => e.Status).HasDefaultValue("Completed");
+            entity.Property(e => e.CurrencyCode).HasDefaultValue("USD");
             entity.Property(e => e.TransactionDate).HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("(getutcdate())");
 
             entity.HasOne(d => d.RelatedTransaction).WithMany(p => p.InverseRelatedTransaction).HasConstraintName("FK_WalletTransactions_RelatedTransactionID");
 

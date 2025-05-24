@@ -19,7 +19,7 @@ public partial class TradingAccountSnapshot
     public DateOnly SnapshotDate { get; set; }
 
     [Column("OpeningNAV", TypeName = "decimal(18, 2)")]
-    public decimal OpeningNAV { get; set; }
+    public decimal OpeningNav { get; set; }
 
     [Column("RealizedPAndLForTheDay", TypeName = "decimal(18, 2)")]
     public decimal RealizedPandLforTheDay { get; set; }
@@ -40,6 +40,9 @@ public partial class TradingAccountSnapshot
     public decimal ClosingSharePrice { get; set; }
 
     public DateTime CreatedAt { get; set; }
+
+    [InverseProperty("TradingAccountSnapshot")]
+    public virtual ICollection<ProfitDistributionLog> ProfitDistributionLogs { get; set; } = new List<ProfitDistributionLog>();
 
     [ForeignKey("TradingAccountId")]
     [InverseProperty("TradingAccountSnapshots")]

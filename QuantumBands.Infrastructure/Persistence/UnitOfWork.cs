@@ -19,8 +19,8 @@ public class UnitOfWork : IUnitOfWork
 
     public IGenericRepository<InitialShareOffering> InitialShareOfferings { get; private set; }
     public IGenericRepository<TradingAccount> TradingAccounts { get; private set; }
-    public IGenericRepository<EAOpenPosition> EAOpenPositions { get; private set; }
-    public IGenericRepository<EAClosedTrade> EAClosedTrades { get; private set; }
+    public IGenericRepository<EaopenPosition> EAOpenPositions { get; private set; }
+    public IGenericRepository<EaclosedTrade> EAClosedTrades { get; private set; }
     public IGenericRepository<TradingAccountSnapshot> TradingAccountSnapshots { get; private set; }
     public IGenericRepository<SharePortfolio> SharePortfolios { get; private set; }
     public IGenericRepository<ShareOrder> ShareOrders { get; private set; }
@@ -28,6 +28,7 @@ public class UnitOfWork : IUnitOfWork
     public IGenericRepository<ShareOrderSide> ShareOrderSides { get; private set; }
     public IGenericRepository<ShareOrderStatus> ShareOrderStatuses { get; private set; }
     public IGenericRepository<ShareTrade> ShareTrades { get; private set; } // Thêm repo mới
+    public IGenericRepository<ProfitDistributionLog> ProfitDistributionLogs { get; private set; } // Thêm repo mới
 
     public UnitOfWork(FinixAIDbContext context)
     {
@@ -38,8 +39,8 @@ public class UnitOfWork : IUnitOfWork
         WalletTransactions = new GenericRepository<WalletTransaction>(_context); // Khởi tạo generic repository
         InitialShareOfferings = new GenericRepository<InitialShareOffering>(_context); // Khởi tạo generic repository
         TradingAccounts = new GenericRepository<TradingAccount>(_context); // Khởi tạo generic repository
-        EAOpenPositions = new GenericRepository<EAOpenPosition>(_context); // Khởi tạo generic repository
-        EAClosedTrades = new GenericRepository<EAClosedTrade>(_context); // Khởi tạo generic repository
+        EAOpenPositions = new GenericRepository<EaopenPosition>(_context); // Khởi tạo generic repository
+        EAClosedTrades = new GenericRepository<EaclosedTrade>(_context); // Khởi tạo generic repository
         TradingAccountSnapshots = new GenericRepository<TradingAccountSnapshot>(_context); // Khởi tạo generic repository
         SharePortfolios = new GenericRepository<SharePortfolio>(_context); // Khởi tạo generic repository
         ShareOrders = new GenericRepository<ShareOrder>(_context); // Khởi tạo generic repository
@@ -47,6 +48,7 @@ public class UnitOfWork : IUnitOfWork
         ShareOrderSides = new GenericRepository<ShareOrderSide>(_context); // Khởi tạo generic repository
         ShareOrderStatuses = new GenericRepository<ShareOrderStatus>(_context); // Khởi tạo generic repository
         ShareTrades = new GenericRepository<ShareTrade>(_context); // Khởi tạo generic repository
+        ProfitDistributionLogs = new GenericRepository<ProfitDistributionLog>(_context); // Khởi tạo generic repository
     }
 
     public async Task<int> CompleteAsync(CancellationToken cancellationToken = default)

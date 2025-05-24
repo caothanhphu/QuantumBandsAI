@@ -1,12 +1,14 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using System;
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.EntityFrameworkCore;
 
 namespace QuantumBands.Domain.Entities;
 
 [Table("EAClosedTrades")]
 [Index("TradingAccountId", "EaticketId", Name = "UQ_EAClosedTrades_Account_Ticket", IsUnique = true)]
-public partial class EAClosedTrade
+public partial class EaclosedTrade
 {
     [Key]
     [Column("ClosedTradeID")]
@@ -18,7 +20,7 @@ public partial class EAClosedTrade
     [Column("EATicketID")]
     [StringLength(50)]
     [Unicode(false)]
-    public string EaTicketId { get; set; } = null!;
+    public string EaticketId { get; set; } = null!;
 
     [StringLength(20)]
     public string Symbol { get; set; } = null!;
@@ -46,7 +48,7 @@ public partial class EAClosedTrade
     public decimal? Commission { get; set; }
 
     [Column("RealizedPAndL", TypeName = "decimal(18, 2)")]
-    public decimal RealizedPAndL { get; set; }
+    public decimal RealizedPandL { get; set; }
 
     [Column("IsProcessedForDailyPAndL")]
     public bool IsProcessedForDailyPandL { get; set; }

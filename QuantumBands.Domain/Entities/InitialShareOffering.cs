@@ -5,13 +5,6 @@ using System.ComponentModel.DataAnnotations.Schema;
 using Microsoft.EntityFrameworkCore;
 
 namespace QuantumBands.Domain.Entities;
-public enum OfferingStatus
-{
-    Active,    // Đang hoạt động
-    Completed, // Đã hoàn thành (ví dụ: bán hết hoặc hết hạn và có người mua)
-    Cancelled, // Đã bị hủy bởi Admin
-    Expired    // Đã hết hạn mà không bán hết (tùy chọn, bạn có thể gộp vào Completed hoặc Cancelled)
-}
 
 public partial class InitialShareOffering
 {
@@ -52,6 +45,9 @@ public partial class InitialShareOffering
     [ForeignKey("AdminUserId")]
     [InverseProperty("InitialShareOfferings")]
     public virtual User AdminUser { get; set; } = null!;
+
+    [InverseProperty("InitialShareOffering")]
+    public virtual ICollection<ShareTrade> ShareTrades { get; set; } = new List<ShareTrade>();
 
     [ForeignKey("TradingAccountId")]
     [InverseProperty("InitialShareOfferings")]

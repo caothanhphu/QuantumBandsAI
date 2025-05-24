@@ -41,16 +41,31 @@ public partial class WalletTransaction
 
     [Column("RelatedTransactionID")]
     public long? RelatedTransactionId { get; set; }
-    public string? PaymentMethod { get; set; }
-    public string? ExternalTransactionId { get; set; }
-    public string CurrencyCode { get; set; } = "USD"; // Thêm vào, khớp với DEFAULT trong DB
-    public DateTime UpdatedAt { get; set; }         // Thêm vào
 
+    [StringLength(50)]
+    public string? PaymentMethod { get; set; }
+
+    [Column("ExternalTransactionID")]
+    [StringLength(255)]
+    public string? ExternalTransactionId { get; set; }
+
+    [StringLength(3)]
+    [Unicode(false)]
+    public string CurrencyCode { get; set; } = null!;
+
+    public DateTime UpdatedAt { get; set; }
+
+    [StringLength(1000)]
     public string? WithdrawalMethodDetails { get; set; }
+
+    [StringLength(500)]
     public string? UserProvidedNotes { get; set; }
 
     [InverseProperty("RelatedTransaction")]
     public virtual ICollection<WalletTransaction> InverseRelatedTransaction { get; set; } = new List<WalletTransaction>();
+
+    [InverseProperty("WalletTransaction")]
+    public virtual ICollection<ProfitDistributionLog> ProfitDistributionLogs { get; set; } = new List<ProfitDistributionLog>();
 
     [ForeignKey("RelatedTransactionId")]
     [InverseProperty("InverseRelatedTransaction")]

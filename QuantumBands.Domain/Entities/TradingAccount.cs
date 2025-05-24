@@ -21,7 +21,7 @@ public partial class TradingAccount
 
     [Column("EAName")]
     [StringLength(100)]
-    public string? EaName { get; set; }
+    public string? Eaname { get; set; }
 
     [StringLength(100)]
     public string? BrokerPlatformIdentifier { get; set; }
@@ -54,16 +54,25 @@ public partial class TradingAccount
     public virtual User CreatedByUser { get; set; } = null!;
 
     [InverseProperty("TradingAccount")]
-    public virtual ICollection<EAClosedTrade> EaclosedTrades { get; set; } = new List<EAClosedTrade>();
+    public virtual ICollection<EaclosedTrade> EaclosedTrades { get; set; } = new List<EaclosedTrade>();
 
     [InverseProperty("TradingAccount")]
-    public virtual ICollection<EAOpenPosition> EaopenPositions { get; set; } = new List<EAOpenPosition>();
+    public virtual ICollection<EaopenPosition> EaopenPositions { get; set; } = new List<EaopenPosition>();
 
     [InverseProperty("TradingAccount")]
     public virtual ICollection<InitialShareOffering> InitialShareOfferings { get; set; } = new List<InitialShareOffering>();
 
     [InverseProperty("TradingAccount")]
+    public virtual ICollection<ProfitDistributionLog> ProfitDistributionLogs { get; set; } = new List<ProfitDistributionLog>();
+
+    [InverseProperty("TradingAccount")]
+    public virtual ICollection<ShareOrder> ShareOrders { get; set; } = new List<ShareOrder>();
+
+    [InverseProperty("TradingAccount")]
     public virtual ICollection<SharePortfolio> SharePortfolios { get; set; } = new List<SharePortfolio>();
+
+    [InverseProperty("TradingAccount")]
+    public virtual ICollection<ShareTrade> ShareTrades { get; set; } = new List<ShareTrade>();
 
     [InverseProperty("TradingAccount")]
     public virtual ICollection<TradingAccountSnapshot> TradingAccountSnapshots { get; set; } = new List<TradingAccountSnapshot>();
