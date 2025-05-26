@@ -1,0 +1,356 @@
+{
+	"info": {
+		"_postman_id": "YOUR_NEW_MODULES_COLLECTION_ID",
+		"name": "QuantumBands API - Additional Admin & Data Modules",
+		"description": "Postman requests for System Settings, Lookup Data Management (example: TransactionTypes), and Trading Account Snapshots.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "YOUR_EXPORTER_ID"
+	},
+	"item": [
+		{
+			"name": "Admin - System Settings Management",
+			"description": "Endpoints for Admin to manage system-wide settings. Requires Admin role.",
+			"item": [
+				{
+					"name": "Get All System Settings",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{adminJwtToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/admin/system-settings",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"admin",
+								"system-settings"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get System Setting by Key",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{adminJwtToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/admin/system-settings/DepositExchangeRateUSDtoVND",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"admin",
+								"system-settings",
+								"DepositExchangeRateUSDtoVND"
+							],
+							"description": "Thay 'DepositExchangeRateUSDtoVND' bằng SettingKey bạn muốn lấy."
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update System Setting by Key",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{adminJwtToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"settingValue\": \"25500.50\" \n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/admin/system-settings/DepositExchangeRateUSDtoVND",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"admin",
+								"system-settings",
+								"DepositExchangeRateUSDtoVND"
+							],
+							"description": "Thay 'DepositExchangeRateUSDtoVND' bằng SettingKey bạn muốn cập nhật.\nChỉ cập nhật SettingValue nếu IsEditableByAdmin = true."
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Admin - Lookup Data Management (Example: Transaction Types)",
+			"description": "Endpoints for Admin to manage lookup data like Transaction Types. Requires Admin role.",
+			"item": [
+				{
+					"name": "Get All Transaction Types",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{adminJwtToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/admin/lookups/transaction-types",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"admin",
+								"lookups",
+								"transaction-types"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Transaction Type",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{adminJwtToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"typeName\": \"NewCustomType\",\n  \"isCredit\": true\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/admin/lookups/transaction-types",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"admin",
+								"lookups",
+								"transaction-types"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Transaction Type",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{adminJwtToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"typeName\": \"UpdatedCustomType\",\n  \"isCredit\": false\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/admin/lookups/transaction-types/10",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"admin",
+								"lookups",
+								"transaction-types",
+								"10"
+							],
+							"description": "Thay '10' bằng ID của TransactionType bạn muốn cập nhật."
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Transaction Type",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{adminJwtToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/admin/lookups/transaction-types/10",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"admin",
+								"lookups",
+								"transaction-types",
+								"10"
+							],
+							"description": "Thay '10' bằng ID của TransactionType bạn muốn xóa (cẩn thận với ràng buộc khóa ngoại)."
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "View Trading Account Snapshots",
+			"description": "Endpoints to view historical daily snapshots of trading accounts. Can be public or require auth.",
+			"item": [
+				{
+					"name": "Get Snapshots for a Trading Account",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{jwtToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/trading-accounts/1/snapshots?pageNumber=1&pageSize=7&sortBy=SnapshotDate&sortOrder=desc",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"trading-accounts",
+								"1",
+								"snapshots"
+							],
+							"query": [
+								{
+									"key": "pageNumber",
+									"value": "1"
+								},
+								{
+									"key": "pageSize",
+									"value": "7",
+									"description": "Ví dụ lấy 7 ngày gần nhất"
+								},
+								{
+									"key": "sortBy",
+									"value": "SnapshotDate"
+								},
+								{
+									"key": "sortOrder",
+									"value": "desc"
+								},
+								{
+									"key": "dateFrom",
+									"value": "",
+									"disabled": true
+								},
+								{
+									"key": "dateTo",
+									"value": "",
+									"disabled": true
+								}
+							],
+							"description": "Thay '1' trong path bằng TradingAccountID bạn muốn xem snapshots.\nEndpoint này có thể yêu cầu xác thực hoặc không, tùy thiết kế."
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:YOUR_API_PORT",
+			"type": "string"
+		},
+		{
+			"key": "jwtToken",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "adminJwtToken",
+			"value": "",
+			"type": "string"
+		}
+	]
+}

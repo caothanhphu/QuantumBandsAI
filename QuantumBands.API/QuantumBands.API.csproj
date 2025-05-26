@@ -26,4 +26,8 @@
     <ProjectReference Include="..\QuantumBands.Infrastructure\QuantumBands.Infrastructure.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="logs\" />
+  </ItemGroup>
+
 </Project>

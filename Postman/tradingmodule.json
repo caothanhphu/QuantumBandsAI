@@ -1,0 +1,655 @@
+{
+	"info": {
+		"_postman_id": "YOUR_FUNDS_EXCHANGE_COLLECTION_ID",
+		"name": "QuantumBands API - Funds & Exchange Modules",
+		"description": "Comprehensive Postman Collection for Trading Account (Funds) and Internal Share Exchange modules, including Admin and Public-facing APIs.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "YOUR_EXPORTER_ID"
+	},
+	"item": [
+		{
+			"name": "Trading Accounts (Public View)",
+			"description": "Endpoints for any user to view trading accounts and their offerings.",
+			"item": [
+				{
+					"name": "BE-FUND-002: List Public Trading Accounts",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/trading-accounts?isActive=true&sortBy=AccountName&sortOrder=asc",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"trading-accounts"
+							],
+							"query": [
+								{
+									"key": "pageNumber",
+									"value": "1",
+									"disabled": true
+								},
+								{
+									"key": "pageSize",
+									"value": "10",
+									"disabled": true
+								},
+								{
+									"key": "sortBy",
+									"value": "AccountName"
+								},
+								{
+									"key": "sortOrder",
+									"value": "asc"
+								},
+								{
+									"key": "isActive",
+									"value": "true",
+									"description": "Lọc theo quỹ đang hoạt động"
+								},
+								{
+									"key": "searchTerm",
+									"value": "",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Lấy danh sách các tài khoản giao dịch (quỹ) công khai."
+					},
+					"response": []
+				},
+				{
+					"name": "BE-FUND-003: Get Trading Account Details",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"// Lấy tradingAccountId từ biến collection nếu có, nếu không thì dùng giá trị mặc định",
+									"// Bạn có thể đặt pm.collectionVariables.set(\"selectedTradingAccountId\", <ID>) từ request khác",
+									"// hoặc điền thủ công vào URL.",
+									"// Ví dụ, sau khi Admin tạo quỹ, lưu ID vào selectedTradingAccountId"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/trading-accounts/{{selectedTradingAccountId_or_default}}?closedTradesPageNumber=1&closedTradesPageSize=5&snapshotsPageNumber=1&snapshotsPageSize=7&openPositionsLimit=10",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"trading-accounts",
+								"{{selectedTradingAccountId_or_default}}"
+							],
+							"query": [
+								{
+									"key": "closedTradesPageNumber",
+									"value": "1"
+								},
+								{
+									"key": "closedTradesPageSize",
+									"value": "5"
+								},
+								{
+									"key": "snapshotsPageNumber",
+									"value": "1"
+								},
+								{
+									"key": "snapshotsPageSize",
+									"value": "7"
+								},
+								{
+									"key": "openPositionsLimit",
+									"value": "10"
+								}
+							],
+							"variable": [
+								{
+									"key": "selectedTradingAccountId_or_default",
+									"value": "1",
+									"description": "Thay bằng ID của quỹ bạn muốn xem, hoặc đặt biến collection `selectedTradingAccountId`"
+								}
+							]
+						},
+						"description": "Lấy thông tin chi tiết của một tài khoản giao dịch cụ thể."
+					},
+					"response": []
+				},
+				{
+					"name": "BE-FUND-006: List Initial Share Offerings for Account",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/trading-accounts/{{selectedTradingAccountId_or_default}}/initial-offerings?status=Active&sortBy=OfferingStartDate&sortOrder=desc",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"trading-accounts",
+								"{{selectedTradingAccountId_or_default}}",
+								"initial-offerings"
+							],
+							"query": [
+								{
+									"key": "status",
+									"value": "Active",
+									"description": "Active, Completed, Cancelled, Expired"
+								},
+								{
+									"key": "sortBy",
+									"value": "OfferingStartDate"
+								},
+								{
+									"key": "sortOrder",
+									"value": "desc"
+								},
+								{
+									"key": "pageNumber",
+									"value": "1",
+									"disabled": true
+								},
+								{
+									"key": "pageSize",
+									"value": "10",
+									"disabled": true
+								}
+							],
+							"variable": [
+								{
+									"key": "selectedTradingAccountId_or_default",
+									"value": "1",
+									"description": "Thay bằng ID của quỹ bạn muốn xem"
+								}
+							]
+						},
+						"description": "Xem các đợt chào bán cổ phần ban đầu của một quỹ."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Admin - Trading Account & Offering Management",
+			"description": "Endpoints for Admin to manage trading accounts and initial share offerings. Requires Admin role.",
+			"item": [
+				{
+					"name": "BE-FUND-001: Admin - Create Trading Account",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201\", function () { pm.response.to.have.status(201); });",
+									"if (pm.response.code === 201) {",
+									"    try {",
+									"        var jsonData = pm.response.json();",
+									"        if (jsonData && jsonData.tradingAccountId) {",
+									"            pm.collectionVariables.set(\"createdTradingAccountId\", jsonData.tradingAccountId);",
+									"            console.log(\"createdTradingAccountId set to: \" + jsonData.tradingAccountId);",
+									"        }",
+									"    } catch (e) { console.log(\"Error parsing Create Trading Account response: \" + e); }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{adminJwtToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"accountName\": \"Test Fund - {{#RandomValue}}{{Number}}{{/RandomValue}}\",\n  \"description\": \"A test fund created via Postman for CI/CD flow.\",\n  \"eaName\": \"EA Test v1.0\",\n  \"brokerPlatformIdentifier\": \"MT5-TEST-PM\",\n  \"initialCapital\": 10000.00,\n  \"totalSharesIssued\": 100000,\n  \"managementFeeRate\": 0.015\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/admin/trading-accounts",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"admin",
+								"trading-accounts"
+							]
+						},
+						"description": "Admin tạo một tài khoản giao dịch (quỹ) mới."
+					},
+					"response": []
+				},
+				{
+					"name": "BE-FUND-004: Admin - Update Trading Account",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{adminJwtToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"description\": \"Updated description - now includes emerging markets focus.\",\n  \"eaName\": \"EA Test v1.1 - Updated\",\n  \"managementFeeRate\": 0.018,\n  \"isActive\": true\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/admin/trading-accounts/{{createdTradingAccountId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"admin",
+								"trading-accounts",
+								"{{createdTradingAccountId}}"
+							],
+							"description": "Cập nhật quỹ. Sử dụng `{{createdTradingAccountId}}` từ response của 'Create Trading Account'."
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "BE-FUND-005: Admin - Create Initial Share Offering",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{adminJwtToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"sharesOffered\": 50000,\n  \"offeringPricePerShare\": 0.11,\n  \"floorPricePerShare\": 0.10,\n  \"ceilingPricePerShare\": 0.12,\n  \"offeringEndDate\": \"2025-12-31T23:59:59Z\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/admin/trading-accounts/{{createdTradingAccountId}}/initial-offerings",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"admin",
+								"trading-accounts",
+								"{{createdTradingAccountId}}",
+								"initial-offerings"
+							],
+							"description": "Admin tạo đợt chào bán cổ phần ban đầu. Sử dụng `{{createdTradingAccountId}}`."
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Internal Share Exchange",
+			"description": "Endpoints for users to place and manage share orders, and view market data.",
+			"item": [
+				{
+					"name": "BE-EXCHANGE-001/002: Place Order (Buy/Sell)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201\", function () { pm.response.to.have.status(201); });",
+									"if (pm.response.code === 201) {",
+									"    try {",
+									"        var jsonData = pm.response.json();",
+									"        if (jsonData && jsonData.orderId) {",
+									"            // Lưu orderId của lệnh mua để có thể hủy sau này nếu cần",
+									"            if(pm.request.body && pm.request.body.raw) {",
+									"                const reqBody = JSON.parse(pm.request.body.raw);",
+									"                if(reqBody.orderSide && reqBody.orderSide.toLowerCase() === 'buy') {",
+									"                     pm.collectionVariables.set(\"myBuyOrderId\", jsonData.orderId);",
+									"                     console.log(\"myBuyOrderId set to: \" + jsonData.orderId);",
+									"                }",
+									"            }",
+									"        }",
+									"    } catch (e) { console.log(\"Error parsing Place Order response: \" + e); }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{jwtToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"tradingAccountId\": {{createdTradingAccountId_or_default_1}}, \n  \"orderTypeId\": 2, \n  \"orderSide\": \"Buy\",\n  \"quantityOrdered\": 100,\n  \"limitPrice\": 0.105\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/exchange/orders",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"exchange",
+								"orders"
+							]
+						},
+						"description": "Đặt lệnh mua hoặc bán. Thay đổi `orderSide` thành 'Sell' để đặt lệnh bán.\nSử dụng `{{createdTradingAccountId_or_default_1}}` (ví dụ: 1) hoặc ID quỹ đã tạo."
+					},
+					"response": []
+				},
+				{
+					"name": "BE-EXCHANGE-003: Get My Share Orders",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{jwtToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/exchange/orders/my?status=Open,PartiallyFilled&sortBy=OrderDate&sortOrder=desc",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"exchange",
+								"orders",
+								"my"
+							],
+							"query": [
+								{
+									"key": "pageNumber",
+									"value": "1",
+									"disabled": true
+								},
+								{
+									"key": "pageSize",
+									"value": "10",
+									"disabled": true
+								},
+								{
+									"key": "tradingAccountId",
+									"value": "",
+									"disabled": true
+								},
+								{
+									"key": "status",
+									"value": "Open,PartiallyFilled"
+								},
+								{
+									"key": "sortBy",
+									"value": "OrderDate"
+								},
+								{
+									"key": "sortOrder",
+									"value": "desc"
+								}
+							]
+						},
+						"description": "Lấy danh sách lệnh cổ phần của người dùng hiện tại."
+					},
+					"response": []
+				},
+				{
+					"name": "BE-EXCHANGE-004: Cancel Share Order",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{jwtToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/exchange/orders/{{myBuyOrderId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"exchange",
+								"orders",
+								"{{myBuyOrderId}}"
+							],
+							"description": "Hủy một lệnh đang mở. Sử dụng `{{myBuyOrderId}}` được lưu từ request 'Place Order'."
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "BE-EXCHANGE-005: Get Order Book for Trading Account",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/exchange/order-book/{{createdTradingAccountId_or_default_1}}?depth=5",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"exchange",
+								"order-book",
+								"{{createdTradingAccountId_or_default_1}}"
+							],
+							"query": [
+								{
+									"key": "depth",
+									"value": "5"
+								}
+							],
+							"variable": [
+								{
+									"key": "createdTradingAccountId_or_default_1",
+									"value": "1"
+								}
+							]
+						},
+						"description": "Lấy sổ lệnh cho một quỹ cụ thể."
+					},
+					"response": []
+				},
+				{
+					"name": "BE-EXCHANGE-007: Get My Share Trades History",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{jwtToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/exchange/trades/my?sortBy=TradeDate&sortOrder=desc",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"exchange",
+								"trades",
+								"my"
+							],
+							"query": [
+								{
+									"key": "pageNumber",
+									"value": "1",
+									"disabled": true
+								},
+								{
+									"key": "pageSize",
+									"value": "10",
+									"disabled": true
+								},
+								{
+									"key": "sortBy",
+									"value": "TradeDate"
+								},
+								{
+									"key": "sortOrder",
+									"value": "desc"
+								}
+							]
+						},
+						"description": "Lấy lịch sử các giao dịch đã khớp của người dùng."
+					},
+					"response": []
+				},
+				{
+					"name": "BE-EXCHANGE-008: Get Market Data (Live Board)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/exchange/market-data?tradingAccountIds={{createdTradingAccountId_or_default_1}}&recentTradesLimit=3",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"exchange",
+								"market-data"
+							],
+							"query": [
+								{
+									"key": "tradingAccountIds",
+									"value": "{{createdTradingAccountId_or_default_1}}",
+									"description": "Ví dụ: 1,2,3. Để trống để lấy tất cả các quỹ active."
+								},
+								{
+									"key": "recentTradesLimit",
+									"value": "3"
+								}
+							],
+							"variable": [
+							    {
+							        "key": "createdTradingAccountId_or_default_1",
+							        "value": "1"
+							    }
+							]
+						},
+						"description": "Lấy dữ liệu thị trường tổng hợp."
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:YOUR_API_PORT",
+			"type": "string",
+			"description": "Thay YOUR_API_PORT bằng port API của bạn (ví dụ: 5100 cho http, 7100 cho https, hoặc 6020 nếu Docker)"
+		},
+		{
+			"key": "jwtToken",
+			"value": "",
+			"type": "string",
+			"description": "Sẽ được tự động điền sau khi chạy request 'Login User' thành công"
+		},
+		{
+			"key": "adminJwtToken",
+			"value": "",
+			"type": "string",
+			"description": "Cần đăng nhập bằng tài khoản Admin và lưu token vào đây thủ công hoặc qua script test của request Login Admin"
+		},
+		{
+			"key": "createdTradingAccountId",
+			"value": "1",
+			"type": "string",
+			"description": "Sẽ được tự động điền sau khi Admin tạo quỹ thành công. Đặt giá trị mặc định là 1 nếu bạn đã có quỹ ID 1."
+		},
+		{
+			"key": "myBuyOrderId",
+			"value": "",
+			"type": "string",
+			"description": "Sẽ được tự động điền sau khi đặt lệnh mua thành công (dùng để test hủy lệnh)"
+		}
+	]
+}

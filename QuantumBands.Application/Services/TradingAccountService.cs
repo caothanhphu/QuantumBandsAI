@@ -522,8 +522,10 @@ public class TradingAccountService : ITradingAccountService
         // Áp dụng Filter theo Status
         if (!string.IsNullOrWhiteSpace(query.Status))
         {
-            // So sánh không phân biệt hoa thường với tên của Enum member
-            offeringsQuery = offeringsQuery.Where(iso => iso.Status.Equals(query.Status, StringComparison.OrdinalIgnoreCase));
+            string statusFilterLower = query.Status.ToLowerInvariant();
+            // Giả sử cột Status trong DB lưu tên của Enum (ví dụ: "Active", "Completed")
+            // Và query.Status cũng là một trong các tên đó (đã được validator kiểm tra)
+            offeringsQuery = offeringsQuery.Where(iso => iso.Status.ToLower() == statusFilterLower);
         }
 
         // Áp dụng Sắp xếp
@@ -577,5 +579,220 @@ public class TradingAccountService : ITradingAccountService
             paginatedOfferings.TotalCount,
             paginatedOfferings.PageNumber,
             paginatedOfferings.PageSize), null);
+    }
+    public async Task<(InitialShareOfferingDto? Offering, string? ErrorMessage)> UpdateInitialShareOfferingAsync(
+    int tradingAccountId,
+    int offeringId,
+    UpdateInitialShareOfferingRequest request,
+    ClaimsPrincipal adminUserPrincipal,
+    CancellationToken cancellationToken = default)
+    {
+        var adminUserId = GetUserIdFromPrincipal(adminUserPrincipal);
+        if (!adminUserId.HasValue) return (null, "Admin user not authenticated.");
+
+        _logger.LogInformation("Admin {AdminUserId} attempting to update InitialShareOfferingID: {OfferingId} for TradingAccountID: {TradingAccountId}",
+                               adminUserId.Value, offeringId, tradingAccountId);
+
+        var offering = await _unitOfWork.InitialShareOfferings.Query()
+                            .Include(o => o.AdminUser) // Để lấy AdminUsername cho DTO response
+                            .Include(o => o.TradingAccount) // Để kiểm tra tradingAccountId
+                            .FirstOrDefaultAsync(o => o.OfferingId == offeringId && o.TradingAccountId == tradingAccountId, cancellationToken);
+
+        if (offering == null)
+        {
+            _logger.LogWarning("InitialShareOfferingID {OfferingId} for TradingAccountID {TradingAccountId} not found.", offeringId, tradingAccountId);
+            return (null, $"Initial share offering with ID {offeringId} not found for trading account {tradingAccountId}.");
+        }
+
+        // Kiểm tra các điều kiện nghiệp vụ trước khi cập nhật
+        if (offering.SharesSold > 0)
+        {
+            if (request.SharesOffered.HasValue && request.SharesOffered.Value != offering.SharesOffered)
+            {
+                return (null, "Cannot change 'SharesOffered' after sales have started.");
+            }
+            if (request.OfferingPricePerShare.HasValue && request.OfferingPricePerShare.Value != offering.OfferingPricePerShare)
+            {
+                return (null, "Cannot change 'OfferingPricePerShare' after sales have started.");
+            }
+            // Tương tự, có thể hạn chế thay đổi Floor/Ceiling price nếu đã có người mua
+        }
+
+        bool hasChanges = false;
+
+        if (request.SharesOffered.HasValue && offering.SharesOffered != request.SharesOffered.Value)
+        {
+            if (request.SharesOffered.Value < offering.SharesSold)
+            {
+                return (null, $"New 'SharesOffered' ({request.SharesOffered.Value}) cannot be less than current 'SharesSold' ({offering.SharesSold}).");
+            }
+            offering.SharesOffered = request.SharesOffered.Value;
+            hasChanges = true;
+        }
+        if (request.OfferingPricePerShare.HasValue && offering.OfferingPricePerShare != request.OfferingPricePerShare.Value)
+        {
+            offering.OfferingPricePerShare = request.OfferingPricePerShare.Value;
+            hasChanges = true;
+        }
+        if (request.FloorPricePerShare.HasValue && offering.FloorPricePerShare != request.FloorPricePerShare.Value)
+        {
+            offering.FloorPricePerShare = request.FloorPricePerShare.Value;
+            hasChanges = true;
+        }
+        else if (request.FloorPricePerShare == null && offering.FloorPricePerShare != null) // Cho phép xóa floor price
+        {
+            offering.FloorPricePerShare = null;
+            hasChanges = true;
+        }
+
+        if (request.CeilingPricePerShare.HasValue && offering.CeilingPricePerShare != request.CeilingPricePerShare.Value)
+        {
+            offering.CeilingPricePerShare = request.CeilingPricePerShare.Value;
+            hasChanges = true;
+        }
+        else if (request.CeilingPricePerShare == null && offering.CeilingPricePerShare != null) // Cho phép xóa ceiling price
+        {
+            offering.CeilingPricePerShare = null;
+            hasChanges = true;
+        }
+
+        if (request.OfferingEndDate.HasValue && offering.OfferingEndDate != request.OfferingEndDate.Value)
+        {
+            if (request.OfferingEndDate.Value <= DateTime.UtcNow)
+            {
+                return (null, "Offering end date must be in the future.");
+            }
+            offering.OfferingEndDate = request.OfferingEndDate.Value;
+            hasChanges = true;
+        }
+        else if (request.OfferingEndDate == null && offering.OfferingEndDate != null) // Cho phép xóa end date (làm cho nó không bao giờ hết hạn tự động)
+        {
+            offering.OfferingEndDate = null;
+            hasChanges = true;
+        }
+
+
+        if (!string.IsNullOrEmpty(request.Status) && !offering.Status.Equals(request.Status, StringComparison.OrdinalIgnoreCase))
+        {
+            // Kiểm tra xem status mới có hợp lệ không (ví dụ: không thể chuyển từ "Completed" về "Active")
+            if (offering.Status == nameof(OfferingStatus.Completed) && request.Status.Equals(nameof(OfferingStatus.Active), StringComparison.OrdinalIgnoreCase))
+            {
+                return (null, "Cannot change status from 'Completed' back to 'Active'.");
+            }
+            // Thêm các rule khác nếu cần
+            offering.Status = System.Enum.Parse<OfferingStatus>(request.Status, true).ToString(); // Chuẩn hóa tên status
+            hasChanges = true;
+        }
+
+        if (!hasChanges)
+        {
+            _logger.LogInformation("No changes detected for InitialShareOfferingID {OfferingId}.", offeringId);
+        }
+        else
+        {
+            offering.UpdatedAt = DateTime.UtcNow;
+            _unitOfWork.InitialShareOfferings.Update(offering);
+            try
+            {
+                await _unitOfWork.CompleteAsync(cancellationToken);
+                _logger.LogInformation("InitialShareOfferingID {OfferingId} updated successfully by Admin {AdminUserId}.", offeringId, adminUserId.Value);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating InitialShareOfferingID {OfferingId}", offeringId);
+                return (null, "An error occurred while updating the offering.");
+            }
+        }
+
+        var dto = new InitialShareOfferingDto
+        {
+            OfferingId = offering.OfferingId,
+            TradingAccountId = offering.TradingAccountId,
+            AdminUserId = offering.AdminUserId,
+            AdminUsername = offering.AdminUser?.Username ?? "N/A",
+            SharesOffered = offering.SharesOffered,
+            SharesSold = offering.SharesSold,
+            OfferingPricePerShare = offering.OfferingPricePerShare,
+            FloorPricePerShare = offering.FloorPricePerShare,
+            CeilingPricePerShare = offering.CeilingPricePerShare,
+            OfferingStartDate = offering.OfferingStartDate,
+            OfferingEndDate = offering.OfferingEndDate,
+            Status = offering.Status,
+            CreatedAt = offering.CreatedAt,
+            UpdatedAt = offering.UpdatedAt
+        };
+        return (dto, null);
+    }
+
+    public async Task<(InitialShareOfferingDto? Offering, string? ErrorMessage)> CancelInitialShareOfferingAsync(
+    int tradingAccountId,
+    int offeringId,
+    CancelInitialShareOfferingRequest request, // Request có thể chứa AdminNotes
+    ClaimsPrincipal adminUserPrincipal,
+    CancellationToken cancellationToken = default)
+    {
+        var adminUserId = GetUserIdFromPrincipal(adminUserPrincipal);
+        if (!adminUserId.HasValue) return (null, "Admin user not authenticated.");
+
+        _logger.LogInformation("Admin {AdminUserId} attempting to cancel InitialShareOfferingID: {OfferingId} for TradingAccountID: {TradingAccountId}",
+                               adminUserId.Value, offeringId, tradingAccountId);
+
+        var offering = await _unitOfWork.InitialShareOfferings.Query()
+                            .Include(o => o.AdminUser) // Để lấy AdminUsername cho DTO response
+                            .Include(o => o.TradingAccount)
+                            .FirstOrDefaultAsync(o => o.OfferingId == offeringId && o.TradingAccountId == tradingAccountId, cancellationToken);
+
+        if (offering == null)
+        {
+            _logger.LogWarning("InitialShareOfferingID {OfferingId} for TradingAccountID {TradingAccountId} not found for cancellation.", offeringId, tradingAccountId);
+            return (null, $"Initial share offering with ID {offeringId} not found for trading account {tradingAccountId}.");
+        }
+
+        if (!offering.Status.Equals(nameof(OfferingStatus.Active), StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogInformation("InitialShareOfferingID {OfferingId} is not in 'Active' state (current: {CurrentStatus}). Cannot cancel.", offeringId, offering.Status);
+            return (null, $"Only 'Active' offerings can be cancelled. Current status is '{offering.Status}'.");
+        }
+
+        offering.Status = nameof(OfferingStatus.Cancelled);
+        offering.UpdatedAt = DateTime.UtcNow;
+        // Ghi chú của Admin có thể được lưu vào một trường riêng của Offering hoặc vào một bảng log khác.
+        // Để đơn giản, có thể append vào Description của Offering nếu có.
+        //if (!string.IsNullOrEmpty(request.AdminNotes))
+        //{
+        //    offering.Description = $"{offering.Description?.TrimEnd()} | Cancelled by Admin {adminUserId.Value}. Notes: {request.AdminNotes}";
+        //}
+
+
+        _unitOfWork.InitialShareOfferings.Update(offering);
+        try
+        {
+            await _unitOfWork.CompleteAsync(cancellationToken);
+            _logger.LogInformation("InitialShareOfferingID {OfferingId} cancelled successfully by Admin {AdminUserId}.", offeringId, adminUserId.Value);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error cancelling InitialShareOfferingID {OfferingId}", offeringId);
+            return (null, "An error occurred while cancelling the offering.");
+        }
+
+        var dto = new InitialShareOfferingDto
+        {
+            OfferingId = offering.OfferingId,
+            TradingAccountId = offering.TradingAccountId,
+            AdminUserId = offering.AdminUserId,
+            AdminUsername = offering.AdminUser?.Username ?? "N/A",
+            SharesOffered = offering.SharesOffered,
+            SharesSold = offering.SharesSold,
+            OfferingPricePerShare = offering.OfferingPricePerShare,
+            FloorPricePerShare = offering.FloorPricePerShare,
+            CeilingPricePerShare = offering.CeilingPricePerShare,
+            OfferingStartDate = offering.OfferingStartDate,
+            OfferingEndDate = offering.OfferingEndDate,
+            Status = offering.Status, // Trạng thái mới là "Cancelled"
+            CreatedAt = offering.CreatedAt,
+            UpdatedAt = offering.UpdatedAt
+        };
+        return (dto, null);
     }
 }

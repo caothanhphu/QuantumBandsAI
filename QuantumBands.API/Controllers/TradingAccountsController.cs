@@ -11,7 +11,8 @@ using System.Threading.Tasks;
 namespace QuantumBands.API.Controllers;
 
 [ApiController]
-[Route("api/v1/[controller]")] // Route: /api/v1/trading-accounts
+//[Route("api/v1/[controller]")] 
+[Route("api/v1/trading-accounts")]// Route: /api/v1/trading-accounts
 public class TradingAccountsController : ControllerBase
 {
     private readonly ITradingAccountService _tradingAccountService;

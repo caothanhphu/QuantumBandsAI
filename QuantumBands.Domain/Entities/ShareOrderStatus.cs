@@ -16,6 +16,6 @@ public partial class ShareOrderStatus
     [StringLength(20)]
     public string StatusName { get; set; } = null!;
 
-    [InverseProperty("OrderStatus")]
+    [InverseProperty("ShareOrderStatus")]
     public virtual ICollection<ShareOrder> ShareOrders { get; set; } = new List<ShareOrder>();
 }

@@ -88,8 +88,9 @@ public class ExchangeService : IExchangeService
 
         // Xác định ShareOrderSideId dựa trên request.OrderSide
         // Giả sử bạn có bảng ShareOrderSides với các bản ghi "Buy" (ID 1) và "Sell" (ID 2)
-        var orderSideEntity = await _unitOfWork.ShareOrderSides.Query() // Giả sử có repo này
-                                    .FirstOrDefaultAsync(s => s.SideName.Equals(request.OrderSide, StringComparison.OrdinalIgnoreCase), cancellationToken);
+        string requestedOrderSideLower = request.OrderSide.ToLowerInvariant(); // Chuẩn hóa input
+        var orderSideEntity = await _unitOfWork.ShareOrderSides.Query()
+                                    .FirstOrDefaultAsync(s => s.SideName.ToLower() == requestedOrderSideLower, cancellationToken);
         if (orderSideEntity == null)
         {
             return (null, "Invalid OrderSide specified. Must be 'Buy' or 'Sell'.");
@@ -133,8 +134,9 @@ public class ExchangeService : IExchangeService
         }
 
         // 3. Tạo bản ghi ShareOrder
-        var orderStatusOpen = await _unitOfWork.ShareOrderStatuses.Query() // Giả sử có repo này
-                                   .FirstOrDefaultAsync(s => s.StatusName.Equals("Open", StringComparison.OrdinalIgnoreCase), cancellationToken);
+        string openStatusNameLower = nameof(ShareOrderStatusName.Open).ToLowerInvariant();
+        var orderStatusOpen = await _unitOfWork.ShareOrderStatuses.Query()
+                                     .FirstOrDefaultAsync(s => s.StatusName.ToLower() == openStatusNameLower, cancellationToken);
         if (orderStatusOpen == null)
         {
             _logger.LogError("Default order status 'Open' not found in database.");
@@ -198,8 +200,7 @@ public class ExchangeService : IExchangeService
             .Include(o => o.ShareOrderSide)
             .Include(o => o.ShareOrderType)
             .Include(o => o.ShareOrderStatus)
-            .Include(o => o.User) // Cần User để cập nhật portfolio
-                .ThenInclude(u => u.Wallet) // Cần Wallet để trừ/cộng tiền
+            .Include(o => o.User).ThenInclude(u => u.Wallet)
             .Include(o => o.TradingAccount)
             .FirstOrDefaultAsync(o => o.OrderId == orderId &&
                                      (o.ShareOrderStatus.StatusName == nameof(ShareOrderStatusName.Open) ||
@@ -208,154 +209,532 @@ public class ExchangeService : IExchangeService
 
         if (orderToMatch == null)
         {
-            _logger.LogInformation("Order {OrderId} not found or not in a matchable state.", orderId);
+            _logger.LogDebug("TryMatchOrderAsync: OrderID {OrderId} not found or not in a matchable state.", orderId);
             return false;
         }
 
-        _logger.LogInformation("Attempting to match OrderID: {OrderId}, Side: {OrderSide}, Type: {OrderType}, Qty: {QuantityOrdered}, Price: {LimitPrice}",
+        _logger.LogInformation("MatchingEngine: Attempting to match OrderID: {OrderId}, Side: {OrderSide}, Type: {OrderType}, QtyLeft: {QuantityLeft}, LimitPrice: {LimitPrice}",
             orderToMatch.OrderId, orderToMatch.ShareOrderSide.SideName, orderToMatch.ShareOrderType.TypeName,
             orderToMatch.QuantityOrdered - orderToMatch.QuantityFilled, orderToMatch.LimitPrice);
 
-        bool matchedOccurred = false;
-        long remainingQuantityToFill = orderToMatch.QuantityOrdered - orderToMatch.QuantityFilled;
+        bool anyMatchOccurredThisRun = false;
+        long remainingQtyToFillForOrderToMatch = orderToMatch.QuantityOrdered - orderToMatch.QuantityFilled;
 
-        // Lấy các ID trạng thái cần thiết
-        var statusOpenId = (await _shareOrderStatusRepository.GetByNameAsync(nameof(ShareOrderStatusName.Open), cancellationToken))?.OrderStatusId;
-        var statusPartiallyFilledId = (await _shareOrderStatusRepository.GetByNameAsync(nameof(ShareOrderStatusName.PartiallyFilled), cancellationToken))?.OrderStatusId;
-        var statusFilledId = (await _shareOrderStatusRepository.GetByNameAsync(nameof(ShareOrderStatusName.Filled), cancellationToken))?.OrderStatusId;
+        var statusOpen = await _shareOrderStatusRepository.GetByNameAsync(nameof(ShareOrderStatusName.Open), cancellationToken);
+        var statusPartiallyFilled = await _shareOrderStatusRepository.GetByNameAsync(nameof(ShareOrderStatusName.PartiallyFilled), cancellationToken);
+        var statusFilled = await _shareOrderStatusRepository.GetByNameAsync(nameof(ShareOrderStatusName.Filled), cancellationToken);
 
-        if (!statusOpenId.HasValue || !statusPartiallyFilledId.HasValue || !statusFilledId.HasValue)
+        if (statusOpen == null || statusPartiallyFilled == null || statusFilled == null)
         {
-            _logger.LogError("Critical: Order statuses (Open, PartiallyFilled, Filled) not found in database.");
-            return false; // Không thể tiếp tục nếu thiếu trạng thái cơ bản
+            _logger.LogError("Critical: Order statuses (Open, PartiallyFilled, Filled) not found in database via repository.");
+            return false;
         }
 
+        var sharePurchaseType = await _transactionTypeRepository.GetByNameAsync("SharePurchase", cancellationToken);
+        var shareSaleProceedsType = await _transactionTypeRepository.GetByNameAsync("ShareSaleProceeds", cancellationToken);
+        var exchangeFeeType = await _transactionTypeRepository.GetByNameAsync("ExchangeFee", cancellationToken);
+
+        if (sharePurchaseType == null || shareSaleProceedsType == null || exchangeFeeType == null) // Giả sử phí luôn có
+        {
+            _logger.LogError("Required transaction types for exchange (SharePurchase, ShareSaleProceeds, ExchangeFee) not found.");
+            return false;
+        }
+
+        decimal feeRate = 0;
+        var feeRateStr = await _systemSettingRepository.GetSettingValueAsync("ShareTradingFeeRate", cancellationToken);
+        if (decimal.TryParse(feeRateStr, out decimal parsedRate))
+        {
+            feeRate = parsedRate;
+        }
 
         if (orderToMatch.ShareOrderSide.SideName.Equals("Buy", StringComparison.OrdinalIgnoreCase))
         {
-            // Tìm lệnh bán đối ứng (Limit Sell Orders)
-            var counterSellOrders = await _unitOfWork.ShareOrders.Query()
-                .Include(o => o.ShareOrderSide)
-                .Include(o => o.ShareOrderType)
-                .Include(o => o.ShareOrderStatus)
-                .Include(o => o.User)
-                    .ThenInclude(u => u.Wallet)
-                .Where(o => o.TradingAccountId == orderToMatch.TradingAccountId &&
-                            o.ShareOrderSide.SideName == "Sell" &&
-                            o.UserId != orderToMatch.UserId && // Không khớp với chính mình
-                            (o.ShareOrderStatus.StatusName == nameof(ShareOrderStatusName.Open) || o.ShareOrderStatus.StatusName == nameof(ShareOrderStatusName.PartiallyFilled)) &&
-                            o.LimitPrice.HasValue && // Chỉ khớp lệnh Limit với Limit (ví dụ đơn giản)
-                            (orderToMatch.LimitPrice.HasValue ? o.LimitPrice.Value <= orderToMatch.LimitPrice.Value : true) // Giá bán <= giá mua giới hạn (hoặc bất kỳ nếu lệnh mua là Market)
-                       )
-                .OrderBy(o => o.LimitPrice) // Giá bán thấp nhất trước
-                .ThenBy(o => o.OrderDate)    // Lệnh cũ hơn trước
-                .ToListAsync(cancellationToken);
-
-            foreach (var sellOrder in counterSellOrders)
+            // ---- START MATCHING WITH INITIAL SHARE OFFERINGS ----
+            if (remainingQtyToFillForOrderToMatch > 0)
             {
-                if (remainingQuantityToFill <= 0) break;
+                var activeOfferings = await _unitOfWork.InitialShareOfferings.Query()
+                    .Include(offering => offering.AdminUser) // To get SellerUserId (Admin)
+                    .Where(offering => offering.TradingAccountId == orderToMatch.TradingAccountId &&
+                                        offering.Status == nameof(OfferingStatus.Active) &&
+                                        (offering.SharesOffered - offering.SharesSold) > 0 &&
+                                        (orderToMatch.ShareOrderType.TypeName == "Market" ||
+                                         (orderToMatch.LimitPrice.HasValue && offering.OfferingPricePerShare <= orderToMatch.LimitPrice.Value)))
+                    .OrderBy(offering => offering.OfferingPricePerShare)
+                    .ThenBy(offering => offering.OfferingStartDate)
+                    .ToListAsync(cancellationToken);
 
-                long sellOrderRemainingQty = sellOrder.QuantityOrdered - sellOrder.QuantityFilled;
-                if (sellOrderRemainingQty <= 0) continue;
-
-                decimal tradePrice = sellOrder.LimitPrice.Value; // Giá khớp là giá của lệnh trên sổ (lệnh bán)
-                if (orderToMatch.ShareOrderType.TypeName.Equals("Limit", StringComparison.OrdinalIgnoreCase) && orderToMatch.LimitPrice.HasValue && tradePrice > orderToMatch.LimitPrice.Value)
+                foreach (var offering in activeOfferings)
                 {
-                    // Lệnh mua là Limit và giá bán hiện tại cao hơn giá mua chấp nhận -> không khớp
-                    continue;
+                    if (remainingQtyToFillForOrderToMatch <= 0) break;
+
+                    long offeringAvailableShares = offering.SharesOffered - offering.SharesSold;
+                    decimal tradePrice = offering.OfferingPricePerShare;
+
+                    if (orderToMatch.ShareOrderType.TypeName == "Limit" && orderToMatch.LimitPrice.HasValue && tradePrice > orderToMatch.LimitPrice.Value)
+                    {
+                        continue; // Price too high for limit buy order
+                    }
+
+                    long tradeQuantity = Math.Min(remainingQtyToFillForOrderToMatch, offeringAvailableShares);
+                    decimal totalTradeValue = tradeQuantity * tradePrice;
+                    decimal buyerFee = Math.Round(totalTradeValue * feeRate, 8);
+
+                    if (orderToMatch.User.Wallet == null || orderToMatch.User.Wallet.Balance < (totalTradeValue + buyerFee))
+                    {
+                        _logger.LogWarning("Buy Order {OrderId}: Insufficient balance for UserID {BuyerUserId} to match with offering {OfferingId}. Required: {Required}, Available: {Available}.",
+                                           orderToMatch.OrderId, orderToMatch.UserId, offering.OfferingId, totalTradeValue + buyerFee, orderToMatch.User.Wallet.Balance);
+                        continue;
+                    }
+
+                    _logger.LogInformation("MATCH (OFFERING): Buy Order {BuyOrderId} vs Offering {OfferingId}. Trade Qty: {TradeQty} @ {TradePrice}",
+                                           orderToMatch.OrderId, offering.OfferingId, tradeQuantity, tradePrice);
+
+                    var trade = new ShareTrade
+                    {
+                        TradingAccountId = orderToMatch.TradingAccountId,
+                        BuyOrderId = orderToMatch.OrderId,
+                        SellOrderId = null,
+                        InitialShareOfferingId = offering.OfferingId,
+                        BuyerUserId = orderToMatch.UserId,
+                        SellerUserId = offering.AdminUserId,
+                        QuantityTraded = tradeQuantity,
+                        TradePrice = tradePrice,
+                        BuyerFeeAmount = buyerFee,
+                        SellerFeeAmount = 0, // Assume no fee for system selling from offering
+                        TradeDate = DateTime.UtcNow
+                    };
+                    await _unitOfWork.ShareTrades.AddAsync(trade);
+                    // Consider saving here to get trade.TradeId if needed immediately for WalletTransaction reference
+
+                    orderToMatch.QuantityFilled += tradeQuantity;
+                    orderToMatch.AverageFillPrice = CalculateNewAveragePrice(orderToMatch.AverageFillPrice, orderToMatch.QuantityFilled - tradeQuantity, tradePrice, tradeQuantity);
+                    orderToMatch.OrderStatusId = orderToMatch.QuantityFilled == orderToMatch.QuantityOrdered ? statusFilled.OrderStatusId : statusPartiallyFilled.OrderStatusId;
+                    orderToMatch.UpdatedAt = DateTime.UtcNow;
+                    orderToMatch.TransactionFeeAmount = (orderToMatch.TransactionFeeAmount ?? 0) + buyerFee;
+                    _unitOfWork.ShareOrders.Update(orderToMatch);
+
+                    offering.SharesSold += tradeQuantity;
+                    if (offering.SharesSold >= offering.SharesOffered)
+                    {
+                        offering.Status = nameof(OfferingStatus.Completed);
+                    }
+                    offering.UpdatedAt = DateTime.UtcNow;
+                    _unitOfWork.InitialShareOfferings.Update(offering);
+
+                    await _portfolioService.UpdatePortfolioOnBuyAsync(orderToMatch.UserId, orderToMatch.TradingAccountId, tradeQuantity, tradePrice, cancellationToken);
+                    var buyerWallet = orderToMatch.User.Wallet; // Đảm bảo đã Include User.Wallet
+                    var now = DateTime.UtcNow;
+
+                    // 1. Giao dịch mua chính
+                    var purchaseTransaction = new WalletTransaction
+                    {
+                        WalletId = buyerWallet.WalletId,
+                        TransactionTypeId = sharePurchaseType.TransactionTypeId, // Đảm bảo sharePurchaseType đã được lấy và không null
+                        Amount = totalTradeValue, // Số tiền hàng
+                        CurrencyCode = buyerWallet.CurrencyCode,
+                        BalanceBefore = buyerWallet.Balance,
+                        BalanceAfter = buyerWallet.Balance - (totalTradeValue + buyerFee), // Trừ cả tiền hàng và phí
+                        Description = $"Purchased {tradeQuantity} shares TA_ID {orderToMatch.TradingAccountId} @ {tradePrice:F8}. Trade ID: {trade.TradeId}", // Thêm TradeId nếu có
+                        ReferenceId = $"TRADE_{trade.TradeId}", // Sử dụng TradeId (cần lưu trade trước hoặc có cơ chế tạo Ref ID khác)
+                        PaymentMethod = "Exchange",
+                        Status = "Completed",
+                        TransactionDate = now,
+                        UpdatedAt = now
+                    };
+                    await _unitOfWork.WalletTransactions.AddAsync(purchaseTransaction);
+
+                    // Cập nhật số dư ví người mua
+                    buyerWallet.Balance -= (totalTradeValue + buyerFee);
+                    buyerWallet.UpdatedAt = now;
+                    _unitOfWork.Wallets.Update(buyerWallet);
+
+                    // 2. Giao dịch phí của người mua (nếu có)
+                    if (buyerFee > 0 && exchangeFeeType != null)
+                    {
+                        var feeTransaction = new WalletTransaction
+                        {
+                            WalletId = buyerWallet.WalletId,
+                            TransactionTypeId = exchangeFeeType.TransactionTypeId,
+                            Amount = buyerFee,
+                            CurrencyCode = buyerWallet.CurrencyCode,
+                            BalanceBefore = buyerWallet.Balance + buyerFee, // Balance trước khi trừ phí này (sau khi đã trừ tiền hàng)
+                            BalanceAfter = buyerWallet.Balance, // Balance cuối cùng (đã được cập nhật ở trên)
+                            Description = $"Fee for purchase TRADE_{trade.TradeId}",
+                            ReferenceId = $"FEE_TRADE_{trade.TradeId}",
+                            PaymentMethod = "ExchangeFee",
+                            Status = "Completed",
+                            TransactionDate = now,
+                            UpdatedAt = now
+                        };
+                        await _unitOfWork.WalletTransactions.AddAsync(feeTransaction);
+                    }
+
+
+                    // TODO: Logic for crediting funds from offering sale to a system/fund wallet if necessary
+
+                    remainingQtyToFillForOrderToMatch -= tradeQuantity;
+                    anyMatchOccurredThisRun = true;
                 }
-
-
-                long tradeQuantity = Math.Min(remainingQuantityToFill, sellOrderRemainingQty);
-
-                // --- BẮT ĐẦU TRANSACTION (EF Core sẽ quản lý qua SaveChangesAsync của UnitOfWork) ---
-                _logger.LogInformation("MATCH FOUND: Buy Order {BuyOrderId} ({BuyQty}@{BuyPrice}) vs Sell Order {SellOrderId} ({SellQty}@{SellPrice}). Trade Qty: {TradeQty} @ {TradePrice}",
-                    orderToMatch.OrderId, remainingQuantityToFill, orderToMatch.LimitPrice,
-                    sellOrder.OrderId, sellOrderRemainingQty, sellOrder.LimitPrice,
-                    tradeQuantity, tradePrice);
-
-                // 1. Tạo ShareTrade
-                var trade = new ShareTrade
-                {
-                    TradingAccountId = orderToMatch.TradingAccountId,
-                    BuyOrderId = orderToMatch.OrderId,
-                    SellOrderId = sellOrder.OrderId,
-                    BuyerUserId = orderToMatch.UserId,
-                    SellerUserId = sellOrder.UserId,
-                    QuantityTraded = tradeQuantity,
-                    TradePrice = tradePrice,
-                    TradeDate = DateTime.UtcNow
-                    // BuyerFeeAmount, SellerFeeAmount sẽ tính sau
-                };
-                await _unitOfWork.ShareTrades.AddAsync(trade);
-
-                // 2. Cập nhật lệnh mua
-                orderToMatch.QuantityFilled += tradeQuantity;
-                orderToMatch.AverageFillPrice = CalculateNewAveragePrice(orderToMatch.AverageFillPrice, orderToMatch.QuantityFilled - tradeQuantity, tradePrice, tradeQuantity);
-                orderToMatch.OrderStatusId = orderToMatch.QuantityFilled == orderToMatch.QuantityOrdered ? statusFilledId.Value : statusPartiallyFilledId.Value;
-                orderToMatch.UpdatedAt = DateTime.UtcNow;
-                _unitOfWork.ShareOrders.Update(orderToMatch);
-
-                // 3. Cập nhật lệnh bán
-                sellOrder.QuantityFilled += tradeQuantity;
-                sellOrder.AverageFillPrice = CalculateNewAveragePrice(sellOrder.AverageFillPrice, sellOrder.QuantityFilled - tradeQuantity, tradePrice, tradeQuantity);
-                sellOrder.OrderStatusId = sellOrder.QuantityFilled == sellOrder.QuantityOrdered ? statusFilledId.Value : statusPartiallyFilledId.Value;
-                sellOrder.UpdatedAt = DateTime.UtcNow;
-                _unitOfWork.ShareOrders.Update(sellOrder);
-
-                // 4. Cập nhật Portfolio
-                await _portfolioService.UpdatePortfolioOnBuyAsync(orderToMatch.UserId, orderToMatch.TradingAccountId, tradeQuantity, tradePrice, cancellationToken);
-                await _portfolioService.UpdatePortfolioOnSellAsync(sellOrder.UserId, sellOrder.TradingAccountId, tradeQuantity, tradePrice, cancellationToken);
-
-                // 5. Cập nhật Wallet (Cần WalletService có các phương thức phù hợp)
-                decimal totalTradeValue = tradeQuantity * tradePrice;
-                // Giả sử có phương thức trong WalletService: DebitUserWallet, CreditUserWallet
-                // Và các TransactionType: "SharePurchase", "ShareSaleProceeds", "ExchangeFee"
-                // await _walletService.DebitUserWalletAsync(orderToMatch.UserId, totalTradeValue, "USD", $"Purchased {tradeQuantity} shares of TA_ID {orderToMatch.TradingAccountId} @ {tradePrice}", $"TRADE_{trade.TradeId}", "SharePurchase");
-                // await _walletService.CreditUserWalletAsync(sellOrder.UserId, totalTradeValue, "USD", $"Sold {tradeQuantity} shares of TA_ID {sellOrder.TradingAccountId} @ {tradePrice}", $"TRADE_{trade.TradeId}", "ShareSaleProceeds");
-                // TODO: Xử lý phí giao dịch
-
-                remainingQuantityToFill -= tradeQuantity;
-                matchedOccurred = true;
-
-                // Lưu tất cả thay đổi cho trade này
-                // await _unitOfWork.CompleteAsync(cancellationToken); // Hoặc lưu một lần ở cuối vòng lặp/phương thức
             }
+            // ---- END MATCHING WITH INITIAL SHARE OFFERINGS ----
+
+            // ---- START MATCHING WITH COUNTER SELL ORDERS ----
+            if (remainingQtyToFillForOrderToMatch > 0)
+            {
+                var counterSellOrders = await _unitOfWork.ShareOrders.Query()
+                    .Include(o => o.ShareOrderSide)
+                    .Include(o => o.ShareOrderType)
+                    .Include(o => o.ShareOrderStatus)
+                    .Include(o => o.User).ThenInclude(u => u.Wallet)
+                    .Where(o => o.TradingAccountId == orderToMatch.TradingAccountId &&
+                                o.ShareOrderSide.SideName == "Sell" &&
+                                o.UserId != orderToMatch.UserId &&
+                                (o.ShareOrderStatus.OrderStatusId == statusOpen.OrderStatusId || o.ShareOrderStatus.OrderStatusId == statusPartiallyFilled.OrderStatusId) &&
+                                o.LimitPrice.HasValue &&
+                                (orderToMatch.ShareOrderType.TypeName == "Market" || (orderToMatch.LimitPrice.HasValue && o.LimitPrice.Value <= orderToMatch.LimitPrice.Value))
+                           )
+                    .OrderBy(o => o.LimitPrice)
+                    .ThenBy(o => o.OrderDate)
+                    .ToListAsync(cancellationToken);
+
+                foreach (var sellOrder in counterSellOrders)
+                {
+                    if (remainingQtyToFillForOrderToMatch <= 0) break;
+                    long sellOrderRemainingQty = sellOrder.QuantityOrdered - sellOrder.QuantityFilled;
+                    if (sellOrderRemainingQty <= 0) continue;
+
+                    decimal tradePrice = sellOrder.LimitPrice!.Value;
+                    if (orderToMatch.ShareOrderType.TypeName == "Limit" && orderToMatch.LimitPrice.HasValue && tradePrice > orderToMatch.LimitPrice.Value) continue;
+
+                    long tradeQuantity = Math.Min(remainingQtyToFillForOrderToMatch, sellOrderRemainingQty);
+                    decimal totalTradeValue = tradeQuantity * tradePrice;
+                    decimal buyerFee = Math.Round(totalTradeValue * feeRate, 8);
+                    decimal sellerFee = Math.Round(totalTradeValue * feeRate, 8);
+
+                    if (orderToMatch.User.Wallet == null || orderToMatch.User.Wallet.Balance < (totalTradeValue + buyerFee))
+                    {
+                        _logger.LogWarning("Insufficient balance for buyer UserID {BuyerUserId} for trade. BuyOrder: {BuyOrderId}", orderToMatch.UserId, orderToMatch.OrderId);
+                        continue;
+                    }
+                    if (sellOrder.User.Wallet == null) // Wallet of seller
+                    {
+                        _logger.LogError("Seller UserID {SellerUserId} does not have a wallet. Cannot process trade. SellOrder: {SellOrderId}", sellOrder.UserId, sellOrder.OrderId);
+                        continue;
+                    }
+
+
+                    _logger.LogInformation("MATCH (ORDER): BuyOrder {BuyOrderId} vs SellOrder {SellOrderId}. Trade: {TradeQty}@{TradePrice}",
+                                           orderToMatch.OrderId, sellOrder.OrderId, tradeQuantity, tradePrice);
+
+                    var trade = new ShareTrade
+                    { /* ... populate ... */
+                        TradingAccountId = orderToMatch.TradingAccountId,
+                        BuyOrderId = orderToMatch.OrderId,
+                        SellOrderId = sellOrder.OrderId,
+                        BuyerUserId = orderToMatch.UserId,
+                        SellerUserId = sellOrder.UserId,
+                        QuantityTraded = tradeQuantity,
+                        TradePrice = tradePrice,
+                        BuyerFeeAmount = buyerFee,
+                        SellerFeeAmount = sellerFee,
+                        TradeDate = DateTime.UtcNow
+                    };
+                    await _unitOfWork.ShareTrades.AddAsync(trade);
+                    // await _unitOfWork.CompleteAsync(cancellationToken); // To get trade.TradeId for wallet tx ref
+
+                    orderToMatch.QuantityFilled += tradeQuantity;
+                    orderToMatch.AverageFillPrice = CalculateNewAveragePrice(orderToMatch.AverageFillPrice, orderToMatch.QuantityFilled - tradeQuantity, tradePrice, tradeQuantity);
+                    orderToMatch.OrderStatusId = orderToMatch.QuantityFilled == orderToMatch.QuantityOrdered ? statusFilled.OrderStatusId : statusPartiallyFilled.OrderStatusId;
+                    orderToMatch.UpdatedAt = DateTime.UtcNow;
+                    orderToMatch.TransactionFeeAmount = (orderToMatch.TransactionFeeAmount ?? 0) + buyerFee;
+                    _unitOfWork.ShareOrders.Update(orderToMatch);
+
+                    sellOrder.QuantityFilled += tradeQuantity;
+                    sellOrder.AverageFillPrice = CalculateNewAveragePrice(sellOrder.AverageFillPrice, sellOrder.QuantityFilled - tradeQuantity, tradePrice, tradeQuantity);
+                    sellOrder.OrderStatusId = sellOrder.QuantityFilled == sellOrder.QuantityOrdered ? statusFilled.OrderStatusId : statusPartiallyFilled.OrderStatusId;
+                    sellOrder.UpdatedAt = DateTime.UtcNow;
+                    sellOrder.TransactionFeeAmount = (sellOrder.TransactionFeeAmount ?? 0) + sellerFee;
+                    _unitOfWork.ShareOrders.Update(sellOrder);
+
+                    await _portfolioService.UpdatePortfolioOnBuyAsync(orderToMatch.UserId, orderToMatch.TradingAccountId, tradeQuantity, tradePrice, cancellationToken);
+                    await _portfolioService.UpdatePortfolioOnSellAsync(sellOrder.UserId, sellOrder.TradingAccountId, tradeQuantity, tradePrice, cancellationToken);
+
+                    var buyerWallet = orderToMatch.User.Wallet; // Đảm bảo đã Include User.Wallet
+                    var now = DateTime.UtcNow;
+
+                    // 1. Giao dịch mua chính
+                    var purchaseTransaction = new WalletTransaction
+                    {
+                        WalletId = buyerWallet.WalletId,
+                        TransactionTypeId = sharePurchaseType.TransactionTypeId, // Đảm bảo sharePurchaseType đã được lấy và không null
+                        Amount = totalTradeValue, // Số tiền hàng
+                        CurrencyCode = buyerWallet.CurrencyCode,
+                        BalanceBefore = buyerWallet.Balance,
+                        BalanceAfter = buyerWallet.Balance - (totalTradeValue + buyerFee), // Trừ cả tiền hàng và phí
+                        Description = $"Purchased {tradeQuantity} shares TA_ID {orderToMatch.TradingAccountId} @ {tradePrice:F8}. Trade ID: {trade.TradeId}", // Thêm TradeId nếu có
+                        ReferenceId = $"TRADE_{trade.TradeId}", // Sử dụng TradeId (cần lưu trade trước hoặc có cơ chế tạo Ref ID khác)
+                        PaymentMethod = "Exchange",
+                        Status = "Completed",
+                        TransactionDate = now,
+                        UpdatedAt = now
+                    };
+                    await _unitOfWork.WalletTransactions.AddAsync(purchaseTransaction);
+
+                    // Cập nhật số dư ví người mua
+                    buyerWallet.Balance -= (totalTradeValue + buyerFee);
+                    buyerWallet.UpdatedAt = now;
+                    _unitOfWork.Wallets.Update(buyerWallet);
+
+                    // 2. Giao dịch phí của người mua (nếu có)
+                    if (buyerFee > 0 && exchangeFeeType != null)
+                    {
+                        var feeTransaction = new WalletTransaction
+                        {
+                            WalletId = buyerWallet.WalletId,
+                            TransactionTypeId = exchangeFeeType.TransactionTypeId,
+                            Amount = buyerFee,
+                            CurrencyCode = buyerWallet.CurrencyCode,
+                            BalanceBefore = buyerWallet.Balance + buyerFee, // Balance trước khi trừ phí này (sau khi đã trừ tiền hàng)
+                            BalanceAfter = buyerWallet.Balance, // Balance cuối cùng (đã được cập nhật ở trên)
+                            Description = $"Fee for purchase TRADE_{trade.TradeId}",
+                            ReferenceId = $"FEE_TRADE_{trade.TradeId}",
+                            PaymentMethod = "ExchangeFee",
+                            Status = "Completed",
+                            TransactionDate = now,
+                            UpdatedAt = now
+                        };
+                        await _unitOfWork.WalletTransactions.AddAsync(feeTransaction);
+                    }
+
+
+                    // Tương tự cho việc cộng tiền và trừ phí của người bán (seller):
+                    var sellerWallet = sellOrder.User.Wallet; // Đảm bảo đã Include User.Wallet
+                    decimal amountToCreditSeller = totalTradeValue - sellerFee;
+
+                    var saleTransaction = new WalletTransaction
+                    {
+                        WalletId = sellerWallet.WalletId,
+                        TransactionTypeId = shareSaleProceedsType.TransactionTypeId, // Đảm bảo shareSaleProceedsType đã được lấy và không null
+                        Amount = amountToCreditSeller, // Số tiền thực nhận sau phí
+                        CurrencyCode = sellerWallet.CurrencyCode,
+                        BalanceBefore = sellerWallet.Balance,
+                        BalanceAfter = sellerWallet.Balance + amountToCreditSeller,
+                        Description = $"Sold {tradeQuantity} shares TA_ID {sellOrder.TradingAccountId} @ {tradePrice:F8}. Trade ID: {trade.TradeId}",
+                        ReferenceId = $"TRADE_{trade.TradeId}",
+                        PaymentMethod = "Exchange",
+                        Status = "Completed",
+                        TransactionDate = now,
+                        UpdatedAt = now
+                    };
+                    await _unitOfWork.WalletTransactions.AddAsync(saleTransaction);
+
+                    sellerWallet.Balance += amountToCreditSeller;
+                    sellerWallet.UpdatedAt = now;
+                    _unitOfWork.Wallets.Update(sellerWallet);
+                    // Seller fee handled if system collects it
+
+                    remainingQtyToFillForOrderToMatch -= tradeQuantity;
+                    anyMatchOccurredThisRun = true;
+                }
+            }
+            // ---- END MATCHING WITH COUNTER SELL ORDERS ----
         }
         else // orderToMatch is a Sell Order
         {
-            // Tương tự, tìm lệnh mua đối ứng (Limit Buy Orders)
-            // Sắp xếp theo LimitPrice giảm dần, rồi OrderDate tăng dần
-            // Giá khớp là giá của lệnh mua trên sổ
-            // ... logic tương tự như trên nhưng đảo ngược vai trò buyer/seller ...
-            _logger.LogWarning("Matching logic for Sell Orders is not fully implemented in this snippet.");
+            // ---- START MATCHING SELL ORDER WITH COUNTER BUY ORDERS ----
+            // Logic is symmetric to the Buy Order case, but queries for Buy orders and Admin/Fund is not a buyer here.
+            var counterBuyOrders = await _unitOfWork.ShareOrders.Query()
+                .Include(o => o.ShareOrderSide)
+                .Include(o => o.ShareOrderType)
+                .Include(o => o.ShareOrderStatus)
+                .Include(o => o.User).ThenInclude(u => u.Wallet)
+                .Where(o => o.TradingAccountId == orderToMatch.TradingAccountId &&
+                            o.ShareOrderSide.SideName == "Buy" &&
+                            o.UserId != orderToMatch.UserId &&
+                            (o.ShareOrderStatus.OrderStatusId == statusOpen.OrderStatusId || o.ShareOrderStatus.OrderStatusId == statusPartiallyFilled.OrderStatusId) &&
+                            o.LimitPrice.HasValue &&
+                            (orderToMatch.ShareOrderType.TypeName == "Market" || (orderToMatch.LimitPrice.HasValue && o.LimitPrice.Value >= orderToMatch.LimitPrice.Value))
+                       )
+                .OrderByDescending(o => o.LimitPrice) // Highest buy price first
+                .ThenBy(o => o.OrderDate)
+                .ToListAsync(cancellationToken);
+
+            foreach (var buyOrder in counterBuyOrders)
+            {
+                if (remainingQtyToFillForOrderToMatch <= 0) break;
+                long buyOrderRemainingQty = buyOrder.QuantityOrdered - buyOrder.QuantityFilled;
+                if (buyOrderRemainingQty <= 0) continue;
+
+                decimal tradePrice = buyOrder.LimitPrice!.Value; // Trade price is the price of the order on the book (buy order)
+                if (orderToMatch.ShareOrderType.TypeName == "Limit" && orderToMatch.LimitPrice.HasValue && tradePrice < orderToMatch.LimitPrice.Value) continue;
+
+
+                long tradeQuantity = Math.Min(remainingQtyToFillForOrderToMatch, buyOrderRemainingQty);
+                decimal totalTradeValue = tradeQuantity * tradePrice;
+                decimal sellerFee = Math.Round(totalTradeValue * feeRate, 8);
+                decimal buyerFee = Math.Round(totalTradeValue * feeRate, 8);
+
+                if (buyOrder.User.Wallet == null || buyOrder.User.Wallet.Balance < (totalTradeValue + buyerFee))
+                {
+                    _logger.LogWarning("Insufficient balance for buyer UserID {BuyerUserId} for trade. BuyOrder: {BuyOrderId}. Skipping this buy order.",
+                       buyOrder.UserId, buyOrder.OrderId);
+                    continue; // Buyer doesn't have enough funds, skip this buy order
+                }
+                if (orderToMatch.User.Wallet == null)
+                {
+                    _logger.LogError("Seller UserID {SellerUserId} does not have a wallet. Cannot process trade. SellOrder: {SellOrderId}", orderToMatch.UserId, orderToMatch.OrderId);
+                    continue; // Should not happen if user placed order
+                }
+
+
+                _logger.LogInformation("MATCH (ORDER): SellOrder {SellOrderId} vs BuyOrder {BuyOrderId}. Trade: {TradeQty}@{TradePrice}",
+                                       orderToMatch.OrderId, buyOrder.OrderId, tradeQuantity, tradePrice);
+
+                var trade = new ShareTrade
+                { /* ... populate ... */
+                    TradingAccountId = orderToMatch.TradingAccountId,
+                    BuyOrderId = buyOrder.OrderId,
+                    SellOrderId = orderToMatch.OrderId,
+                    BuyerUserId = buyOrder.UserId,
+                    SellerUserId = orderToMatch.UserId,
+                    QuantityTraded = tradeQuantity,
+                    TradePrice = tradePrice,
+                    BuyerFeeAmount = buyerFee,
+                    SellerFeeAmount = sellerFee,
+                    TradeDate = DateTime.UtcNow
+                };
+                await _unitOfWork.ShareTrades.AddAsync(trade);
+                // await _unitOfWork.CompleteAsync(cancellationToken); // To get trade.TradeId
+
+                orderToMatch.QuantityFilled += tradeQuantity;
+                orderToMatch.AverageFillPrice = CalculateNewAveragePrice(orderToMatch.AverageFillPrice, orderToMatch.QuantityFilled - tradeQuantity, tradePrice, tradeQuantity);
+                orderToMatch.OrderStatusId = orderToMatch.QuantityFilled == orderToMatch.QuantityOrdered ? statusFilled.OrderStatusId : statusPartiallyFilled.OrderStatusId;
+                orderToMatch.UpdatedAt = DateTime.UtcNow;
+                orderToMatch.TransactionFeeAmount = (orderToMatch.TransactionFeeAmount ?? 0) + sellerFee;
+                _unitOfWork.ShareOrders.Update(orderToMatch);
+
+                buyOrder.QuantityFilled += tradeQuantity;
+                buyOrder.AverageFillPrice = CalculateNewAveragePrice(buyOrder.AverageFillPrice, buyOrder.QuantityFilled - tradeQuantity, tradePrice, tradeQuantity);
+                buyOrder.OrderStatusId = buyOrder.QuantityFilled == buyOrder.QuantityOrdered ? statusFilled.OrderStatusId : statusPartiallyFilled.OrderStatusId;
+                buyOrder.UpdatedAt = DateTime.UtcNow;
+                buyOrder.TransactionFeeAmount = (buyOrder.TransactionFeeAmount ?? 0) + buyerFee;
+                _unitOfWork.ShareOrders.Update(buyOrder);
+
+                await _portfolioService.UpdatePortfolioOnSellAsync(orderToMatch.UserId, orderToMatch.TradingAccountId, tradeQuantity, tradePrice, cancellationToken);
+                await _portfolioService.UpdatePortfolioOnBuyAsync(buyOrder.UserId, buyOrder.TradingAccountId, tradeQuantity, tradePrice, cancellationToken);
+
+                var buyerWallet = buyOrder.User.Wallet; // Đảm bảo đã Include User.Wallet
+                var now = DateTime.UtcNow;
+
+                // 1. Giao dịch mua chính
+                var purchaseTransaction = new WalletTransaction
+                {
+                    WalletId = buyerWallet.WalletId,
+                    TransactionTypeId = sharePurchaseType.TransactionTypeId, // Đảm bảo sharePurchaseType đã được lấy và không null
+                    Amount = totalTradeValue, // Số tiền hàng
+                    CurrencyCode = buyerWallet.CurrencyCode,
+                    BalanceBefore = buyerWallet.Balance,
+                    BalanceAfter = buyerWallet.Balance - (totalTradeValue + buyerFee), // Trừ cả tiền hàng và phí
+                    Description = $"Purchased {tradeQuantity} shares TA_ID {orderToMatch.TradingAccountId} @ {tradePrice:F8}. Trade ID: {trade.TradeId}", // Thêm TradeId nếu có
+                    ReferenceId = $"TRADE_{trade.TradeId}", // Sử dụng TradeId (cần lưu trade trước hoặc có cơ chế tạo Ref ID khác)
+                    PaymentMethod = "Exchange",
+                    Status = "Completed",
+                    TransactionDate = now,
+                    UpdatedAt = now
+                };
+                await _unitOfWork.WalletTransactions.AddAsync(purchaseTransaction);
+
+                // Cập nhật số dư ví người mua
+                buyerWallet.Balance -= (totalTradeValue + buyerFee);
+                buyerWallet.UpdatedAt = now;
+                _unitOfWork.Wallets.Update(buyerWallet);
+
+                // 2. Giao dịch phí của người mua (nếu có)
+                if (buyerFee > 0 && exchangeFeeType != null)
+                {
+                    var feeTransaction = new WalletTransaction
+                    {
+                        WalletId = buyerWallet.WalletId,
+                        TransactionTypeId = exchangeFeeType.TransactionTypeId,
+                        Amount = buyerFee,
+                        CurrencyCode = buyerWallet.CurrencyCode,
+                        BalanceBefore = buyerWallet.Balance + buyerFee, // Balance trước khi trừ phí này (sau khi đã trừ tiền hàng)
+                        BalanceAfter = buyerWallet.Balance, // Balance cuối cùng (đã được cập nhật ở trên)
+                        Description = $"Fee for purchase TRADE_{trade.TradeId}",
+                        ReferenceId = $"FEE_TRADE_{trade.TradeId}",
+                        PaymentMethod = "ExchangeFee",
+                        Status = "Completed",
+                        TransactionDate = now,
+                        UpdatedAt = now
+                    };
+                    await _unitOfWork.WalletTransactions.AddAsync(feeTransaction);
+                }
+
+
+                // Tương tự cho việc cộng tiền và trừ phí của người bán (seller):
+                var sellerWallet = orderToMatch.User.Wallet; // Đảm bảo đã Include User.Wallet
+                decimal amountToCreditSeller = totalTradeValue - sellerFee;
+
+                var saleTransaction = new WalletTransaction
+                {
+                    WalletId = sellerWallet.WalletId,
+                    TransactionTypeId = shareSaleProceedsType.TransactionTypeId, // Đảm bảo shareSaleProceedsType đã được lấy và không null
+                    Amount = amountToCreditSeller, // Số tiền thực nhận sau phí
+                    CurrencyCode = sellerWallet.CurrencyCode,
+                    BalanceBefore = sellerWallet.Balance,
+                    BalanceAfter = sellerWallet.Balance + amountToCreditSeller,
+                    Description = $"Sold {tradeQuantity} shares TA_ID {orderToMatch.TradingAccountId} @ {tradePrice:F8}. Trade ID: {trade.TradeId}",
+                    ReferenceId = $"TRADE_{trade.TradeId}",
+                    PaymentMethod = "Exchange",
+                    Status = "Completed",
+                    TransactionDate = now,
+                    UpdatedAt = now
+                };
+                await _unitOfWork.WalletTransactions.AddAsync(saleTransaction);
+
+                sellerWallet.Balance += amountToCreditSeller;
+                sellerWallet.UpdatedAt = now;
+                _unitOfWork.Wallets.Update(sellerWallet);
+
+                remainingQtyToFillForOrderToMatch -= tradeQuantity;
+                anyMatchOccurredThisRun = true;
+            }
+            // ---- END MATCHING SELL ORDER WITH COUNTER BUY ORDERS ----
         }
-
-
-        // Nếu có khớp lệnh, lưu tất cả thay đổi
-        if (matchedOccurred)
+        if (anyMatchOccurredThisRun)
         {
             try
             {
                 await _unitOfWork.CompleteAsync(cancellationToken);
-                _logger.LogInformation("All matched trades and updates for OrderID {OrderId} saved successfully.", orderId);
+                _logger.LogInformation("Matching run complete for OrderID {OrderId}. All changes saved.", orderId);
+
+                var finalMatchedOrderState = await _unitOfWork.ShareOrders.Query()
+                    .Include(o => o.ShareOrderStatus)
+                    .FirstOrDefaultAsync(o => o.OrderId == orderId, cancellationToken);
+
+                if (finalMatchedOrderState != null &&
+                    finalMatchedOrderState.ShareOrderStatus.StatusName == nameof(ShareOrderStatusName.PartiallyFilled) &&
+                    (finalMatchedOrderState.QuantityOrdered - finalMatchedOrderState.QuantityFilled > 0))
+                {
+                    _logger.LogInformation("Order {OrderId} is still partially filled ({QtyFilled}/{QtyOrdered}). Attempting to match remainder in a new run.",
+                        orderId, finalMatchedOrderState.QuantityFilled, finalMatchedOrderState.QuantityOrdered);
+                    // Important: Avoid deep recursion. Schedule a re-match or let new incoming orders trigger it.
+                    // For now, we just log. A sophisticated engine might re-queue or re-trigger.
+                }
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to save changes after matching OrderID {OrderId}. Potential data inconsistency.", orderId);
-                // Xử lý lỗi, có thể cần cơ chế retry hoặc đưa vào queue để xử lý lại.
-                // Rất quan trọng: Nếu lỗi ở đây, dữ liệu có thể không nhất quán.
-                return false; // Báo hiệu khớp lệnh không hoàn tất thành công
+                _logger.LogError(ex, "Failed to save changes after matching run for OrderID {OrderId}. Data might be inconsistent.", orderId);
+                return false; // Indicate failure to save
             }
         }
+        else
+        {
+            _logger.LogInformation("No matches found for OrderID {OrderId} in this run.", orderId);
+        }
 
-
-        // Nếu lệnh gốc vẫn còn số lượng chưa khớp và là lệnh Limit, nó sẽ nằm lại trên order book.
-        // Nếu là lệnh Market và vẫn còn số lượng chưa khớp, có thể cần xử lý thêm (ví dụ: hủy phần còn lại hoặc chuyển thành Limit)
-
-        return matchedOccurred;
+        return anyMatchOccurredThisRun;
     }
-
     private decimal? CalculateNewAveragePrice(decimal? currentAveragePrice, long currentFilledQuantity, decimal newTradePrice, long newTradeQuantity)
     {
         if (newTradeQuantity <= 0) return currentAveragePrice; // Không có gì để tính
@@ -712,10 +1091,9 @@ public class ExchangeService : IExchangeService
                                        .Select(int.Parse)
                                        .Distinct()
                                        .ToList();
-                if (!targetAccountIds.Any()) // Nếu sau khi parse không có ID nào hợp lệ
+                if (!targetAccountIds.Any())
                 {
                     _logger.LogInformation("No valid trading account IDs provided in the filter, fetching for all active accounts.");
-                    // Để trống targetAccountIds sẽ lấy tất cả active bên dưới
                 }
             }
             catch (FormatException)
@@ -731,16 +1109,17 @@ public class ExchangeService : IExchangeService
             accountsQuery = accountsQuery.Where(ta => targetAccountIds.Contains(ta.TradingAccountId));
         }
 
-        var accounts = await accountsQuery.Select(ta => new { ta.TradingAccountId, ta.AccountName }).ToListAsync(cancellationToken);
+        var accounts = await accountsQuery
+                            .Select(ta => new { ta.TradingAccountId, ta.AccountName }) // Chỉ lấy các trường cần thiết
+                            .ToListAsync(cancellationToken);
 
         if (!accounts.Any())
         {
-            return (new MarketDataResponse { GeneratedAt = DateTime.UtcNow }, null); // Trả về rỗng nếu không có account nào khớp
+            return (new MarketDataResponse { GeneratedAt = DateTime.UtcNow }, null);
         }
 
         var marketDataResponse = new MarketDataResponse { GeneratedAt = DateTime.UtcNow };
 
-        // Lấy ID của các trạng thái và loại lệnh cần thiết một lần
         var statusOpen = await _shareOrderStatusRepository.GetByNameAsync(nameof(ShareOrderStatusName.Open), cancellationToken);
         var statusPartiallyFilled = await _shareOrderStatusRepository.GetByNameAsync(nameof(ShareOrderStatusName.PartiallyFilled), cancellationToken);
         var orderTypeLimit = await _unitOfWork.ShareOrderTypes.Query()
@@ -748,7 +1127,7 @@ public class ExchangeService : IExchangeService
 
         if (statusOpen == null || statusPartiallyFilled == null || orderTypeLimit == null)
         {
-            _logger.LogError("System error: Required order statuses (Open, PartiallyFilled) or order type 'Limit' not found for market data.");
+            _logger.LogError("System error: Required order statuses or 'Limit' order type not found for market data.");
             return (null, "System configuration error for market data.");
         }
         var relevantStatusIds = new List<int> { statusOpen.OrderStatusId, statusPartiallyFilled.OrderStatusId };
@@ -761,7 +1140,7 @@ public class ExchangeService : IExchangeService
                 TradingAccountName = account.AccountName
             };
 
-            // Lấy Best Bids (Top 3)
+            // Best Bids (Top 3)
             accountMarketData.BestBids = await _unitOfWork.ShareOrders.Query()
                 .Where(o => o.TradingAccountId == account.TradingAccountId &&
                             o.ShareOrderSide.SideName == "Buy" &&
@@ -774,7 +1153,7 @@ public class ExchangeService : IExchangeService
                 .Take(3)
                 .ToListAsync(cancellationToken);
 
-            // Lấy Best Asks (Top 3)
+            // Best Asks (Top 3)
             accountMarketData.BestAsks = await _unitOfWork.ShareOrders.Query()
                 .Where(o => o.TradingAccountId == account.TradingAccountId &&
                             o.ShareOrderSide.SideName == "Sell" &&
@@ -787,7 +1166,24 @@ public class ExchangeService : IExchangeService
                 .Take(3)
                 .ToListAsync(cancellationToken);
 
-            // Lấy Recent Trades
+            // --- THÊM LOGIC LẤY ACTIVE INITIAL OFFERINGS ---
+            accountMarketData.ActiveOfferings = await _unitOfWork.InitialShareOfferings.Query()
+                .Where(iso => iso.TradingAccountId == account.TradingAccountId &&
+                              iso.Status == nameof(OfferingStatus.Active) && // Chỉ lấy đợt chào bán đang Active
+                              (iso.SharesOffered - iso.SharesSold) > 0 && // Còn cổ phần để bán
+                              (!iso.OfferingEndDate.HasValue || iso.OfferingEndDate.Value > DateTime.UtcNow)) // Chưa hết hạn
+                .OrderBy(iso => iso.OfferingPricePerShare) // Sắp xếp theo giá chào bán thấp nhất
+                .Take(query.ValidatedActiveOfferingsLimit) // Giới hạn số lượng offerings
+                .Select(iso => new ActiveOfferingDto
+                {
+                    OfferingId = iso.OfferingId,
+                    Price = iso.OfferingPricePerShare,
+                    AvailableQuantity = iso.SharesOffered - iso.SharesSold
+                })
+                .ToListAsync(cancellationToken);
+            // --- KẾT THÚC LOGIC LẤY ACTIVE INITIAL OFFERINGS ---
+
+            // Recent Trades
             accountMarketData.RecentTrades = await _unitOfWork.ShareTrades.Query()
                 .Where(st => st.TradingAccountId == account.TradingAccountId)
                 .OrderByDescending(st => st.TradeDate)
@@ -795,7 +1191,7 @@ public class ExchangeService : IExchangeService
                 .Select(st => new SimpleTradeDto { Price = st.TradePrice, Quantity = st.QuantityTraded, TradeTime = st.TradeDate })
                 .ToListAsync(cancellationToken);
 
-            // (Tùy chọn) Lấy LastTradePrice
+            // LastTradePrice
             if (accountMarketData.RecentTrades.Any())
             {
                 accountMarketData.LastTradePrice = accountMarketData.RecentTrades.First().Price;
@@ -805,18 +1201,16 @@ public class ExchangeService : IExchangeService
                 var lastTradeFromDb = await _unitOfWork.ShareTrades.Query()
                                         .Where(st => st.TradingAccountId == account.TradingAccountId)
                                         .OrderByDescending(st => st.TradeDate)
-                                        .Select(st => (decimal?)st.TradePrice) // Select nullable decimal
+                                        .Select(st => (decimal?)st.TradePrice)
                                         .FirstOrDefaultAsync(cancellationToken);
                 accountMarketData.LastTradePrice = lastTradeFromDb;
             }
-
 
             marketDataResponse.Items.Add(accountMarketData);
         }
 
         return (marketDataResponse, null);
     }
-
     public async Task<PaginatedList<MyShareTradeDto>> GetMyTradesAsync(ClaimsPrincipal currentUser, GetMyShareTradesQuery query, CancellationToken cancellationToken = default)
     {
         var userId = GetUserIdFromPrincipal(currentUser);

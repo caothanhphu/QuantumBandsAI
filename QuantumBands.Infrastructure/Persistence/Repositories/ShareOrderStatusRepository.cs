@@ -17,6 +17,11 @@ public class ShareOrderStatusRepository : GenericRepository<ShareOrderStatus>, I
 
     public async Task<ShareOrderStatus?> GetByNameAsync(string statusName, CancellationToken cancellationToken = default)
     {
-        return await _dbSet.FirstOrDefaultAsync(s => s.StatusName.Equals(statusName, StringComparison.OrdinalIgnoreCase), cancellationToken);
+        if (string.IsNullOrEmpty(statusName))
+        {
+            return null;
+        }
+        string statusNameLower = statusName.ToLower(); // Chuyển tham số sang chữ thường
+        return await _dbSet.FirstOrDefaultAsync(s => s.StatusName.ToLower() == statusNameLower, cancellationToken);
     }
 }

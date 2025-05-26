@@ -129,15 +129,15 @@ public partial class FinixAIDbContext : DbContext
             entity.Property(e => e.OrderDate).HasDefaultValueSql("(getutcdate())");
             entity.Property(e => e.UpdatedAt).HasDefaultValueSql("(getutcdate())");
 
-            entity.HasOne(d => d.OrderSide).WithMany(p => p.ShareOrders)
+            entity.HasOne(d => d.ShareOrderSide).WithMany(p => p.ShareOrders)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_ShareOrders_OrderSideID");
 
-            entity.HasOne(d => d.OrderStatus).WithMany(p => p.ShareOrders)
+            entity.HasOne(d => d.ShareOrderStatus).WithMany(p => p.ShareOrders)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_ShareOrders_OrderStatusID");
 
-            entity.HasOne(d => d.OrderType).WithMany(p => p.ShareOrders)
+            entity.HasOne(d => d.ShareOrderType).WithMany(p => p.ShareOrders)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_ShareOrders_OrderTypeID");
 

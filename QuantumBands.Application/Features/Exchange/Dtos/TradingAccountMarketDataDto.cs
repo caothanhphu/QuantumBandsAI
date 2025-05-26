@@ -10,5 +10,6 @@ public class TradingAccountMarketDataDto
     public decimal? LastTradePrice { get; set; }
     public List<OrderBookEntryDto> BestBids { get; set; } = new List<OrderBookEntryDto>();
     public List<OrderBookEntryDto> BestAsks { get; set; } = new List<OrderBookEntryDto>();
+    public List<ActiveOfferingDto> ActiveOfferings { get; set; } = new List<ActiveOfferingDto>(); // <<< THÊM MỚI
     public List<SimpleTradeDto> RecentTrades { get; set; } = new List<SimpleTradeDto>();
 }

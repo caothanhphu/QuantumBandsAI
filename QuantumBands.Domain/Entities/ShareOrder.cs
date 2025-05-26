@@ -23,15 +23,12 @@ public partial class ShareOrder
 
     [Column("OrderSideID")]
     public int OrderSideId { get; set; }
-    public virtual ShareOrderSide ShareOrderSide { get; set; } = null!; // Thuộc tính Navigation
 
     [Column("OrderTypeID")]
     public int OrderTypeId { get; set; }
-    public virtual ShareOrderType ShareOrderType { get; set; } = null!;
 
     [Column("OrderStatusID")]
     public int OrderStatusId { get; set; }
-    public virtual ShareOrderStatus ShareOrderStatus { get; set; } = null!;
 
     public long QuantityOrdered { get; set; }
 
@@ -57,15 +54,15 @@ public partial class ShareOrder
 
     [ForeignKey("OrderSideId")]
     [InverseProperty("ShareOrders")]
-    public virtual ShareOrderSide OrderSide { get; set; } = null!;
+    public virtual ShareOrderSide ShareOrderSide { get; set; } = null!;
 
     [ForeignKey("OrderStatusId")]
     [InverseProperty("ShareOrders")]
-    public virtual ShareOrderStatus OrderStatus { get; set; } = null!;
+    public virtual ShareOrderStatus ShareOrderStatus { get; set; } = null!;
 
     [ForeignKey("OrderTypeId")]
     [InverseProperty("ShareOrders")]
-    public virtual ShareOrderType OrderType { get; set; } = null!;
+    public virtual ShareOrderType ShareOrderType { get; set; } = null!;
 
     [InverseProperty("BuyOrder")]
     public virtual ICollection<ShareTrade> ShareTradeBuyOrders { get; set; } = new List<ShareTrade>();

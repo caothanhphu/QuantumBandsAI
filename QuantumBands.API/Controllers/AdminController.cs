@@ -324,4 +324,63 @@ public class AdminController : ControllerBase
         }
         return Ok(accountDto);
     }
+
+    [HttpPut("trading-accounts/{accountId}/initial-offerings/{offeringId}")]
+    [ProducesResponseType(typeof(InitialShareOfferingDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpdateInitialShareOffering(int accountId, int offeringId, [FromBody] UpdateInitialShareOfferingRequest request, CancellationToken cancellationToken)
+    {
+        var adminUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        _logger.LogInformation("Admin {AdminId} attempting to update offering ID {OfferingId} for account ID {AccountId}", adminUserId, offeringId, accountId);
+
+        if (request == null) return BadRequest(new { Message = "Request body cannot be null." });
+
+        var (offeringDto, errorMessage) = await _tradingAccountService.UpdateInitialShareOfferingAsync(accountId, offeringId, request, User, cancellationToken);
+
+        if (offeringDto == null)
+        {
+            _logger.LogWarning("Failed to update offering ID {OfferingId}. Admin: {AdminId}, Error: {ErrorMessage}", offeringId, adminUserId, errorMessage);
+            if (errorMessage != null)
+            {
+                if (errorMessage.Contains("not found")) return NotFound(new { Message = errorMessage });
+                if (errorMessage.Contains("Cannot change") || errorMessage.Contains("less than shares sold") || errorMessage.Contains("in the future"))
+                    return BadRequest(new { Message = errorMessage });
+            }
+            return StatusCode(StatusCodes.Status500InternalServerError, new { Message = errorMessage ?? "Failed to update initial share offering." });
+        }
+        return Ok(offeringDto);
+    }
+
+    [HttpPost("trading-accounts/{accountId}/initial-offerings/{offeringId}/cancel")]
+    [ProducesResponseType(typeof(InitialShareOfferingDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> CancelInitialShareOffering(int accountId, int offeringId, [FromBody] CancelInitialShareOfferingRequest request, CancellationToken cancellationToken)
+    {
+        var adminUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        _logger.LogInformation("Admin {AdminId} attempting to cancel offering ID {OfferingId} for account ID {AccountId}", adminUserId, offeringId, accountId);
+
+        // Request có thể là null nếu body không bắt buộc
+        var cancelRequest = request ?? new CancelInitialShareOfferingRequest();
+
+
+        var (offeringDto, errorMessage) = await _tradingAccountService.CancelInitialShareOfferingAsync(accountId, offeringId, cancelRequest, User, cancellationToken);
+
+        if (offeringDto == null)
+        {
+            _logger.LogWarning("Failed to cancel offering ID {OfferingId}. Admin: {AdminId}, Error: {ErrorMessage}", offeringId, adminUserId, errorMessage);
+            if (errorMessage != null)
+            {
+                if (errorMessage.Contains("not found")) return NotFound(new { Message = errorMessage });
+                if (errorMessage.Contains("Only 'Active'") || errorMessage.Contains("Invalid")) return BadRequest(new { Message = errorMessage });
+            }
+            return StatusCode(StatusCodes.Status500InternalServerError, new { Message = errorMessage ?? "Failed to cancel initial share offering." });
+        }
+        return Ok(offeringDto);
+    }
 }
