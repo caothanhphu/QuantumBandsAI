@@ -130,14 +130,17 @@ public partial class FinixAIDbContext : DbContext
             entity.Property(e => e.UpdatedAt).HasDefaultValueSql("(getutcdate())");
 
             entity.HasOne(d => d.ShareOrderSide).WithMany(p => p.ShareOrders)
+                .HasForeignKey(d => d.OrderSideId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_ShareOrders_OrderSideID");
 
             entity.HasOne(d => d.ShareOrderStatus).WithMany(p => p.ShareOrders)
+                .HasForeignKey(d => d.OrderStatusId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_ShareOrders_OrderStatusID");
 
             entity.HasOne(d => d.ShareOrderType).WithMany(p => p.ShareOrders)
+                .HasForeignKey(d => d.OrderTypeId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_ShareOrders_OrderTypeID");
 
@@ -186,7 +189,8 @@ public partial class FinixAIDbContext : DbContext
 
             entity.Property(e => e.TradeDate).HasDefaultValueSql("(getutcdate())");
 
-            entity.HasOne(d => d.BuyOrder).WithMany(p => p.ShareTradeBuyOrders)
+            entity.HasOne(d => d.BuyOrder).WithMany(p => p.BuyTrades)
+                .HasForeignKey(d => d.BuyOrderId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_ShareTrades_BuyOrderID");
 
@@ -196,7 +200,10 @@ public partial class FinixAIDbContext : DbContext
 
             entity.HasOne(d => d.InitialShareOffering).WithMany(p => p.ShareTrades).HasConstraintName("FK_ShareTrades_InitialShareOfferingID");
 
-            entity.HasOne(d => d.SellOrder).WithMany(p => p.ShareTradeSellOrders).HasConstraintName("FK_ShareTrades_SellOrderID");
+            entity.HasOne(d => d.SellOrder).WithMany(p => p.SellTrades)
+                .HasForeignKey(d => d.SellOrderId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ShareTrades_SellOrderID");
 
             entity.HasOne(d => d.SellerUser).WithMany(p => p.ShareTradeSellerUsers)
                 .OnDelete(DeleteBehavior.ClientSetNull)

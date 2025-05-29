@@ -1,17 +1,11 @@
-﻿using System;
-using System.Collections.Generic;
+﻿// QuantumBands.Domain/Entities/ShareTrade.cs
+using System;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-using Microsoft.EntityFrameworkCore;
 
 namespace QuantumBands.Domain.Entities;
 
-[Index("BuyOrderId", Name = "IX_ShareTrades_BuyOrderID")]
-[Index("BuyerUserId", Name = "IX_ShareTrades_BuyerUserID")]
-[Index("SellOrderId", Name = "IX_ShareTrades_SellOrderID")]
-[Index("SellerUserId", Name = "IX_ShareTrades_SellerUserID")]
-[Index("TradingAccountId", "TradeDate", Name = "IX_ShareTrades_TradingAccountID_TradeDate", IsDescending = new[] { false, true })]
-public partial class ShareTrade
+public partial class ShareTrade // Đảm bảo tên class và namespace khớp với các file bạn cung cấp
 {
     [Key]
     [Column("TradeID")]
@@ -19,21 +13,39 @@ public partial class ShareTrade
 
     [Column("TradingAccountID")]
     public int TradingAccountId { get; set; }
+    [ForeignKey("TradingAccountId")]
+    [InverseProperty("ShareTrades")] // Trỏ đến ICollection<ShareTrade> trong TradingAccount
+    public virtual TradingAccount TradingAccount { get; set; } = null!;
 
     [Column("BuyOrderID")]
     public long BuyOrderId { get; set; }
+    [ForeignKey("BuyOrderId")]
+    [InverseProperty("BuyTrades")] // Đổi tên collection trong ShareOrder thành BuyTrades
+    public virtual ShareOrder BuyOrder { get; set; } = null!;
 
     [Column("SellOrderID")]
-    public long? SellOrderId { get; set; }
+    public long? SellOrderId { get; set; } // Nullable
+    [ForeignKey("SellOrderId")]
+    [InverseProperty("SellTrades")] // Đổi tên collection trong ShareOrder thành SellTrades
+    public virtual ShareOrder? SellOrder { get; set; }
 
     [Column("InitialShareOfferingID")]
-    public int? InitialShareOfferingId { get; set; }
+    public int? InitialShareOfferingId { get; set; } // Nullable
+    [ForeignKey("InitialShareOfferingId")]
+    [InverseProperty("ShareTrades")] // Trỏ đến ICollection<ShareTrade> trong InitialShareOffering
+    public virtual InitialShareOffering? InitialShareOffering { get; set; }
 
     [Column("BuyerUserID")]
     public int BuyerUserId { get; set; }
+    [ForeignKey("BuyerUserId")]
+    [InverseProperty("ShareTradeBuyerUsers")] // Trỏ đến ICollection<ShareTrade> trong User
+    public virtual User BuyerUser { get; set; } = null!;
 
     [Column("SellerUserID")]
     public int SellerUserId { get; set; }
+    [ForeignKey("SellerUserId")]
+    [InverseProperty("ShareTradeSellerUsers")] // Trỏ đến ICollection<ShareTrade> trong User
+    public virtual User SellerUser { get; set; } = null!;
 
     public long QuantityTraded { get; set; }
 
@@ -48,27 +60,10 @@ public partial class ShareTrade
 
     public DateTime TradeDate { get; set; }
 
-    [ForeignKey("BuyOrderId")]
-    [InverseProperty("ShareTradeBuyOrders")]
-    public virtual ShareOrder BuyOrder { get; set; } = null!;
-
-    [ForeignKey("BuyerUserId")]
-    [InverseProperty("ShareTradeBuyerUsers")]
-    public virtual User BuyerUser { get; set; } = null!;
-
-    [ForeignKey("InitialShareOfferingId")]
-    [InverseProperty("ShareTrades")]
-    public virtual InitialShareOffering? InitialShareOffering { get; set; }
-
-    [ForeignKey("SellOrderId")]
-    [InverseProperty("ShareTradeSellOrders")]
-    public virtual ShareOrder? SellOrder { get; set; }
-
-    [ForeignKey("SellerUserId")]
-    [InverseProperty("ShareTradeSellerUsers")]
-    public virtual User SellerUser { get; set; } = null!;
-
-    [ForeignKey("TradingAccountId")]
-    [InverseProperty("ShareTrades")]
-    public virtual TradingAccount TradingAccount { get; set; } = null!;
+    public ShareTrade()
+    {
+        TradeDate = DateTime.UtcNow;
+        BuyerFeeAmount = 0;
+        SellerFeeAmount = 0;
+    }
 }

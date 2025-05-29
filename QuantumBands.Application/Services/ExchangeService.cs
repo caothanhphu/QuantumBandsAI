@@ -88,8 +88,9 @@ public class ExchangeService : IExchangeService
 
         // Xác định ShareOrderSideId dựa trên request.OrderSide
         // Giả sử bạn có bảng ShareOrderSides với các bản ghi "Buy" (ID 1) và "Sell" (ID 2)
-        string requestedOrderSideLower = request.OrderSide.ToLowerInvariant(); // Chuẩn hóa input
+        string requestedOrderSideLower = request.OrderSide.ToLowerInvariant();
         var orderSideEntity = await _unitOfWork.ShareOrderSides.Query()
+                                    // So sánh cột SideName đã được chuyển sang chữ thường với input đã được chuẩn hóa
                                     .FirstOrDefaultAsync(s => s.SideName.ToLower() == requestedOrderSideLower, cancellationToken);
         if (orderSideEntity == null)
         {
@@ -1012,8 +1013,9 @@ public class ExchangeService : IExchangeService
         // Lấy ID của các trạng thái và loại lệnh cần thiết
         var statusOpen = await _shareOrderStatusRepository.GetByNameAsync(nameof(ShareOrderStatusName.Open), cancellationToken);
         var statusPartiallyFilled = await _shareOrderStatusRepository.GetByNameAsync(nameof(ShareOrderStatusName.PartiallyFilled), cancellationToken);
-        var orderTypeLimit = await _unitOfWork.ShareOrderTypes.Query() // Giả sử có repo này
-                                    .FirstOrDefaultAsync(ot => ot.TypeName.Equals("Limit", StringComparison.OrdinalIgnoreCase), cancellationToken);
+        string limitTypeNameLower = "limit".ToLowerInvariant(); // Chuẩn hóa chuỗi tìm kiếm
+        var orderTypeLimit = await _unitOfWork.ShareOrderTypes.Query()
+                                    .FirstOrDefaultAsync(ot => ot.TypeName.ToLower() == limitTypeNameLower, cancellationToken);
 
         if (statusOpen == null || statusPartiallyFilled == null || orderTypeLimit == null)
         {
@@ -1122,8 +1124,9 @@ public class ExchangeService : IExchangeService
 
         var statusOpen = await _shareOrderStatusRepository.GetByNameAsync(nameof(ShareOrderStatusName.Open), cancellationToken);
         var statusPartiallyFilled = await _shareOrderStatusRepository.GetByNameAsync(nameof(ShareOrderStatusName.PartiallyFilled), cancellationToken);
+        string limitTypeNameLower = "limit".ToLowerInvariant(); // Chuẩn hóa chuỗi tìm kiếm
         var orderTypeLimit = await _unitOfWork.ShareOrderTypes.Query()
-                                    .FirstOrDefaultAsync(ot => ot.TypeName.Equals("Limit", StringComparison.OrdinalIgnoreCase), cancellationToken);
+                                    .FirstOrDefaultAsync(ot => ot.TypeName.ToLower() == limitTypeNameLower, cancellationToken);
 
         if (statusOpen == null || statusPartiallyFilled == null || orderTypeLimit == null)
         {
