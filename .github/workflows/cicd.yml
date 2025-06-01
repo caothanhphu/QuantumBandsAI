@@ -22,7 +22,7 @@ jobs:
           JWT_SECRET: ${{ secrets.JWT_SECRET_KEY }}
           DOCKER_HUB_USERNAME: ${{ secrets.DOCKER_HUB_USERNAME }}
           DOCKER_HUB_TOKEN: ${{ secrets.DOCKER_HUB_TOKEN }}
-          VERSION: ${{ github.sha }}
+          VERSION: latest
         run: |
           call deploy.bat
         shell: cmd # Chỉ định shell là cmd để thực thi file .bat
