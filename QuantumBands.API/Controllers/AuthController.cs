@@ -223,4 +223,32 @@ public class AuthController : ControllerBase
         _logger.LogInformation("Password reset successful for email {Email}.", request.Email);
         return Ok(new { Message = message });
     }
+
+    [Authorize] // Yêu cầu người dùng phải đăng nhập để có thể đăng xuất
+    [HttpPost("logout")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)] // Một lựa chọn khác
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> Logout(CancellationToken cancellationToken)
+    {
+        // User được lấy từ HttpContext.User do [Authorize] attribute
+        var (success, message) = await _authService.LogoutAsync(User, cancellationToken);
+
+        if (!success)
+        {
+            // Ngay cả khi có lỗi server (ví dụ không xóa được refresh token),
+            // client vẫn nên tiến hành logout (xóa token ở client).
+            // Trả về 500 nếu có lỗi server nghiêm trọng.
+            _logger.LogWarning("Logout attempt for User {UserId} processed with server-side issue: {Message}", User.FindFirstValue(ClaimTypes.NameIdentifier), message);
+            return StatusCode(StatusCodes.Status500InternalServerError, new { Message = message });
+        }
+
+        _logger.LogInformation("User {UserId} logged out successfully from server-side perspective.", User.FindFirstValue(ClaimTypes.NameIdentifier));
+        // Lựa chọn 1: Trả về 200 OK với thông báo
+        return Ok(new { Message = message });
+
+        // Lựa chọn 2: Trả về 204 No Content nếu không có thông tin gì đặc biệt cần gửi lại
+        // return NoContent();
+    }
 }

@@ -671,7 +671,68 @@ public class AuthService : IAuthService
             .Replace('+', '-') // Thay thế ký tự không an toàn cho URL
             .Replace('/', '_');
     }
+    private int? GetUserIdFromPrincipal(ClaimsPrincipal principal)
+    {
+        if (principal?.Identity?.IsAuthenticated != true)
+        {
+            return null;
+        }
+        var userIdString = principal.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier || c.Type == "uid" || c.Type == JwtRegisteredClaimNames.Sub)?.Value;
 
-    
+        if (int.TryParse(userIdString, out var userId))
+        {
+            return userId;
+        }
+        return null;
+    }
+    public async Task<(bool Success, string Message)> LogoutAsync(ClaimsPrincipal currentUser, CancellationToken cancellationToken = default)
+    {
+        var userId = GetUserIdFromPrincipal(currentUser); // Sử dụng lại hàm helper đã có
+        if (!userId.HasValue)
+        {
+            // Điều này không nên xảy ra nếu endpoint được bảo vệ bởi [Authorize]
+            _logger.LogWarning("LogoutAsync: Attempted logout for a non-authenticated user or missing UserId claim.");
+            return (false, "User not authenticated.");
+        }
+
+        _logger.LogInformation("User {UserId} attempting to logout.", userId.Value);
+
+        var user = await _unitOfWork.Users.GetByIdAsync(userId.Value);
+        if (user == null)
+        {
+            _logger.LogWarning("LogoutAsync: User with ID {UserId} not found in database, though authenticated.", userId.Value);
+            // Dù user không tìm thấy, vẫn nên coi như logout thành công từ phía client
+            return (true, "Logout processed. Client should clear tokens.");
+        }
+
+        // Vô hiệu hóa Refresh Token bằng cách xóa nó và thời gian hết hạn
+        // Giả định User entity có các trường RefreshToken và RefreshTokenExpiry
+        if (!string.IsNullOrEmpty(user.RefreshToken))
+        {
+            user.RefreshToken = null;
+            user.RefreshTokenExpiry = null;
+            user.UpdatedAt = DateTime.UtcNow;
+            _unitOfWork.Users.Update(user);
+
+            try
+            {
+                await _unitOfWork.CompleteAsync(cancellationToken);
+                _logger.LogInformation("Refresh token invalidated for UserID {UserId}.", userId.Value);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error invalidating refresh token for UserID {UserId} during logout.", userId.Value);
+                // Không nên block quá trình logout chỉ vì lỗi này, client vẫn nên xóa token
+                // nhưng đây là một lỗi server cần được xem xét.
+                return (false, "Logout processed with server-side error during token invalidation. Client should still clear tokens.");
+            }
+        }
+        else
+        {
+            _logger.LogInformation("No active refresh token found to invalidate for UserID {UserId}.", userId.Value);
+        }
+
+        return (true, "Logout successful. Please clear tokens on the client-side.");
+    }
 
 }

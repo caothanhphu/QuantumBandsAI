@@ -24,5 +24,6 @@ public interface IAuthService
     Task<(LoginResponse? Response, string? ErrorMessage)> RefreshTokenAsync(RefreshTokenRequest request, CancellationToken cancellationToken = default);
     Task<(bool Success, string Message)> ForgotPasswordAsync(ForgotPasswordRequest request, CancellationToken cancellationToken = default);
     Task<(bool Success, string Message)> ResetPasswordAsync(ResetPasswordRequest request, CancellationToken cancellationToken = default);
+    Task<(bool Success, string Message)> LogoutAsync(ClaimsPrincipal currentUser, CancellationToken cancellationToken = default);
 
 }
