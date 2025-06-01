@@ -20,6 +20,9 @@ jobs:
           # File batch sẽ có thể truy cập chúng
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           JWT_SECRET: ${{ secrets.JWT_SECRET_KEY }}
+          DOCKER_HUB_USERNAME: ${{ secrets.DOCKER_HUB_USERNAME }}
+          DOCKER_HUB_TOKEN: ${{ secrets.DOCKER_HUB_TOKEN }}
+          VERSION: ${{ github.sha }}
         run: |
           call deploy.bat
         shell: cmd # Chỉ định shell là cmd để thực thi file .bat

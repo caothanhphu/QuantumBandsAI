@@ -17,7 +17,66 @@ IF %ERRORLEVEL% NEQ 0 (
     EXIT /B 1
 )
 
-REM Bước 3: Dừng và xóa container cũ
+REM Bước 3: Deploy to Docker Hub
+ECHO Deploying image to Docker Hub...
+
+REM Kiểm tra biến môi trường Docker Hub
+IF "%DOCKER_HUB_USERNAME%"=="" (
+    ECHO DOCKER_HUB_USERNAME environment variable is not set. Skipping Docker Hub deployment.
+    GOTO :SKIP_DOCKER_HUB
+)
+
+IF "%DOCKER_HUB_TOKEN%"=="" (
+    ECHO DOCKER_HUB_TOKEN environment variable is not set. Skipping Docker Hub deployment.
+    GOTO :SKIP_DOCKER_HUB
+)
+
+REM Login to Docker Hub
+ECHO Logging in to Docker Hub...
+echo %DOCKER_HUB_TOKEN% | docker login --username %DOCKER_HUB_USERNAME% --password-stdin
+IF %ERRORLEVEL% NEQ 0 (
+    ECHO Docker Hub login failed. Exiting.
+    EXIT /B 1
+)
+
+REM Tag image với Docker Hub repository
+SET "dockerHubRepo=%DOCKER_HUB_USERNAME%/quantumbands-api"
+ECHO Tagging image for Docker Hub: %dockerHubRepo%
+docker tag quantumbands-api-image %dockerHubRepo%:latest
+IF %ERRORLEVEL% NEQ 0 (
+    ECHO Failed to tag image for Docker Hub. Exiting.
+    EXIT /B 1
+)
+
+REM Tag với version nếu có
+IF NOT "%VERSION%"=="" (
+    ECHO Tagging image with version: %dockerHubRepo%:%VERSION%
+    docker tag quantumbands-api-image %dockerHubRepo%:%VERSION%
+)
+
+REM Push image to Docker Hub
+ECHO Pushing image to Docker Hub: %dockerHubRepo%:latest
+docker push %dockerHubRepo%:latest
+IF %ERRORLEVEL% NEQ 0 (
+    ECHO Failed to push image to Docker Hub. Exiting.
+    EXIT /B 1
+)
+
+REM Push version tag nếu có
+IF NOT "%VERSION%"=="" (
+    ECHO Pushing versioned image to Docker Hub: %dockerHubRepo%:%VERSION%
+    docker push %dockerHubRepo%:%VERSION%
+    IF %ERRORLEVEL% NEQ 0 (
+        ECHO Failed to push versioned image to Docker Hub. Exiting.
+        EXIT /B 1
+    )
+)
+
+ECHO Successfully deployed image to Docker Hub: %dockerHubRepo%
+
+:SKIP_DOCKER_HUB
+
+REM Bước 4: Dừng và xóa container cũ
 ECHO Stopping and Removing existing container...
 SET "containerName=quantumbands-api-container"
 FOR /F "tokens=*" %%i IN ('docker ps -a -q --filter "name=%containerName%"') DO (
@@ -30,7 +89,7 @@ IF NOT ERRORLEVEL 1 (
 )
 
 
-REM Bước 4: Chạy container mới
+REM Bước 5: Chạy container mới
 ECHO Running new Docker container...
 REM Các biến môi trường DB_PASSWORD và JWT_SECRET sẽ được truyền từ GitHub Actions workflow
 REM và được runner thiết lập thành biến môi trường cho tiến trình chạy file batch này.
