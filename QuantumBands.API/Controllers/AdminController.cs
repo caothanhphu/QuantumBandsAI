@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using QuantumBands.Application.Common.Models;
+using QuantumBands.Application.Features.Admin.Dashboard.Dtos;
 using QuantumBands.Application.Features.Admin.TradingAccounts.Commands;
 using QuantumBands.Application.Features.Admin.TradingAccounts.Dtos;
 using QuantumBands.Application.Features.Admin.Users.Commands.UpdateUserRole;
@@ -29,18 +30,41 @@ public class AdminController : ControllerBase
     private readonly IUserService _userService;
     private readonly IWalletService _walletService;
     private readonly ITradingAccountService _tradingAccountService; // Inject service mới
+    private readonly IAdminDashboardService _dashboardService; // Inject service mới
     private readonly ILogger<AdminController> _logger;
 
     public AdminController(
         IUserService userService,
         IWalletService walletService,
         ITradingAccountService tradingAccountService, // Thêm vào constructor
+        IAdminDashboardService dashboardService, // Inject service mới
         ILogger<AdminController> logger)
     {
         _userService = userService;
         _walletService = walletService;
         _tradingAccountService = tradingAccountService; // Gán
+        _dashboardService = dashboardService;
         _logger = logger;
+    }
+
+    [HttpGet("dashboard/summary")] // Route: /api/v1/admin/dashboard/summary
+    [ProducesResponseType(typeof(AdminDashboardSummaryDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> GetDashboardSummary(CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Admin {AdminId} requesting dashboard summary.", User.FindFirstValue(ClaimTypes.NameIdentifier));
+
+        var (summary, errorMessage) = await _dashboardService.GetDashboardSummaryAsync(cancellationToken);
+
+        if (summary == null)
+        {
+            _logger.LogError("Failed to get dashboard summary. Error: {ErrorMessage}", errorMessage);
+            return StatusCode(StatusCodes.Status500InternalServerError, new { Message = errorMessage ?? "An unexpected error occurred." });
+        }
+
+        return Ok(summary);
     }
 
     // Endpoint cho Admin nạp tiền trực tiếp (đã có từ trước, đảm bảo logic đúng)
