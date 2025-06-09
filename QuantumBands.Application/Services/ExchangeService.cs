@@ -2,6 +2,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using QuantumBands.Application.Common.Models;
+using QuantumBands.Application.Features.Admin.ExchangeMonitor.Dtos;
+using QuantumBands.Application.Features.Admin.ExchangeMonitor.Queries;
 using QuantumBands.Application.Features.Exchange.Commands.CreateOrder;
 using QuantumBands.Application.Features.Exchange.Dtos;
 using QuantumBands.Application.Features.Exchange.Queries;
@@ -62,6 +64,198 @@ public class ExchangeService : IExchangeService
         return null;
     }
 
+    public async Task<PaginatedList<AdminShareOrderViewDto>> GetAdminAllOrdersAsync(GetAdminAllOrdersQuery query, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Admin fetching all share orders with query: {@Query}", query);
+
+        var ordersQuery = _unitOfWork.ShareOrders.Query()
+                            .Include(o => o.User) // Nạp thông tin người dùng
+                            .Include(o => o.TradingAccount)
+                            .Include(o => o.ShareOrderSide)
+                            .Include(o => o.ShareOrderType)
+                            .Include(o => o.ShareOrderStatus)
+                            .AsQueryable();
+
+        // Áp dụng Filter
+        if (query.TradingAccountId.HasValue)
+        {
+            ordersQuery = ordersQuery.Where(o => o.TradingAccountId == query.TradingAccountId.Value);
+        }
+        if (query.UserId.HasValue)
+        {
+            ordersQuery = ordersQuery.Where(o => o.UserId == query.UserId.Value);
+        }
+        if (!string.IsNullOrWhiteSpace(query.SearchTerm))
+        {
+            string searchTermLower = query.SearchTerm.ToLowerInvariant();
+            ordersQuery = ordersQuery.Where(o =>
+                (o.User.Username != null && o.User.Username.ToLower().Contains(searchTermLower)) ||
+                (o.User.Email != null && o.User.Email.ToLower().Contains(searchTermLower)) ||
+                (o.User.FullName != null && o.User.FullName.ToLower().Contains(searchTermLower))
+            );
+        }
+        if (!string.IsNullOrWhiteSpace(query.Status))
+        {
+            var statusFilters = query.Status.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(s => s.ToLowerInvariant()).ToList();
+            if (statusFilters.Any())
+            {
+                ordersQuery = ordersQuery.Where(o => statusFilters.Contains(o.ShareOrderStatus.StatusName.ToLower()));
+            }
+        }
+        if (!string.IsNullOrWhiteSpace(query.OrderSide))
+        {
+            ordersQuery = ordersQuery.Where(o => o.ShareOrderSide.SideName.Equals(query.OrderSide, StringComparison.OrdinalIgnoreCase));
+        }
+        if (!string.IsNullOrWhiteSpace(query.OrderType))
+        {
+            ordersQuery = ordersQuery.Where(o => o.ShareOrderType.TypeName.Equals(query.OrderType, StringComparison.OrdinalIgnoreCase));
+        }
+        if (query.DateFrom.HasValue)
+        {
+            ordersQuery = ordersQuery.Where(o => o.OrderDate >= query.DateFrom.Value.Date);
+        }
+        if (query.DateTo.HasValue)
+        {
+            ordersQuery = ordersQuery.Where(o => o.OrderDate < query.DateTo.Value.Date.AddDays(1));
+        }
+
+
+        // Áp dụng Sắp xếp
+        bool isDescending = query.SortOrder?.ToLower() == "desc";
+        Expression<Func<ShareOrder, object>> orderByExpression;
+
+        switch (query.SortBy?.ToLowerInvariant())
+        {
+            case "userid": orderByExpression = o => o.UserId; break;
+            case "username": orderByExpression = o => o.User.Username; break;
+            case "tradingaccountname": orderByExpression = o => o.TradingAccount.AccountName; break;
+            case "quantityordered": orderByExpression = o => o.QuantityOrdered; break;
+            case "limitprice": orderByExpression = o => o.LimitPrice!; break;
+            case "status": orderByExpression = o => o.ShareOrderStatus.StatusName; break;
+            case "orderdate": default: orderByExpression = o => o.OrderDate; break;
+        }
+        ordersQuery = isDescending ? ordersQuery.OrderByDescending(orderByExpression) : ordersQuery.OrderBy(orderByExpression);
+
+        var paginatedOrders = await PaginatedList<ShareOrder>.CreateAsync(
+            ordersQuery, query.ValidatedPageNumber, query.ValidatedPageSize, cancellationToken);
+
+        var dtos = paginatedOrders.Items.Select(o => new AdminShareOrderViewDto
+        {
+            OrderId = o.OrderId,
+            UserId = o.UserId,
+            Username = o.User.Username,
+            UserEmail = o.User.Email,
+            TradingAccountId = o.TradingAccountId,
+            TradingAccountName = o.TradingAccount.AccountName,
+            OrderSide = o.ShareOrderSide.SideName,
+            OrderType = o.ShareOrderType.TypeName,
+            QuantityOrdered = o.QuantityOrdered,
+            QuantityFilled = o.QuantityFilled,
+            LimitPrice = o.LimitPrice,
+            AverageFillPrice = o.AverageFillPrice,
+            OrderStatus = o.ShareOrderStatus.StatusName,
+            OrderDate = o.OrderDate,
+            UpdatedAt = o.UpdatedAt,
+            TransactionFee = o.TransactionFeeAmount
+        }).ToList();
+
+        return new PaginatedList<AdminShareOrderViewDto>(
+            dtos, paginatedOrders.TotalCount, paginatedOrders.PageNumber, paginatedOrders.PageSize);
+    }
+
+    public async Task<PaginatedList<AdminShareTradeViewDto>> GetAdminAllTradesAsync(GetAdminAllTradesQuery query, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Admin fetching all share trades with query: {@Query}", query);
+
+        var tradesQuery = _unitOfWork.ShareTrades.Query()
+                            .Include(st => st.TradingAccount)
+                            .Include(st => st.BuyerUser)
+                            .Include(st => st.SellerUser)
+                            .AsQueryable();
+
+        // Áp dụng Filter
+        if (query.TradingAccountId.HasValue)
+        {
+            tradesQuery = tradesQuery.Where(st => st.TradingAccountId == query.TradingAccountId.Value);
+        }
+        if (query.BuyerUserId.HasValue)
+        {
+            tradesQuery = tradesQuery.Where(st => st.BuyerUserId == query.BuyerUserId.Value);
+        }
+        if (query.SellerUserId.HasValue)
+        {
+            tradesQuery = tradesQuery.Where(st => st.SellerUserId == query.SellerUserId.Value);
+        }
+        if (!string.IsNullOrWhiteSpace(query.BuyerSearchTerm))
+        {
+            string searchTerm = query.BuyerSearchTerm.ToLowerInvariant();
+            tradesQuery = tradesQuery.Where(st => st.BuyerUser.Username.ToLower().Contains(searchTerm) || st.BuyerUser.Email.ToLower().Contains(searchTerm));
+        }
+        if (!string.IsNullOrWhiteSpace(query.SellerSearchTerm))
+        {
+            string searchTerm = query.SellerSearchTerm.ToLowerInvariant();
+            tradesQuery = tradesQuery.Where(st => st.SellerUser.Username.ToLower().Contains(searchTerm) || st.SellerUser.Email.ToLower().Contains(searchTerm));
+        }
+        if (query.MinAmount.HasValue)
+        {
+            tradesQuery = tradesQuery.Where(st => (st.QuantityTraded * st.TradePrice) >= query.MinAmount.Value);
+        }
+        if (query.MaxAmount.HasValue)
+        {
+            tradesQuery = tradesQuery.Where(st => (st.QuantityTraded * st.TradePrice) <= query.MaxAmount.Value);
+        }
+        if (query.DateFrom.HasValue)
+        {
+            tradesQuery = tradesQuery.Where(st => st.TradeDate >= query.DateFrom.Value.Date);
+        }
+        if (query.DateTo.HasValue)
+        {
+            tradesQuery = tradesQuery.Where(st => st.TradeDate < query.DateTo.Value.Date.AddDays(1));
+        }
+
+        // Áp dụng Sắp xếp
+        bool isDescending = query.SortOrder?.ToLower() == "desc";
+        // Tạo expression cho trường sắp xếp
+        var parameter = Expression.Parameter(typeof(ShareTrade), "st");
+        Expression property;
+        switch (query.SortBy?.ToLowerInvariant())
+        {
+            case "tradingaccountname": property = Expression.Property(Expression.Property(parameter, "TradingAccount"), "AccountName"); break;
+            case "quantitytraded": property = Expression.Property(parameter, "QuantityTraded"); break;
+            case "tradeprice": property = Expression.Property(parameter, "TradePrice"); break;
+            case "totalvalue": property = Expression.Multiply(Expression.Convert(Expression.Property(parameter, "QuantityTraded"), typeof(decimal)), Expression.Property(parameter, "TradePrice")); break;
+            case "tradedate": default: property = Expression.Property(parameter, "TradeDate"); break;
+        }
+        var orderByExpression = Expression.Lambda<Func<ShareTrade, object>>(Expression.Convert(property, typeof(object)), parameter);
+
+        tradesQuery = isDescending
+            ? tradesQuery.OrderByDescending(orderByExpression)
+            : tradesQuery.OrderBy(orderByExpression);
+
+
+        var paginatedTrades = await PaginatedList<ShareTrade>.CreateAsync(
+            tradesQuery, query.ValidatedPageNumber, query.ValidatedPageSize, cancellationToken);
+
+        var dtos = paginatedTrades.Items.Select(st => new AdminShareTradeViewDto
+        {
+            TradeId = st.TradeId,
+            TradingAccountId = st.TradingAccountId,
+            TradingAccountName = st.TradingAccount.AccountName,
+            BuyerUserId = st.BuyerUserId,
+            BuyerUsername = st.BuyerUser.Username,
+            SellerUserId = st.SellerUserId,
+            SellerUsername = st.SellerUser.Username,
+            QuantityTraded = st.QuantityTraded,
+            TradePrice = st.TradePrice,
+            TotalValue = st.QuantityTraded * st.TradePrice,
+            BuyerFeeAmount = st.BuyerFeeAmount,
+            SellerFeeAmount = st.SellerFeeAmount,
+            TradeDate = st.TradeDate
+        }).ToList();
+
+        return new PaginatedList<AdminShareTradeViewDto>(
+            dtos, paginatedTrades.TotalCount, paginatedTrades.PageNumber, paginatedTrades.PageSize);
+    }
     public async Task<(ShareOrderDto? Order, string? ErrorMessage)> PlaceOrderAsync(CreateShareOrderRequest request, ClaimsPrincipal currentUser, CancellationToken cancellationToken = default)
     {
         var userId = GetUserIdFromPrincipal(currentUser);

@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using QuantumBands.Application.Common.Models;
 using QuantumBands.Application.Features.Admin.Dashboard.Dtos;
+using QuantumBands.Application.Features.Admin.ExchangeMonitor.Dtos;
+using QuantumBands.Application.Features.Admin.ExchangeMonitor.Queries;
 using QuantumBands.Application.Features.Admin.TradingAccounts.Commands;
 using QuantumBands.Application.Features.Admin.TradingAccounts.Dtos;
 using QuantumBands.Application.Features.Admin.Users.Commands.UpdateUserRole;
@@ -31,6 +33,7 @@ public class AdminController : ControllerBase
     private readonly IWalletService _walletService;
     private readonly ITradingAccountService _tradingAccountService; // Inject service mới
     private readonly IAdminDashboardService _dashboardService; // Inject service mới
+    private readonly IExchangeService _exchangeService;
     private readonly ILogger<AdminController> _logger;
 
     public AdminController(
@@ -38,13 +41,35 @@ public class AdminController : ControllerBase
         IWalletService walletService,
         ITradingAccountService tradingAccountService, // Thêm vào constructor
         IAdminDashboardService dashboardService, // Inject service mới
+        IExchangeService exchangeService,
         ILogger<AdminController> logger)
     {
         _userService = userService;
         _walletService = walletService;
         _tradingAccountService = tradingAccountService; // Gán
         _dashboardService = dashboardService;
+        _exchangeService = exchangeService;
         _logger = logger;
+    }
+
+    [HttpGet("exchange/orders")] // Route: /api/v1/admin/exchange/orders
+    [ProducesResponseType(typeof(PaginatedList<AdminShareOrderViewDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GetAllShareOrders([FromQuery] GetAdminAllOrdersQuery query, CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Admin requesting list of all share orders with query: {@Query}", query);
+        var result = await _exchangeService.GetAdminAllOrdersAsync(query, cancellationToken);
+        return Ok(result);
+    }
+
+    [HttpGet("exchange/trades")] // Endpoint mới
+    [ProducesResponseType(typeof(PaginatedList<AdminShareTradeViewDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GetAllShareTrades([FromQuery] GetAdminAllTradesQuery query, CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Admin requesting list of all share trades with query: {@Query}", query);
+        var result = await _exchangeService.GetAdminAllTradesAsync(query, cancellationToken);
+        return Ok(result);
     }
 
     [HttpGet("dashboard/summary")] // Route: /api/v1/admin/dashboard/summary

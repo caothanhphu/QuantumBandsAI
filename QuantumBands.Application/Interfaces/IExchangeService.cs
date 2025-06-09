@@ -1,5 +1,7 @@
 ﻿// QuantumBands.Application/Interfaces/IExchangeService.cs
 using QuantumBands.Application.Common.Models;
+using QuantumBands.Application.Features.Admin.ExchangeMonitor.Dtos;
+using QuantumBands.Application.Features.Admin.ExchangeMonitor.Queries;
 using QuantumBands.Application.Features.Exchange.Commands.CreateOrder;
 using QuantumBands.Application.Features.Exchange.Dtos;
 using QuantumBands.Application.Features.Exchange.Queries;
@@ -19,6 +21,8 @@ public interface IExchangeService
     Task<(OrderBookDto? OrderBook, string? ErrorMessage)> GetOrderBookAsync(int tradingAccountId, GetOrderBookQuery query, CancellationToken cancellationToken = default);
     Task<(MarketDataResponse? Data, string? ErrorMessage)> GetMarketDataAsync(GetMarketDataQuery query, CancellationToken cancellationToken = default);
     Task<PaginatedList<MyShareTradeDto>> GetMyTradesAsync(ClaimsPrincipal currentUser, GetMyShareTradesQuery query, CancellationToken cancellationToken = default);
+    Task<PaginatedList<AdminShareOrderViewDto>> GetAdminAllOrdersAsync(GetAdminAllOrdersQuery query, CancellationToken cancellationToken = default);
+    Task<PaginatedList<AdminShareTradeViewDto>> GetAdminAllTradesAsync(GetAdminAllTradesQuery query, CancellationToken cancellationToken = default);
 
 
 }
