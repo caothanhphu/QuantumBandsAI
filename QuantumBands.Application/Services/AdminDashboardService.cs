@@ -32,19 +32,20 @@ public class AdminDashboardService : IAdminDashboardService
             var summary = new AdminDashboardSummaryDto();
             var thirtyDaysAgo = DateTime.UtcNow.Date.AddDays(-30);
 
-            // Sử dụng Task.WhenAll để chạy các truy vấn song song
-            var totalUsersTask = _unitOfWork.Users.Query().LongCountAsync(cancellationToken);
-            var totalActiveFundsTask = _unitOfWork.TradingAccounts.Query().CountAsync(ta => ta.IsActive, cancellationToken);
-            var totalPlatformNAVTask = _unitOfWork.TradingAccounts.Query().Where(ta => ta.IsActive).SumAsync(ta => ta.CurrentNetAssetValue, cancellationToken);
-            var pendingDepositsCountTask = _unitOfWork.WalletTransactions.Query()
-                .CountAsync(t => t.Status == "PendingBankTransfer" || t.Status == "PendingAdminConfirmation", cancellationToken); // Hoặc các trạng thái chờ khác
-            var pendingWithdrawalsCountTask = _unitOfWork.WalletTransactions.Query()
+            summary.TotalUsers = await _unitOfWork.Users.Query().LongCountAsync(cancellationToken);
+            summary.TotalActiveFunds = await _unitOfWork.TradingAccounts.Query().CountAsync(ta => ta.IsActive, cancellationToken);
+            summary.TotalPlatformNAV = await _unitOfWork.TradingAccounts.Query().Where(ta => ta.IsActive).SumAsync(ta => ta.CurrentNetAssetValue, cancellationToken);
+
+            summary.PendingDepositsCount = await _unitOfWork.WalletTransactions.Query()
+                .CountAsync(t => t.Status == "PendingBankTransfer" || t.Status == "PendingAdminConfirmation", cancellationToken);
+
+            summary.PendingWithdrawalsCount = await _unitOfWork.WalletTransactions.Query()
                 .CountAsync(t => t.Status == "PendingAdminApproval", cancellationToken);
 
-            var recentTradesTask = _unitOfWork.ShareTrades.Query()
+            summary.RecentTrades = await _unitOfWork.ShareTrades.Query()
                 .Include(st => st.TradingAccount)
                 .OrderByDescending(st => st.TradeDate)
-                .Take(5) // Lấy 5 giao dịch gần nhất
+                .Take(5)
                 .Select(st => new SimpleTradeInfoDto
                 {
                     TradeId = st.TradeId,
@@ -55,43 +56,35 @@ public class AdminDashboardService : IAdminDashboardService
                 })
                 .ToListAsync(cancellationToken);
 
-            var userGrowthDataTask = _unitOfWork.Users.Query()
+            // For UserGrowthData
+            var userGrowthRawData = await _unitOfWork.Users.Query()
                 .Where(u => u.CreatedAt >= thirtyDaysAgo)
                 .GroupBy(u => u.CreatedAt.Date)
-                .Select(g => new ChartDataPoint<long> { Date = g.Key.ToString("yyyy-MM-dd"), Value = g.LongCount() })
-                .OrderBy(dp => dp.Date)
+                .Select(g => new { Date = g.Key, Count = g.LongCount() })
+                .OrderBy(x => x.Date)
                 .ToListAsync(cancellationToken);
 
-            // Fixing the CS0019 error by converting DateOnly to DateTime for comparison
-            var platformNavHistoryTask = _unitOfWork.TradingAccountSnapshots.Query()
-                .Where(s => s.SnapshotDate.ToDateTime(TimeOnly.MinValue) >= DateTime.UtcNow.Date.AddDays(-30)) // Convert DateOnly to DateTime
-                .GroupBy(s => s.SnapshotDate)
-                .Select(g => new ChartDataPoint<decimal>
-                {
-                    Date = g.Key.ToString("yyyy-MM-dd"),
-                    Value = g.Sum(s => s.ClosingNav)
+            summary.UserGrowthData = userGrowthRawData
+                .Select(g => new ChartDataPoint<long> { 
+                    Date = g.Date.ToString("yyyy-MM-dd"), 
+                    Value = g.Count 
                 })
-                .OrderBy(dp => dp.Date)
+                .ToList();
+
+            // For PlatformNavHistory
+            var platformNavRawData = await _unitOfWork.TradingAccountSnapshots.Query()
+                .Where(s => s.SnapshotDate >= DateOnly.FromDateTime(thirtyDaysAgo))
+                .GroupBy(s => s.SnapshotDate)
+                .Select(g => new { Date = g.Key, Value = g.Sum(s => s.ClosingNav) })
+                .OrderBy(x => x.Date)
                 .ToListAsync(cancellationToken);
 
-            await Task.WhenAll(
-                totalUsersTask,
-                totalActiveFundsTask,
-                totalPlatformNAVTask,
-                pendingDepositsCountTask,
-                pendingWithdrawalsCountTask,
-                recentTradesTask,
-                userGrowthDataTask,
-                platformNavHistoryTask);
-
-            summary.TotalUsers = totalUsersTask.Result;
-            summary.TotalActiveFunds = totalActiveFundsTask.Result;
-            summary.TotalPlatformNAV = totalPlatformNAVTask.Result;
-            summary.PendingDepositsCount = pendingDepositsCountTask.Result;
-            summary.PendingWithdrawalsCount = pendingWithdrawalsCountTask.Result;
-            summary.RecentTrades = recentTradesTask.Result;
-            summary.UserGrowthData = userGrowthDataTask.Result;
-            summary.PlatformNavHistory = platformNavHistoryTask.Result;
+            summary.PlatformNavHistory = platformNavRawData
+                .Select(g => new ChartDataPoint<decimal> {
+                    Date = g.Date.ToString("yyyy-MM-dd"),
+                    Value = g.Value
+                })
+                .ToList();
 
             return (summary, null);
         }
