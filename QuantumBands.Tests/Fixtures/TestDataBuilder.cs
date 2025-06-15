@@ -1,4 +1,6 @@
 using QuantumBands.Application.Features.Authentication.Commands.RegisterUser;
+using QuantumBands.Application.Features.Authentication.Commands.Login;
+using QuantumBands.Application.Features.Authentication.Commands.VerifyEmail;
 using QuantumBands.Application.Features.Authentication;
 using QuantumBands.Domain.Entities;
 
@@ -185,6 +187,76 @@ public static class TestDataBuilder
         };
     }
 
+    public static class Login
+    {
+        public static LoginRequest ValidLoginWithUsername() => new()
+        {
+            UsernameOrEmail = "testuser123",
+            Password = "StrongPassword123!"
+        };
+
+        public static LoginRequest ValidLoginWithEmail() => new()
+        {
+            UsernameOrEmail = "test@example.com",
+            Password = "StrongPassword123!"
+        };
+
+        public static LoginRequest LoginWithEmptyCredentials() => new()
+        {
+            UsernameOrEmail = "",
+            Password = ""
+        };
+
+        public static LoginRequest LoginWithInvalidUsername() => new()
+        {
+            UsernameOrEmail = "nonexistentuser",
+            Password = "StrongPassword123!"
+        };
+
+        public static LoginRequest LoginWithInvalidPassword() => new()
+        {
+            UsernameOrEmail = "testuser123",
+            Password = "WrongPassword123!"
+        };
+
+        public static LoginRequest LoginWithInactiveUser() => new()
+        {
+            UsernameOrEmail = "inactiveuser",
+            Password = "StrongPassword123!"
+        };
+
+        public static LoginRequest LoginWithUnverifiedEmail() => new()
+        {
+            UsernameOrEmail = "unverified@example.com",
+            Password = "StrongPassword123!"
+        };
+    }
+
+    public static class LoginResponses
+    {
+        public static LoginResponse ValidLoginResponse() => new()
+        {
+            UserId = 1,
+            Username = "testuser123",
+            Email = "test@example.com",
+            Role = "Investor",
+            JwtToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwibmFtZSI6InRlc3R1c2VyMTIzIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c",
+            RefreshToken = Guid.NewGuid().ToString(),
+            RefreshTokenExpiry = DateTime.UtcNow.AddDays(7)
+        };
+
+        public static LoginResponse AdminLoginResponse() => new()
+        {
+            UserId = 2,
+            Username = "admin",
+            Email = "admin@example.com",
+            Role = "Admin",
+            JwtToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyIiwibmFtZSI6ImFkbWluIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c",
+            RefreshToken = Guid.NewGuid().ToString(),
+            RefreshTokenExpiry = DateTime.UtcNow.AddDays(7)
+        };
+    }
+
     public static class EmailVerificationTokens
     {
         public static string ValidToken() => Guid.NewGuid().ToString();
@@ -192,5 +264,215 @@ public static class TestDataBuilder
         public static DateTime ValidExpiry() => DateTime.UtcNow.AddHours(24);
         
         public static DateTime ExpiredDate() => DateTime.UtcNow.AddHours(-1);
+    }
+
+    public static class VerifyEmail
+    {
+        public static VerifyEmailRequest ValidRequest() => new()
+        {
+            UserId = 1,
+            Token = "valid-token-123"
+        };
+
+        public static VerifyEmailRequest RequestWithInvalidUserId() => new()
+        {
+            UserId = 0,
+            Token = "valid-token-123"
+        };
+
+        public static VerifyEmailRequest RequestWithNegativeUserId() => new()
+        {
+            UserId = -1,
+            Token = "valid-token-123"
+        };
+
+        public static VerifyEmailRequest RequestWithEmptyToken() => new()
+        {
+            UserId = 1,
+            Token = ""
+        };
+
+        public static VerifyEmailRequest RequestWithNullToken() => new()
+        {
+            UserId = 1,
+            Token = null!
+        };
+
+        public static VerifyEmailRequest RequestWithExpiredToken() => new()
+        {
+            UserId = 1,
+            Token = "expired-token-456"
+        };
+
+        public static VerifyEmailRequest RequestWithInvalidToken() => new()
+        {
+            UserId = 1,
+            Token = "invalid-token-789"
+        };
+
+        public static VerifyEmailRequest RequestWithNonExistentUser() => new()
+        {
+            UserId = 999,
+            Token = "valid-token-123"
+        };
+
+        public static VerifyEmailRequest RequestWithAlreadyVerifiedUser() => new()
+        {
+            UserId = 2,
+            Token = "valid-token-123"
+        };
+
+        public static VerifyEmailRequest RequestWithMalformedToken() => new()
+        {
+            UserId = 1,
+            Token = "malformed@#$%^&*()"
+        };
+    }
+
+    // SCRUM-35: Test data for refresh token endpoint testing
+    public static class RefreshToken
+    {
+        public static QuantumBands.Application.Features.Authentication.Commands.RefreshToken.RefreshTokenRequest ValidRequest() => new()
+        {
+            ExpiredJwtToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwibmFtZSI6InRlc3R1c2VyMTIzIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c",
+            RefreshToken = "valid-refresh-token-guid"
+        };
+
+        public static QuantumBands.Application.Features.Authentication.Commands.RefreshToken.RefreshTokenRequest RequestWithEmptyRefreshToken() => new()
+        {
+            ExpiredJwtToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwibmFtZSI6InRlc3R1c2VyMTIzIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c",
+            RefreshToken = ""
+        };
+
+        public static QuantumBands.Application.Features.Authentication.Commands.RefreshToken.RefreshTokenRequest RequestWithEmptyJwtToken() => new()
+        {
+            ExpiredJwtToken = "",
+            RefreshToken = "valid-refresh-token-guid"
+        };
+
+        public static QuantumBands.Application.Features.Authentication.Commands.RefreshToken.RefreshTokenRequest RequestWithInvalidToken() => new()
+        {
+            ExpiredJwtToken = "invalid-jwt-token",
+            RefreshToken = "invalid-refresh-token"
+        };
+
+        public static QuantumBands.Application.Features.Authentication.Commands.RefreshToken.RefreshTokenRequest RequestWithExpiredRefreshToken() => new()
+        {
+            ExpiredJwtToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwibmFtZSI6InRlc3R1c2VyMTIzIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c",
+            RefreshToken = "expired-refresh-token"
+        };
+
+        public static QuantumBands.Application.Features.Authentication.Commands.RefreshToken.RefreshTokenRequest RequestWithRevokedToken() => new()
+        {
+            ExpiredJwtToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwibmFtZSI6InRlc3R1c2VyMTIzIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c",
+            RefreshToken = "revoked-refresh-token"
+        };
+
+        public static QuantumBands.Application.Features.Authentication.Commands.RefreshToken.RefreshTokenRequest RequestWithNonExistentToken() => new()
+        {
+            ExpiredJwtToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwibmFtZSI6InRlc3R1c2VyMTIzIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c",
+            RefreshToken = "non-existent-token"
+        };
+
+        public static QuantumBands.Application.Features.Authentication.Commands.RefreshToken.RefreshTokenRequest RequestForTokenReuse() => new()
+        {
+            ExpiredJwtToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwibmFtZSI6InRlc3R1c2VyMTIzIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c",
+            RefreshToken = "reused-refresh-token"
+        };
+    }
+
+    public static class VerifyEmailUsers
+    {
+        public static User UnverifiedUser() => new()
+        {
+            UserId = 1,
+            Username = "unverifieduser",
+            Email = "unverified@example.com",
+            PasswordHash = "hashedpassword",
+            FullName = "Unverified User",
+            IsEmailVerified = false,
+            TwoFactorEnabled = false,
+            IsActive = false,
+            CreatedAt = DateTime.UtcNow.AddHours(-1),
+            UpdatedAt = DateTime.UtcNow.AddHours(-1),
+            RoleId = 2,
+            EmailVerificationToken = "valid-token-123",
+            EmailVerificationTokenExpiry = DateTime.UtcNow.AddHours(24),
+            RefreshToken = null,
+            RefreshTokenExpiry = null,
+            PasswordResetToken = null,
+            PasswordResetTokenExpiry = null,
+            TwoFactorSecretKey = null,
+            LastLoginDate = null
+        };
+
+        public static User AlreadyVerifiedUser() => new()
+        {
+            UserId = 2,
+            Username = "verifieduser",
+            Email = "verified@example.com",
+            PasswordHash = "hashedpassword",
+            FullName = "Verified User",
+            IsEmailVerified = true,
+            TwoFactorEnabled = false,
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow.AddDays(-1),
+            UpdatedAt = DateTime.UtcNow.AddDays(-1),
+            RoleId = 2,
+            EmailVerificationToken = null,
+            EmailVerificationTokenExpiry = null,
+            RefreshToken = null,
+            RefreshTokenExpiry = null,
+            PasswordResetToken = null,
+            PasswordResetTokenExpiry = null,
+            TwoFactorSecretKey = null,
+            LastLoginDate = DateTime.UtcNow.AddHours(-2)
+        };
+
+        public static User UserWithExpiredToken() => new()
+        {
+            UserId = 3,
+            Username = "expireduser",
+            Email = "expired@example.com",
+            PasswordHash = "hashedpassword",
+            FullName = "Expired Token User",
+            IsEmailVerified = false,
+            TwoFactorEnabled = false,
+            IsActive = false,
+            CreatedAt = DateTime.UtcNow.AddDays(-1),
+            UpdatedAt = DateTime.UtcNow.AddDays(-1),
+            RoleId = 2,
+            EmailVerificationToken = "expired-token-456",
+            EmailVerificationTokenExpiry = DateTime.UtcNow.AddHours(-1),
+            RefreshToken = null,
+            RefreshTokenExpiry = null,
+            PasswordResetToken = null,
+            PasswordResetTokenExpiry = null,
+            TwoFactorSecretKey = null,
+            LastLoginDate = null
+        };
+
+        public static User UserWithInvalidToken() => new()
+        {
+            UserId = 4,
+            Username = "invalidtokenuser",
+            Email = "invalidtoken@example.com",
+            PasswordHash = "hashedpassword",
+            FullName = "Invalid Token User",
+            IsEmailVerified = false,
+            TwoFactorEnabled = false,
+            IsActive = false,
+            CreatedAt = DateTime.UtcNow.AddHours(-2),
+            UpdatedAt = DateTime.UtcNow.AddHours(-2),
+            RoleId = 2,
+            EmailVerificationToken = "different-token-111",
+            EmailVerificationTokenExpiry = DateTime.UtcNow.AddHours(24),
+            RefreshToken = null,
+            RefreshTokenExpiry = null,
+            PasswordResetToken = null,
+            PasswordResetTokenExpiry = null,
+            TwoFactorSecretKey = null,
+            LastLoginDate = null
+        };
     }
 } 

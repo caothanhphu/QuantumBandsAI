@@ -87,28 +87,36 @@ public class AuthController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)] // Hoặc trả về thông báo chung trong 400
     public async Task<IActionResult> VerifyEmail([FromBody] VerifyEmailRequest request, CancellationToken cancellationToken)
     {
-        if (request == null) // FluentValidation đã kiểm tra các trường, nhưng kiểm tra null vẫn tốt
+        try
         {
-            return BadRequest("Verification request cannot be null.");
-        }
-        _logger.LogInformation("Received email verification request for UserID: {UserId}", request.UserId);
-
-        var (success, message) = await _authService.VerifyEmailAsync(request, cancellationToken);
-
-        if (!success)
-        {
-            _logger.LogWarning("Email verification failed for UserID {UserId}. Reason: {Reason}", request.UserId, message);
-            // Trả về BadRequest hoặc NotFound tùy thuộc vào thông điệp lỗi
-            if (message.Contains("expired") || message.Contains("Invalid"))
+            if (request == null) // FluentValidation đã kiểm tra các trường, nhưng kiểm tra null vẫn tốt
             {
-                return BadRequest(new { Message = message });
+                return BadRequest("Verification request cannot be null.");
             }
-            // Có thể thêm các trường hợp lỗi khác
-            return StatusCode(StatusCodes.Status500InternalServerError, new { Message = message });
-        }
+            _logger.LogInformation("Received email verification request for UserID: {UserId}", request.UserId);
 
-        _logger.LogInformation("Email verification successful for UserID {UserId}.", request.UserId);
-        return Ok(new { Message = message });
+            var (success, message) = await _authService.VerifyEmailAsync(request, cancellationToken);
+
+            if (!success)
+            {
+                _logger.LogWarning("Email verification failed for UserID {UserId}. Reason: {Reason}", request.UserId, message);
+                // Trả về BadRequest hoặc NotFound tùy thuộc vào thông điệp lỗi
+                if (!string.IsNullOrEmpty(message) && (message.Contains("expired") || message.Contains("Invalid")))
+                {
+                    return BadRequest(new { Message = message });
+                }
+                // Có thể thêm các trường hợp lỗi khác
+                return StatusCode(StatusCodes.Status500InternalServerError, new { Message = message ?? "An unexpected error occurred during email verification." });
+            }
+
+            _logger.LogInformation("Email verification successful for UserID {UserId}.", request.UserId);
+            return Ok(new { Message = message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "An unexpected error occurred during email verification for UserID {UserId}", request?.UserId);
+            return StatusCode(StatusCodes.Status500InternalServerError, new { Message = "An unexpected error occurred during email verification." });
+        }
     }
 
     [HttpPost("resend-verification-email")]
