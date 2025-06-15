@@ -36,32 +36,50 @@ public class AuthController : ControllerBase
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> Register([FromBody] RegisterUserCommand command, CancellationToken cancellationToken)
     {
-        if (command == null) // FluentValidation sẽ bắt hầu hết các trường hợp, nhưng kiểm tra null vẫn tốt
+        try
         {
-            return BadRequest("Registration request cannot be null.");
-        }
-
-        _logger.LogInformation("Received registration request for username: {Username}", command.Username);
-
-        var (userDto, errorMessage) = await _authService.RegisterUserAsync(command, cancellationToken);
-
-        if (userDto == null)
-        {
-            _logger.LogWarning("Registration failed for {Username}. Error: {ErrorMessage}", command.Username, errorMessage);
-            // Phân biệt lỗi do người dùng (409) hay lỗi hệ thống (500)
-            if (errorMessage != null && (errorMessage.Contains("exists") || errorMessage.Contains("already taken")))
+            if (command == null) // FluentValidation sẽ bắt hầu hết các trường hợp, nhưng kiểm tra null vẫn tốt
             {
-                return Conflict(new { Message = errorMessage });
+                return BadRequest("Registration request cannot be null.");
             }
-            return StatusCode(StatusCodes.Status500InternalServerError, new { Message = errorMessage ?? "An unexpected error occurred during registration." });
-        }
 
-        _logger.LogInformation("User {Username} registered successfully with ID {UserId}.", userDto.Username, userDto.UserId);
-        // Trả về 201 Created với UserDto và Location header
-        // Giả sử bạn sẽ có một endpoint để lấy thông tin user theo ID, ví dụ /api/v1/users/{id}
-        // return CreatedAtAction("GetUserById", "Users", new { id = userDto.UserId }, userDto);
-        // Nếu chưa có UsersController.GetUserById, có thể trả về Created không có location:
-        return StatusCode(StatusCodes.Status201Created, userDto);
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            _logger.LogInformation("Received registration request for username: {Username}", command.Username);
+
+            var (userDto, errorMessage) = await _authService.RegisterUserAsync(command, cancellationToken);
+
+            if (userDto == null)
+            {
+                _logger.LogWarning("Registration failed for {Username}. Error: {ErrorMessage}", command.Username, errorMessage);
+                // Phân biệt lỗi do người dùng (409) hay lỗi hệ thống (500)
+                if (errorMessage != null && (errorMessage.Contains("exists") || errorMessage.Contains("already taken")))
+                {
+                    return Conflict(new { Message = errorMessage });
+                }
+                return StatusCode(StatusCodes.Status500InternalServerError, new { Message = errorMessage ?? "An unexpected error occurred during registration." });
+            }
+
+            _logger.LogInformation("User {Username} registered successfully with ID {UserId}.", userDto.Username, userDto.UserId);
+            // Trả về 201 Created với UserDto và Location header
+            // Giả sử bạn sẽ có một endpoint để lấy thông tin user theo ID, ví dụ /api/v1/users/{id}
+            // return CreatedAtAction("GetUserById", "Users", new { id = userDto.UserId }, userDto);
+            // Nếu chưa có UsersController.GetUserById, có thể trả về Created không có location:
+            return StatusCode(StatusCodes.Status201Created, userDto);
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning("Bad request for registration of {Username}: {Message}", command?.Username, ex.Message);
+            return BadRequest(new { Message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "An unexpected error occurred during registration for {Username}", command?.Username);
+            return StatusCode(StatusCodes.Status500InternalServerError, new { Message = "An unexpected error occurred during registration." });
+        }
     }
     [HttpPost("verify-email")]
     [ProducesResponseType(StatusCodes.Status200OK)]

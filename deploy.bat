@@ -1,7 +1,17 @@
 @echo OFF
 ECHO Starting CI/CD Deployment Process...
 
-REM Bước 1: Kiểm tra Docker (Tùy chọn, vì workflow đã có thể làm)
+REM Bước 1: Kiểm tra Docker daemon có đang chạy không
+ECHO Checking if Docker daemon is running...
+docker info >nul 2>&1
+IF %ERRORLEVEL% NEQ 0 (
+    ECHO ERROR: Docker daemon is not running or not accessible.
+    ECHO Please ensure Docker Desktop is installed and running.
+    ECHO You can check by running 'docker info' manually.
+    EXIT /B 1
+)
+
+REM Bước 1.1: Kiểm tra phiên bản Docker
 ECHO Verifying Docker installation...
 docker --version
 IF %ERRORLEVEL% NEQ 0 (
@@ -13,7 +23,9 @@ REM Bước 2: Build Docker image
 ECHO Building Docker image...
 docker build -t quantumbands-api-image -f Dockerfile .
 IF %ERRORLEVEL% NEQ 0 (
-    ECHO Docker build failed. Exiting.
+    ECHO ERROR: Docker build failed. 
+    ECHO Please check the Dockerfile and ensure all required files are present.
+    ECHO You can run 'docker build -t quantumbands-api-image -f Dockerfile .' manually to see detailed error.
     EXIT /B 1
 )
 
@@ -79,15 +91,14 @@ ECHO Successfully deployed image to Docker Hub: %dockerHubRepo%
 REM Bước 4: Dừng và xóa container cũ
 ECHO Stopping and Removing existing container...
 SET "containerName=quantumbands-api-container"
-FOR /F "tokens=*" %%i IN ('docker ps -a -q --filter "name=%containerName%"') DO (
+FOR /F "tokens=*" %%i IN ('docker ps -a -q --filter "name=%containerName%" 2^>nul') DO (
     ECHO Stopping and removing existing container: %containerName% (%%i)
-    docker stop %containerName%
-    docker rm %containerName%
+    docker stop %containerName% >nul 2>&1
+    docker rm %containerName% >nul 2>&1
 )
 IF NOT ERRORLEVEL 1 (
     ECHO No existing container named %containerName% found or it was successfully removed.
 )
-
 
 REM Bước 5: Chạy container mới
 ECHO Running new Docker container...
@@ -102,10 +113,23 @@ docker run -d ^
     quantumbands-api-image
 
 IF %ERRORLEVEL% NEQ 0 (
-    ECHO Failed to run new Docker container. Exiting.
+    ECHO ERROR: Failed to run new Docker container.
+    ECHO Please check if port 6020 is already in use or if there are other issues.
+    ECHO You can run the docker command manually to see detailed error.
     EXIT /B 1
 )
 
 ECHO New container '%containerName%' started. Access it on host at http://localhost:6020
+
+REM Bước 6: Kiểm tra container có chạy thành công không
+ECHO Verifying container is running...
+timeout /t 5 >nul 2>&1
+docker ps --filter "name=%containerName%" --filter "status=running" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+IF %ERRORLEVEL% NEQ 0 (
+    ECHO WARNING: Unable to verify container status. Please check manually with 'docker ps'
+) ELSE (
+    ECHO Container verification completed.
+)
+
 ECHO Deployment process completed successfully.
 EXIT /B 0

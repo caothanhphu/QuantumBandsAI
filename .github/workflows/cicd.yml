@@ -14,6 +14,73 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Check and Start Docker Service
+        run: |
+          # Kiểm tra trạng thái Docker service
+          $dockerService = Get-Service -Name "Docker Desktop Service" -ErrorAction SilentlyContinue
+          if ($dockerService) {
+            Write-Host "Docker Desktop Service found. Status: $($dockerService.Status)"
+            if ($dockerService.Status -ne "Running") {
+              Write-Host "Starting Docker Desktop Service..."
+              Start-Service -Name "Docker Desktop Service"
+              Start-Sleep -Seconds 10
+            }
+          } else {
+            Write-Host "Docker Desktop Service not found. Checking com.docker.service..."
+            $dockerService = Get-Service -Name "com.docker.service" -ErrorAction SilentlyContinue
+            if ($dockerService) {
+              Write-Host "com.docker.service found. Status: $($dockerService.Status)"
+              if ($dockerService.Status -ne "Running") {
+                Write-Host "Starting com.docker.service..."
+                Start-Service -Name "com.docker.service"
+                Start-Sleep -Seconds 10
+              }
+            }
+          }
+          
+          # Kiểm tra Docker Desktop executable và khởi động nếu cần
+          $dockerDesktopPath = "${env:ProgramFiles}\Docker\Docker\Docker Desktop.exe"
+          if (Test-Path $dockerDesktopPath) {
+            $dockerProcess = Get-Process -Name "Docker Desktop" -ErrorAction SilentlyContinue
+            if (-not $dockerProcess) {
+              Write-Host "Starting Docker Desktop application..."
+              Start-Process -FilePath $dockerDesktopPath -WindowStyle Hidden
+              Write-Host "Waiting for Docker Desktop to start..."
+              Start-Sleep -Seconds 30
+            }
+          }
+          
+          # Đợi Docker daemon sẵn sàng
+          Write-Host "Waiting for Docker daemon to be ready..."
+          $timeout = 120 # 2 phút timeout
+          $elapsed = 0
+          do {
+            try {
+              docker version | Out-Null
+              if ($LASTEXITCODE -eq 0) {
+                Write-Host "Docker daemon is ready!"
+                break
+              }
+            } catch {
+              # Ignore error and continue waiting
+            }
+            Start-Sleep -Seconds 5
+            $elapsed += 5
+            Write-Host "Still waiting for Docker daemon... ($elapsed/$timeout seconds)"
+          } while ($elapsed -lt $timeout)
+          
+          if ($elapsed -ge $timeout) {
+            Write-Host "Timeout waiting for Docker daemon. Exiting."
+            exit 1
+          }
+        shell: powershell
+
+      - name: Verify Docker is working
+        run: |
+          docker --version
+          docker info
+        shell: powershell
+
       - name: Run deployment script
         env:
           # Truyền các secrets từ GitHub vào làm biến môi trường cho step này
