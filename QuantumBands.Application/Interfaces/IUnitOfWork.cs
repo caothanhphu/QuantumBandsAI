@@ -22,5 +22,6 @@ public interface IUnitOfWork : IDisposable
     IGenericRepository<ShareOrderStatus> ShareOrderStatuses { get; }
     IGenericRepository<ShareTrade> ShareTrades { get; } // Thêm repo mới
     IGenericRepository<ProfitDistributionLog> ProfitDistributionLogs { get; } // Thêm repo mới
+    ISystemSettingRepository SystemSettings { get; } // Thêm SystemSetting repository
     Task<int> CompleteAsync(CancellationToken cancellationToken = default);
 }

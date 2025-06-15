@@ -1,5 +1,6 @@
 ﻿// QuantumBands.Infrastructure/Persistence/UnitOfWork.cs
 using QuantumBands.Application.Interfaces;
+using QuantumBands.Application.Interfaces.Repositories; // Thêm using cho ISystemSettingRepository
 using QuantumBands.Infrastructure.Persistence.DataContext;
 using QuantumBands.Infrastructure.Persistence.Repositories; // Nơi chứa UserRoleRepository
 using QuantumBands.Domain.Entities; // Thêm using này
@@ -29,6 +30,7 @@ public class UnitOfWork : IUnitOfWork
     public IGenericRepository<ShareOrderStatus> ShareOrderStatuses { get; private set; }
     public IGenericRepository<ShareTrade> ShareTrades { get; private set; } // Thêm repo mới
     public IGenericRepository<ProfitDistributionLog> ProfitDistributionLogs { get; private set; } // Thêm repo mới
+    public ISystemSettingRepository SystemSettings { get; private set; } // Thêm SystemSetting repository
 
     public UnitOfWork(FinixAIDbContext context)
     {
@@ -49,6 +51,7 @@ public class UnitOfWork : IUnitOfWork
         ShareOrderStatuses = new GenericRepository<ShareOrderStatus>(_context); // Khởi tạo generic repository
         ShareTrades = new GenericRepository<ShareTrade>(_context); // Khởi tạo generic repository
         ProfitDistributionLogs = new GenericRepository<ProfitDistributionLog>(_context); // Khởi tạo generic repository
+        SystemSettings = new SystemSettingRepository(_context); // Khởi tạo SystemSetting repository
     }
 
     public async Task<int> CompleteAsync(CancellationToken cancellationToken = default)
