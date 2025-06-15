@@ -28,6 +28,7 @@ QuantumBands.Application/
 │       └── PaginatedList.cs           // Pagination wrapper
 ├── Features/                          // Domain-organized features
 │   ├── Admin/                         // Administrative capabilities
+│   │   └── SystemSettings/            // System configuration management
 │   ├── Authentication/                // User authentication/authorization
 │   ├── EAIntegration/                // Expert Advisor integration
 │   ├── Exchange/                     // Trading exchange operations
@@ -259,12 +260,14 @@ LiveDataResponse               // Live data response
 - Financial transaction approvals
 - Trading account and IPO management
 - Exchange monitoring and oversight
+- System configuration management through SystemSettings
 
 **Architecture Patterns:**
 - **Dashboard Aggregation**: Efficient metric calculation and caching
 - **Approval Workflows**: Multi-step approval processes
 - **Administrative Override**: Admin capabilities with proper authorization
 - **Monitoring and Reporting**: Comprehensive platform oversight
+- **Configuration Management**: Centralized system settings with validation
 
 **Key Components:**
 ```csharp
@@ -284,7 +287,87 @@ AdminDirectDepositRequest      // Direct deposits
 // Exchange Monitoring
 GetAdminAllOrdersQuery         // All platform orders
 GetAdminAllTradesQuery         // All platform trades
+
+// System Configuration
+CreateSystemSettingRequest     // Add new system settings
+UpdateSystemSettingRequest     // Modify existing settings
+DeleteSystemSettingRequest     // Remove system settings
+GetSystemSettingsQuery         // List/search system settings
+GetSystemSettingByIdQuery      // Get specific setting by ID
+GetSystemSettingByKeyQuery     // Get specific setting by key
+SystemSettingDto               // System setting data structure
 ```
+
+### 7. SystemSettings Feature
+**Business Capabilities:**
+- Centralized system configuration management
+- Dynamic application settings with type safety
+- Admin-controlled configuration changes
+- Audit trail for all configuration modifications
+- Setting value validation by data type
+
+**Architecture Patterns:**
+- **Configuration as Code**: Typed configuration management
+- **Validation Framework**: Comprehensive data type and business rule validation
+- **Audit Logging**: Complete change tracking with user attribution
+- **Access Control**: Admin-only configuration management
+- **Type Safety**: Strong typing for configuration values
+
+**Key Components:**
+```csharp
+// Commands
+CreateSystemSettingRequest     // Create new system setting
+UpdateSystemSettingRequest     // Update existing setting value
+DeleteSystemSettingRequest     // Remove system setting
+
+// Queries
+GetSystemSettingsQuery         // Paginated settings list with search/filter
+GetSystemSettingByIdQuery      // Single setting by ID
+GetSystemSettingByKeyQuery     // Single setting by key
+
+// DTOs
+SystemSettingDto              // Complete setting information with audit data
+SystemSettingCreateDto        // Creation request structure
+SystemSettingUpdateDto        // Update request structure
+
+// Validators
+CreateSystemSettingRequestValidator  // Creation validation with async uniqueness check
+UpdateSystemSettingRequestValidator  // Update validation with data type checks
+DeleteSystemSettingRequestValidator  // Deletion validation
+```
+
+**Data Type System:**
+- **String**: Any text value, no format restrictions
+- **Integer**: Whole numbers validated with `int.TryParse()`
+- **Decimal**: Floating point numbers with culture-invariant parsing
+- **Boolean**: Case-insensitive "true"/"false" validation
+
+**Business Rules:**
+- Setting keys must be unique across the platform
+- Setting values must match their declared data type
+- Only settings marked as `IsEditableByAdmin=true` can be modified
+- All changes require admin authorization
+- Complete audit trail with timestamps and user tracking
+
+**Validation Architecture:**
+```csharp
+// Async uniqueness validation
+RuleFor(x => x.SettingKey)
+    .MustAsync(async (key, cancellation) => 
+        !await _unitOfWork.SystemSettings.SettingKeyExistsAsync(key))
+    .WithMessage("Setting key already exists");
+
+// Data type format validation
+RuleFor(x => x)
+    .Must(request => ValidateValueForDataType(request.SettingValue, request.SettingDataType))
+    .WithMessage("Setting value format does not match the specified data type");
+```
+
+**Security Features:**
+- Admin-only access through `[Authorize(Roles = "Admin")]`
+- Input sanitization and validation
+- SQL injection protection through parameterized queries
+- Audit logging for compliance and security monitoring
 
 ## Service Layer Architecture
 
@@ -309,6 +392,7 @@ IEAIntegrationService → EAIntegrationService
 
 // Administration
 IAdminDashboardService → AdminDashboardService
+ISystemSettingService → SystemSettingService
 
 // Infrastructure Services
 IEmailService → EmailService (Infrastructure)
@@ -366,6 +450,31 @@ public class ExchangeService : IExchangeService
 }
 ```
 
+#### SystemSetting Service Pattern
+```csharp
+public class SystemSettingService : ISystemSettingService
+{
+    // Configuration management with validation
+    public async Task<(SystemSettingDto setting, string error)> CreateSystemSettingAsync(
+        CreateSystemSettingRequest request, int currentUserId)
+    {
+        // 1. Validate data type and value format
+        // 2. Check setting key uniqueness
+        // 3. Create setting entity with audit trail
+        // 4. Save with proper error handling
+        // 5. Return setting DTO
+    }
+
+    // Complex data type validation
+    private bool ValidateValueForDataType(string settingValue, string dataType)
+    {
+        // Validates value format against specified data type
+        // Supports: string, int, decimal, boolean
+        // Uses culture-invariant parsing for consistency
+    }
+}
+```
+
 ### Data Access Patterns
 
 #### Unit of Work Pattern
@@ -379,11 +488,11 @@ public interface IUnitOfWork : IDisposable
     // ... other repositories
 
     // Specialized repositories
+    IUserRoleRepository UserRoles { get; }
     ISystemSettingRepository SystemSettings { get; }
-    ITransactionTypeRepository TransactionTypes { get; }
     
     // Transaction management
-    Task<int> SaveChangesAsync();
+    Task<int> CompleteAsync(CancellationToken cancellationToken = default);
     Task BeginTransactionAsync();
     Task CommitTransactionAsync();
     Task RollbackTransactionAsync();
