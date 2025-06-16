@@ -15,7 +15,9 @@
       "mcp__atlassian__addCommentToJiraIssue",
       "mcp__atlassian__getTransitionsForJiraIssue",
       "mcp__atlassian__transitionJiraIssue",
-      "Bash(dotnet test:*)"
+      "Bash(dotnet test:*)",
+      "Bash(dotnet build:*)",
+      "Bash(rg:*)"
     ],
     "deny": []
   }

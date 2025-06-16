@@ -5,7 +5,16 @@ using QuantumBands.Application.Features.Authentication.Commands.ForgotPassword;
 using QuantumBands.Application.Features.Authentication.Commands.ResetPassword;
 using QuantumBands.Application.Features.Authentication.Commands.ResendVerificationEmail;
 using QuantumBands.Application.Features.Users.Commands.UpdateProfile;
+using QuantumBands.Application.Features.Users.Commands.ChangePassword;
 using QuantumBands.Application.Features.Authentication;
+using QuantumBands.Application.Features.Wallets.Commands.BankDeposit;
+using QuantumBands.Application.Features.Wallets.Dtos;
+using QuantumBands.Application.Features.Exchange.Commands.CreateOrder;
+using QuantumBands.Application.Features.Exchange.Dtos;
+using QuantumBands.Application.Features.Users.Commands.Setup2FA;
+using QuantumBands.Application.Features.Users.Commands.Enable2FA;
+using QuantumBands.Application.Features.Users.Commands.Verify2FA;
+using QuantumBands.Application.Features.Users.Commands.Disable2FA;
 using QuantumBands.Domain.Entities;
 
 namespace QuantumBands.Tests.Fixtures;
@@ -720,6 +729,136 @@ public static class TestDataBuilder
         };
     }
 
+    // SCRUM-42: Test data for change password endpoint testing
+    public static class ChangePassword
+    {
+        public static ChangePasswordRequest ValidChangePasswordRequest() => new()
+        {
+            CurrentPassword = "CurrentPassword123!",
+            NewPassword = "NewPassword123!",
+            ConfirmNewPassword = "NewPassword123!"
+        };
+
+        public static ChangePasswordRequest RequestWithWrongCurrentPassword() => new()
+        {
+            CurrentPassword = "WrongPassword123!",
+            NewPassword = "NewPassword123!",
+            ConfirmNewPassword = "NewPassword123!"
+        };
+
+        public static ChangePasswordRequest RequestWithWeakNewPassword() => new()
+        {
+            CurrentPassword = "CurrentPassword123!",
+            NewPassword = "weak",
+            ConfirmNewPassword = "weak"
+        };
+
+        public static ChangePasswordRequest RequestWithPasswordMismatch() => new()
+        {
+            CurrentPassword = "CurrentPassword123!",
+            NewPassword = "NewPassword123!",
+            ConfirmNewPassword = "DifferentPassword123!"
+        };
+
+        public static ChangePasswordRequest RequestWithEmptyCurrentPassword() => new()
+        {
+            CurrentPassword = "",
+            NewPassword = "NewPassword123!",
+            ConfirmNewPassword = "NewPassword123!"
+        };
+
+        public static ChangePasswordRequest RequestWithEmptyNewPassword() => new()
+        {
+            CurrentPassword = "CurrentPassword123!",
+            NewPassword = "",
+            ConfirmNewPassword = ""
+        };
+
+        public static ChangePasswordRequest RequestWithEmptyConfirmPassword() => new()
+        {
+            CurrentPassword = "CurrentPassword123!",
+            NewPassword = "NewPassword123!",
+            ConfirmNewPassword = ""
+        };
+
+        public static ChangePasswordRequest RequestWithSamePassword() => new()
+        {
+            CurrentPassword = "SamePassword123!",
+            NewPassword = "SamePassword123!",
+            ConfirmNewPassword = "SamePassword123!"
+        };
+
+        public static ChangePasswordRequest RequestWithPasswordTooShort() => new()
+        {
+            CurrentPassword = "CurrentPassword123!",
+            NewPassword = "Short1!",
+            ConfirmNewPassword = "Short1!"
+        };
+
+        public static ChangePasswordRequest RequestWithPasswordTooLong() => new()
+        {
+            CurrentPassword = "CurrentPassword123!",
+            NewPassword = new string('A', 95) + "1234!",  // 100+ characters
+            ConfirmNewPassword = new string('A', 95) + "1234!"
+        };
+
+        public static ChangePasswordRequest RequestWithPasswordNoUppercase() => new()
+        {
+            CurrentPassword = "CurrentPassword123!",
+            NewPassword = "newpassword123!",
+            ConfirmNewPassword = "newpassword123!"
+        };
+
+        public static ChangePasswordRequest RequestWithPasswordNoLowercase() => new()
+        {
+            CurrentPassword = "CurrentPassword123!",
+            NewPassword = "NEWPASSWORD123!",
+            ConfirmNewPassword = "NEWPASSWORD123!"
+        };
+
+        public static ChangePasswordRequest RequestWithPasswordNoNumber() => new()
+        {
+            CurrentPassword = "CurrentPassword123!",
+            NewPassword = "NewPassword!",
+            ConfirmNewPassword = "NewPassword!"
+        };
+
+        public static ChangePasswordRequest RequestWithPasswordNoSpecialChar() => new()
+        {
+            CurrentPassword = "CurrentPassword123!",
+            NewPassword = "NewPassword123",
+            ConfirmNewPassword = "NewPassword123"
+        };
+
+        public static ChangePasswordRequest RequestWithSpecialCharacters() => new()
+        {
+            CurrentPassword = "CurrentPassword123!",
+            NewPassword = "NewP@ssw0rd#2024$",
+            ConfirmNewPassword = "NewP@ssw0rd#2024$"
+        };
+
+        public static ChangePasswordRequest RequestWithUnicodeCharacters() => new()
+        {
+            CurrentPassword = "CurrentPassword123!",
+            NewPassword = "Nêwpässwörd123!",
+            ConfirmNewPassword = "Nêwpässwörd123!"
+        };
+
+        public static ChangePasswordRequest RequestWithMinimumValidPassword() => new()
+        {
+            CurrentPassword = "CurrentPassword123!",
+            NewPassword = "NewPass1!",
+            ConfirmNewPassword = "NewPass1!"
+        };
+
+        public static ChangePasswordRequest RequestWithMaximumValidPassword() => new()
+        {
+            CurrentPassword = "CurrentPassword123!",
+            NewPassword = new string('A', 92) + "bc1!",  // Exactly 100 characters
+            ConfirmNewPassword = new string('A', 92) + "bc1!"
+        };
+    }
+
     // SCRUM-39: Test data for resend verification email endpoint testing
     public static class ResendVerificationEmail
     {
@@ -990,6 +1129,1113 @@ public static class TestDataBuilder
             PasswordResetTokenExpiry = null,
             TwoFactorSecretKey = null,
             LastLoginDate = null
+        };
+    }
+
+    // SCRUM-43: Test data for bank deposit initiation endpoint testing
+    public static class BankDeposit
+    {
+        public static InitiateBankDepositRequest ValidInitiateBankDepositRequest() => new()
+        {
+            AmountUSD = 100.00m
+        };
+
+        public static InitiateBankDepositRequest SmallAmountDepositRequest() => new()
+        {
+            AmountUSD = 0.01m
+        };
+
+        public static InitiateBankDepositRequest LargeAmountDepositRequest() => new()
+        {
+            AmountUSD = 10000.00m
+        };
+
+        public static InitiateBankDepositRequest ZeroAmountDepositRequest() => new()
+        {
+            AmountUSD = 0.00m
+        };
+
+        public static InitiateBankDepositRequest NegativeAmountDepositRequest() => new()
+        {
+            AmountUSD = -50.00m
+        };
+
+        public static InitiateBankDepositRequest VeryLargeAmountDepositRequest() => new()
+        {
+            AmountUSD = 999999.99m
+        };
+
+        public static InitiateBankDepositRequest DecimalPrecisionDepositRequest() => new()
+        {
+            AmountUSD = 123.456789m
+        };
+
+        public static InitiateBankDepositRequest MinimumValidDepositRequest() => new()
+        {
+            AmountUSD = 0.01m
+        };
+
+        public static BankDepositInfoResponse ValidBankDepositInfoResponse() => new()
+        {
+            TransactionId = 12345,
+            RequestedAmountUSD = 100.00m,
+            AmountVND = 2400000.00m,
+            ExchangeRate = 24000.00m,
+            BankName = "Test Bank Vietnam",
+            AccountHolder = "FINIX TRADING COMPANY LIMITED",
+            AccountNumber = "1234567890",
+            ReferenceCode = "FINIXDEP202501001234"
+        };
+
+        public static BankDepositInfoResponse LargeAmountBankDepositInfoResponse() => new()
+        {
+            TransactionId = 12346,
+            RequestedAmountUSD = 999999.99m,
+            AmountVND = 23999999760000.00m,
+            ExchangeRate = 24000.00m,
+            BankName = "Test Bank Vietnam",
+            AccountHolder = "FINIX TRADING COMPANY LIMITED",
+            AccountNumber = "1234567890",
+            ReferenceCode = "FINIXDEP202501001235"
+        };
+
+        public static BankDepositInfoResponse SmallAmountBankDepositInfoResponse() => new()
+        {
+            TransactionId = 12347,
+            RequestedAmountUSD = 0.01m,
+            AmountVND = 240.00m,
+            ExchangeRate = 24000.00m,
+            BankName = "Test Bank Vietnam",
+            AccountHolder = "FINIX TRADING COMPANY LIMITED",
+            AccountNumber = "1234567890",
+            ReferenceCode = "FINIXDEP202501001236"
+        };
+
+        public static BankDepositInfoResponse CustomAmountBankDepositInfoResponse(decimal amountUSD, string referenceCode) => new()
+        {
+            TransactionId = 12348,
+            RequestedAmountUSD = amountUSD,
+            AmountVND = amountUSD * 24000.00m,
+            ExchangeRate = 24000.00m,
+            BankName = "Test Bank Vietnam",
+            AccountHolder = "FINIX TRADING COMPANY LIMITED",
+            AccountNumber = "1234567890",
+            ReferenceCode = referenceCode
+        };
+
+        public static BankDepositInfoResponse ResponseWithMissingBankInfo() => new()
+        {
+            TransactionId = 12349,
+            RequestedAmountUSD = 100.00m,
+            AmountVND = 2400000.00m,
+            ExchangeRate = 24000.00m,
+            BankName = "N/A",
+            AccountHolder = "N/A",
+            AccountNumber = "N/A",
+            ReferenceCode = "FINIXDEP202501001237"
+        };
+
+        public static BankDepositInfoResponse ResponseWithDifferentExchangeRate() => new()
+        {
+            TransactionId = 12350,
+            RequestedAmountUSD = 100.00m,
+            AmountVND = 2500000.00m,
+            ExchangeRate = 25000.00m,
+            BankName = "Test Bank Vietnam",
+            AccountHolder = "FINIX TRADING COMPANY LIMITED",
+            AccountNumber = "1234567890",
+            ReferenceCode = "FINIXDEP202501001238"
+        };
+
+        public static BankDepositInfoResponse ResponseWithLongReferenceCode() => new()
+        {
+            TransactionId = 12351,
+            RequestedAmountUSD = 100.00m,
+            AmountVND = 2400000.00m,
+            ExchangeRate = 24000.00m,
+            BankName = "Test Bank Vietnam",
+            AccountHolder = "FINIX TRADING COMPANY LIMITED",
+            AccountNumber = "1234567890",
+            ReferenceCode = "FINIXDEP2025010012345678901234567890"
+        };
+
+        public static BankDepositInfoResponse ResponseWithSpecialCharactersInBankInfo() => new()
+        {
+            TransactionId = 12352,
+            RequestedAmountUSD = 100.00m,
+            AmountVND = 2400000.00m,
+            ExchangeRate = 24000.00m,
+            BankName = "Ngân Hàng TMCP Việt Nam",
+            AccountHolder = "CÔNG TY TNHH FINIX TRADING",
+            AccountNumber = "1234-5678-90",
+            ReferenceCode = "FINIXDEP202501001239"
+        };
+
+        public static BankDepositInfoResponse ResponseWithRoundedVNDAmount() => new()
+        {
+            TransactionId = 12353,
+            RequestedAmountUSD = 123.456789m,
+            AmountVND = 2962963.00m, // Rounded to whole VND
+            ExchangeRate = 24000.00m,
+            BankName = "Test Bank Vietnam",
+            AccountHolder = "FINIX TRADING COMPANY LIMITED",
+            AccountNumber = "1234567890",
+            ReferenceCode = "FINIXDEP202501001240"
+        };
+    }
+
+    // SCRUM-44: Test data for Exchange PlaceOrder endpoint testing
+    public static class Exchange
+    {
+        // Valid request scenarios for different order types
+        public static CreateShareOrderRequest ValidMarketBuyOrderRequest() => new()
+        {
+            TradingAccountId = 1,
+            OrderTypeId = 1, // Market order
+            OrderSide = "Buy",
+            QuantityOrdered = 100
+        };
+
+        public static CreateShareOrderRequest ValidLimitBuyOrderRequest() => new()
+        {
+            TradingAccountId = 1,
+            OrderTypeId = 2, // Limit order
+            OrderSide = "Buy",
+            QuantityOrdered = 100,
+            LimitPrice = 50.00m
+        };
+
+        public static CreateShareOrderRequest ValidMarketSellOrderRequest() => new()
+        {
+            TradingAccountId = 1,
+            OrderTypeId = 1, // Market order
+            OrderSide = "Sell",
+            QuantityOrdered = 50
+        };
+
+        public static CreateShareOrderRequest ValidLimitSellOrderRequest() => new()
+        {
+            TradingAccountId = 1,
+            OrderTypeId = 2, // Limit order
+            OrderSide = "Sell",
+            QuantityOrdered = 50,
+            LimitPrice = 55.00m
+        };
+
+        // Invalid request scenarios for validation testing
+        public static CreateShareOrderRequest RequestWithInvalidTradingAccountId() => new()
+        {
+            TradingAccountId = 0,
+            OrderTypeId = 1,
+            OrderSide = "Buy",
+            QuantityOrdered = 100
+        };
+
+        public static CreateShareOrderRequest RequestWithNegativeTradingAccountId() => new()
+        {
+            TradingAccountId = -1,
+            OrderTypeId = 1,
+            OrderSide = "Buy",
+            QuantityOrdered = 100
+        };
+
+        public static CreateShareOrderRequest RequestWithInvalidOrderTypeId() => new()
+        {
+            TradingAccountId = 1,
+            OrderTypeId = 0,
+            OrderSide = "Buy",
+            QuantityOrdered = 100
+        };
+
+        public static CreateShareOrderRequest RequestWithNegativeOrderTypeId() => new()
+        {
+            TradingAccountId = 1,
+            OrderTypeId = -1,
+            OrderSide = "Buy",
+            QuantityOrdered = 100
+        };
+
+        public static CreateShareOrderRequest RequestWithInvalidOrderSide() => new()
+        {
+            TradingAccountId = 1,
+            OrderTypeId = 1,
+            OrderSide = "Invalid",
+            QuantityOrdered = 100
+        };
+
+        public static CreateShareOrderRequest RequestWithEmptyOrderSide() => new()
+        {
+            TradingAccountId = 1,
+            OrderTypeId = 1,
+            OrderSide = "",
+            QuantityOrdered = 100
+        };
+
+        public static CreateShareOrderRequest RequestWithNullOrderSide() => new()
+        {
+            TradingAccountId = 1,
+            OrderTypeId = 1,
+            OrderSide = null!,
+            QuantityOrdered = 100
+        };
+
+        public static CreateShareOrderRequest RequestWithZeroQuantity() => new()
+        {
+            TradingAccountId = 1,
+            OrderTypeId = 1,
+            OrderSide = "Buy",
+            QuantityOrdered = 0
+        };
+
+        public static CreateShareOrderRequest RequestWithNegativeQuantity() => new()
+        {
+            TradingAccountId = 1,
+            OrderTypeId = 1,
+            OrderSide = "Buy",
+            QuantityOrdered = -50
+        };
+
+        public static CreateShareOrderRequest RequestWithZeroLimitPrice() => new()
+        {
+            TradingAccountId = 1,
+            OrderTypeId = 2,
+            OrderSide = "Buy",
+            QuantityOrdered = 100,
+            LimitPrice = 0.00m
+        };
+
+        public static CreateShareOrderRequest RequestWithNegativeLimitPrice() => new()
+        {
+            TradingAccountId = 1,
+            OrderTypeId = 2,
+            OrderSide = "Buy",
+            QuantityOrdered = 100,
+            LimitPrice = -10.00m
+        };
+
+        public static CreateShareOrderRequest LimitOrderWithoutLimitPrice() => new()
+        {
+            TradingAccountId = 1,
+            OrderTypeId = 2, // Limit order but no LimitPrice
+            OrderSide = "Buy",
+            QuantityOrdered = 100
+        };
+
+        public static CreateShareOrderRequest MarketOrderWithUnnecessaryLimitPrice() => new()
+        {
+            TradingAccountId = 1,
+            OrderTypeId = 1, // Market order with LimitPrice (should be ignored)
+            OrderSide = "Buy",
+            QuantityOrdered = 100,
+            LimitPrice = 50.00m
+        };
+
+        // Edge case scenarios
+        public static CreateShareOrderRequest RequestWithVeryLargeQuantity() => new()
+        {
+            TradingAccountId = 1,
+            OrderTypeId = 1,
+            OrderSide = "Buy",
+            QuantityOrdered = 999999999
+        };
+
+        public static CreateShareOrderRequest RequestWithVeryHighLimitPrice() => new()
+        {
+            TradingAccountId = 1,
+            OrderTypeId = 2,
+            OrderSide = "Buy",
+            QuantityOrdered = 100,
+            LimitPrice = 999999.99m
+        };
+
+        public static CreateShareOrderRequest RequestWithVeryLowLimitPrice() => new()
+        {
+            TradingAccountId = 1,
+            OrderTypeId = 2,
+            OrderSide = "Buy",
+            QuantityOrdered = 100,
+            LimitPrice = 0.01m
+        };
+
+        // Case sensitivity test scenarios
+        public static CreateShareOrderRequest RequestWithLowercaseBuy() => new()
+        {
+            TradingAccountId = 1,
+            OrderTypeId = 1,
+            OrderSide = "buy",
+            QuantityOrdered = 100
+        };
+
+        public static CreateShareOrderRequest RequestWithUppercaseSell() => new()
+        {
+            TradingAccountId = 1,
+            OrderTypeId = 1,
+            OrderSide = "SELL",
+            QuantityOrdered = 50
+        };
+
+        public static CreateShareOrderRequest RequestWithMixedCaseBuy() => new()
+        {
+            TradingAccountId = 1,
+            OrderTypeId = 1,
+            OrderSide = "BuY",
+            QuantityOrdered = 100
+        };
+
+        // Response DTOs for different scenarios
+        public static ShareOrderDto ValidMarketBuyOrderResponse() => new()
+        {
+            OrderId = 12345,
+            UserId = 1,
+            TradingAccountId = 1,
+            TradingAccountName = "Test Company Ltd",
+            OrderSide = "Buy",
+            OrderType = "Market",
+            QuantityOrdered = 100,
+            QuantityFilled = 0,
+            LimitPrice = null,
+            AverageFillPrice = null,
+            OrderStatus = "Open",
+            OrderDate = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+            TransactionFee = 5.00m
+        };
+
+        public static ShareOrderDto ValidLimitSellOrderResponse() => new()
+        {
+            OrderId = 12346,
+            UserId = 1,
+            TradingAccountId = 1,
+            TradingAccountName = "Test Company Ltd",
+            OrderSide = "Sell",
+            OrderType = "Limit",
+            QuantityOrdered = 50,
+            QuantityFilled = 0,
+            LimitPrice = 55.00m,
+            AverageFillPrice = null,
+            OrderStatus = "Open",
+            OrderDate = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+            TransactionFee = 2.50m
+        };
+
+        public static ShareOrderDto PartiallyFilledOrderResponse() => new()
+        {
+            OrderId = 12347,
+            UserId = 1,
+            TradingAccountId = 1,
+            TradingAccountName = "Test Company Ltd",
+            OrderSide = "Buy",
+            OrderType = "Market",
+            QuantityOrdered = 100,
+            QuantityFilled = 30,
+            LimitPrice = null,
+            AverageFillPrice = 52.50m,
+            OrderStatus = "PartiallyFilled",
+            OrderDate = DateTime.UtcNow.AddMinutes(-5),
+            UpdatedAt = DateTime.UtcNow,
+            TransactionFee = 7.50m
+        };
+
+        public static ShareOrderDto FilledOrderResponse() => new()
+        {
+            OrderId = 12348,
+            UserId = 1,
+            TradingAccountId = 1,
+            TradingAccountName = "Test Company Ltd",
+            OrderSide = "Sell",
+            OrderType = "Limit",
+            QuantityOrdered = 50,
+            QuantityFilled = 50,
+            LimitPrice = 55.00m,
+            AverageFillPrice = 55.25m,
+            OrderStatus = "Filled",
+            OrderDate = DateTime.UtcNow.AddMinutes(-10),
+            UpdatedAt = DateTime.UtcNow.AddMinutes(-1),
+            TransactionFee = 5.25m
+        };
+
+        public static ShareOrderDto OrderWithHighFeeResponse() => new()
+        {
+            OrderId = 12349,
+            UserId = 1,
+            TradingAccountId = 1,
+            TradingAccountName = "Test Company Ltd",
+            OrderSide = "Buy",
+            OrderType = "Market",
+            QuantityOrdered = 999999,
+            QuantityFilled = 0,
+            LimitPrice = null,
+            AverageFillPrice = null,
+            OrderStatus = "Open",
+            OrderDate = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+            TransactionFee = 49999.95m
+        };
+
+        public static ShareOrderDto OrderFromDifferentUserResponse() => new()
+        {
+            OrderId = 12350,
+            UserId = 999, // Different user
+            TradingAccountId = 2,
+            TradingAccountName = "Another Company Ltd",
+            OrderSide = "Buy",
+            OrderType = "Limit",
+            QuantityOrdered = 100,
+            QuantityFilled = 0,
+            LimitPrice = 45.00m,
+            AverageFillPrice = null,
+            OrderStatus = "Open",
+            OrderDate = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+            TransactionFee = 4.50m
+        };
+    }
+
+    // SCRUM-45: Test data for Setup2FA endpoint testing
+    public static class Setup2FA
+    {
+        // Valid response scenarios for different 2FA setup cases
+        public static Setup2FAResponse ValidSetup2FAResponse() => new()
+        {
+            SharedKey = "JBSWY3DPEHPK3PXP", // Standard Base32 test key
+            AuthenticatorUri = "otpauth://totp/QuantumBands:testuser%40example.com?secret=JBSWY3DPEHPK3PXP&issuer=QuantumBands"
+        };
+
+        public static Setup2FAResponse ValidSetup2FAResponseWithLongKey() => new()
+        {
+            SharedKey = "MFRGG2LTEBQW4ZDJNZTXIZLSEB2GKYLM", // 160-bit key (20 bytes)
+            AuthenticatorUri = "otpauth://totp/QuantumBands:user%40test.com?secret=MFRGG2LTEBQW4ZDJNZTXIZLSEB2GKYLM&issuer=QuantumBands"
+        };
+
+        public static Setup2FAResponse ValidSetup2FAResponseWithSpecialChars() => new()
+        {
+            SharedKey = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+            AuthenticatorUri = "otpauth://totp/QuantumBands:test%2Buser%40company.co.uk?secret=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ&issuer=QuantumBands"
+        };
+
+        public static Setup2FAResponse ValidSetup2FAResponseWithDifferentIssuer() => new()
+        {
+            SharedKey = "JBSWY3DPEHPK3PXP",
+            AuthenticatorUri = "otpauth://totp/TestIssuer:testuser%40example.com?secret=JBSWY3DPEHPK3PXP&issuer=TestIssuer"
+        };
+
+        public static Setup2FAResponse ValidSetup2FAResponseWithMinimalKey() => new()
+        {
+            SharedKey = "GEZDGNBV", // Minimal 8-character Base32 key
+            AuthenticatorUri = "otpauth://totp/QuantumBands:min%40test.com?secret=GEZDGNBV&issuer=QuantumBands"
+        };
+
+        public static Setup2FAResponse ValidSetup2FAResponseWithMaxLengthKey() => new()
+        {
+            SharedKey = "MFRGG2LTEBQW4ZDJNZTXIZLSEB2GKYLMNFSGS3DMNFTWYZLOORSW45DFNZ2GS5LPMRQXEZLUORSW2YLSMUQD2YLQMU", // Very long key
+            AuthenticatorUri = "otpauth://totp/QuantumBands:long%40example.org?secret=MFRGG2LTEBQW4ZDJNZTXIZLSEB2GKYLMNFSGS3DMNFTWYZLOORSW45DFNZ2GS5LPMRQXEZLUORSW2YLSMUQD2YLQMU&issuer=QuantumBands"
+        };
+
+        // Test response scenarios for different user cases
+        public static Setup2FAResponse Setup2FAResponseForBusinessUser() => new()
+        {
+            SharedKey = "KRSXG5BAIJ2W4ZDPOJSW63TFOIQHIZLB",
+            AuthenticatorUri = "otpauth://totp/QuantumBands:business.user%40company.com?secret=KRSXG5BAIJ2W4ZDPOJSW63TFOIQHIZLB&issuer=QuantumBands"
+        };
+
+        public static Setup2FAResponse Setup2FAResponseForTestUser() => new()
+        {
+            SharedKey = "ORUX2ZLNOBZGS3THMV4HIZLBMNSXE2LM",
+            AuthenticatorUri = "otpauth://totp/QuantumBands:test.automation%40qa.dev?secret=ORUX2ZLNOBZGS3THMV4HIZLBMNSXE2LM&issuer=QuantumBands"
+        };
+
+        public static Setup2FAResponse Setup2FAResponseForAdminUser() => new()
+        {
+            SharedKey = "MJSXG5DFON2HEZLCMFUW4ZDJMJSXG5DF",
+            AuthenticatorUri = "otpauth://totp/QuantumBands:admin%40quantumbands.ai?secret=MJSXG5DFON2HEZLCMFUW4ZDJMJSXG5DF&issuer=QuantumBands"
+        };
+
+        // Edge case scenarios for testing robustness
+        public static Setup2FAResponse Setup2FAResponseWithEncodedEmail() => new()
+        {
+            SharedKey = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+            AuthenticatorUri = "otpauth://totp/QuantumBands:user%40domain.com?secret=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ&issuer=QuantumBands"
+        };
+
+        public static Setup2FAResponse Setup2FAResponseWithComplexEmail() => new()
+        {
+            SharedKey = "MFZGKYLOMFWG6ZDJNZ2W24DTMFZGKYLM",
+            AuthenticatorUri = "otpauth://totp/QuantumBands:complex.email%2Btest%40subdomain.example.org?secret=MFZGKYLOMFWG6ZDJNZ2W24DTMFZGKYLM&issuer=QuantumBands"
+        };
+
+        public static Setup2FAResponse Setup2FAResponseWithTimestamp() => new()
+        {
+            SharedKey = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+            AuthenticatorUri = $"otpauth://totp/QuantumBands:time%40test.com?secret=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ&issuer=QuantumBands&period=30"
+        };
+
+        public static Setup2FAResponse Setup2FAResponseWithCustomParameters() => new()
+        {
+            SharedKey = "KRSXG5BAIJ2W4ZDPOJSW63TFOIQHIZLB",
+            AuthenticatorUri = "otpauth://totp/QuantumBands:custom%40example.net?secret=KRSXG5BAIJ2W4ZDPOJSW63TFOIQHIZLB&issuer=QuantumBands&digits=6&algorithm=SHA1&period=30"
+        };
+
+        // Error scenarios for negative testing
+        public static Setup2FAResponse ResponseWithEmptySharedKey() => new()
+        {
+            SharedKey = "",
+            AuthenticatorUri = "otpauth://totp/QuantumBands:empty%40test.com?secret=&issuer=QuantumBands"
+        };
+
+        public static Setup2FAResponse ResponseWithInvalidBase32Key() => new()
+        {
+            SharedKey = "INVALID_BASE32_KEY!", // Contains invalid Base32 characters
+            AuthenticatorUri = "otpauth://totp/QuantumBands:invalid%40test.com?secret=INVALID_BASE32_KEY!&issuer=QuantumBands"
+        };
+
+        public static Setup2FAResponse ResponseWithMissingSecretInUri() => new()
+        {
+            SharedKey = "JBSWY3DPEHPK3PXP",
+            AuthenticatorUri = "otpauth://totp/QuantumBands:missing%40test.com?issuer=QuantumBands" // Missing secret parameter
+        };
+
+        public static Setup2FAResponse ResponseWithMalformedUri() => new()
+        {
+            SharedKey = "JBSWY3DPEHPK3PXP",
+            AuthenticatorUri = "invalid-uri-format" // Not a valid otpauth URI
+        };
+
+        public static Setup2FAResponse ResponseWithVeryLongEmail() => new()
+        {
+            SharedKey = "JBSWY3DPEHPK3PXP",
+            AuthenticatorUri = $"otpauth://totp/QuantumBands:{new string('a', 200)}%40longdomain.com?secret=JBSWY3DPEHPK3PXP&issuer=QuantumBands"
+        };
+
+        // Utility method for creating custom responses
+        public static Setup2FAResponse CustomSetup2FAResponse(string sharedKey, string email, string issuer = "QuantumBands") => new()
+        {
+            SharedKey = sharedKey,
+            AuthenticatorUri = $"otpauth://totp/{issuer}:{Uri.EscapeDataString(email)}?secret={sharedKey}&issuer={issuer}"
+        };
+    }
+
+    // SCRUM-46: Test data for Enable2FA endpoint testing
+    public static class Enable2FA
+    {
+        // Valid request scenarios for different 2FA enable cases
+        public static Enable2FARequest ValidEnable2FARequest() => new()
+        {
+            VerificationCode = "123456"
+        };
+
+        public static Enable2FARequest ValidEnable2FARequestWithDifferentCode() => new()
+        {
+            VerificationCode = "789012"
+        };
+
+        public static Enable2FARequest ValidEnable2FARequestWithTimeSyncedCode() => new()
+        {
+            VerificationCode = "654321"
+        };
+
+        public static Enable2FARequest ValidEnable2FARequestForBusinessUser() => new()
+        {
+            VerificationCode = "987654"
+        };
+
+        public static Enable2FARequest ValidEnable2FARequestForTestUser() => new()
+        {
+            VerificationCode = "135790"
+        };
+
+        // Edge case scenarios for comprehensive testing
+        public static Enable2FARequest ValidEnable2FARequestWithLeadingZeros() => new()
+        {
+            VerificationCode = "000123"
+        };
+
+        public static Enable2FARequest ValidEnable2FARequestWithAllSameDigits() => new()
+        {
+            VerificationCode = "888888"
+        };
+
+        public static Enable2FARequest ValidEnable2FARequestMaxDigits() => new()
+        {
+            VerificationCode = "999999"
+        };
+
+        public static Enable2FARequest ValidEnable2FARequestMinDigits() => new()
+        {
+            VerificationCode = "000000"
+        };
+
+        // Invalid request scenarios for validation testing
+        public static Enable2FARequest RequestWithEmptyCode() => new()
+        {
+            VerificationCode = ""
+        };
+
+        public static Enable2FARequest RequestWithShortCode() => new()
+        {
+            VerificationCode = "12345" // Only 5 digits
+        };
+
+        public static Enable2FARequest RequestWithLongCode() => new()
+        {
+            VerificationCode = "1234567" // 7 digits
+        };
+
+        public static Enable2FARequest RequestWithNonNumericCode() => new()
+        {
+            VerificationCode = "ABC123"
+        };
+
+        public static Enable2FARequest RequestWithSpecialCharacters() => new()
+        {
+            VerificationCode = "12@456"
+        };
+
+        public static Enable2FARequest RequestWithSpaces() => new()
+        {
+            VerificationCode = "12 34 56"
+        };
+
+        public static Enable2FARequest RequestWithDashes() => new()
+        {
+            VerificationCode = "123-456"
+        };
+
+        public static Enable2FARequest RequestWithPlusSign() => new()
+        {
+            VerificationCode = "+123456"
+        };
+
+        // Utility method for creating custom requests
+        public static Enable2FARequest CustomEnable2FARequest(string verificationCode) => new()
+        {
+            VerificationCode = verificationCode
+        };
+    }
+
+    // SCRUM-47: Test data for Verify2FA endpoint testing
+    public static class Verify2FA
+    {
+        // Valid request scenarios for different 2FA verification cases
+        public static Verify2FARequest ValidVerify2FARequest() => new()
+        {
+            VerificationCode = "123456"
+        };
+
+        public static Verify2FARequest ValidVerify2FARequestWithDifferentCode() => new()
+        {
+            VerificationCode = "789012"
+        };
+
+        public static Verify2FARequest ValidVerify2FARequestWithTimeSyncedCode() => new()
+        {
+            VerificationCode = "654321"
+        };
+
+        public static Verify2FARequest ValidVerify2FARequestForBusinessUser() => new()
+        {
+            VerificationCode = "987654"
+        };
+
+        public static Verify2FARequest ValidVerify2FARequestForSensitiveAction() => new()
+        {
+            VerificationCode = "456789"
+        };
+
+        // Edge case scenarios for comprehensive testing
+        public static Verify2FARequest ValidVerify2FARequestWithLeadingZeros() => new()
+        {
+            VerificationCode = "000123"
+        };
+
+        public static Verify2FARequest ValidVerify2FARequestWithAllSameDigits() => new()
+        {
+            VerificationCode = "777777"
+        };
+
+        public static Verify2FARequest ValidVerify2FARequestMaxDigits() => new()
+        {
+            VerificationCode = "999999"
+        };
+
+        public static Verify2FARequest ValidVerify2FARequestMinDigits() => new()
+        {
+            VerificationCode = "000000"
+        };
+
+        public static Verify2FARequest ValidVerify2FARequestForLoginFlow() => new()
+        {
+            VerificationCode = "111222"
+        };
+
+        // Invalid request scenarios for validation testing
+        public static Verify2FARequest RequestWithEmptyCode() => new()
+        {
+            VerificationCode = ""
+        };
+
+        public static Verify2FARequest RequestWithShortCode() => new()
+        {
+            VerificationCode = "12345" // Only 5 digits
+        };
+
+        public static Verify2FARequest RequestWithLongCode() => new()
+        {
+            VerificationCode = "1234567" // 7 digits
+        };
+
+        public static Verify2FARequest RequestWithNonNumericCode() => new()
+        {
+            VerificationCode = "ABC123"
+        };
+
+        public static Verify2FARequest RequestWithSpecialCharacters() => new()
+        {
+            VerificationCode = "12@456"
+        };
+
+        public static Verify2FARequest RequestWithSpaces() => new()
+        {
+            VerificationCode = "12 34 56"
+        };
+
+        public static Verify2FARequest RequestWithDashes() => new()
+        {
+            VerificationCode = "123-456"
+        };
+
+        public static Verify2FARequest RequestWithPlusSign() => new()
+        {
+            VerificationCode = "+123456"
+        };
+
+        public static Verify2FARequest RequestWithExpiredCode() => new()
+        {
+            VerificationCode = "999888" // Simulates an expired code
+        };
+
+        public static Verify2FARequest RequestWithReusedCode() => new()
+        {
+            VerificationCode = "555444" // Simulates a previously used code
+        };
+
+        // Rate limiting test scenarios
+        public static Verify2FARequest RequestForRateLimitTest() => new()
+        {
+            VerificationCode = "111111"
+        };
+
+        public static Verify2FARequest RequestForAccountLockoutTest() => new()
+        {
+            VerificationCode = "333222"
+        };
+
+        // Utility method for creating custom requests
+        public static Verify2FARequest CustomVerify2FARequest(string verificationCode) => new()
+        {
+            VerificationCode = verificationCode
+        };
+    }
+
+    // SCRUM-48: Test data for Disable2FA endpoint testing
+    public static class Disable2FA
+    {
+        // Valid request scenarios for different 2FA disable cases
+        public static Disable2FARequest ValidDisable2FARequest() => new()
+        {
+            VerificationCode = "123456"
+        };
+
+        public static Disable2FARequest ValidDisable2FARequestWithDifferentCode() => new()
+        {
+            VerificationCode = "789012"
+        };
+
+        public static Disable2FARequest ValidDisable2FARequestWithTimeSyncedCode() => new()
+        {
+            VerificationCode = "654321"
+        };
+
+        public static Disable2FARequest ValidDisable2FARequestForBusinessUser() => new()
+        {
+            VerificationCode = "987654"
+        };
+
+        public static Disable2FARequest ValidDisable2FARequestForSecurityReview() => new()
+        {
+            VerificationCode = "456789"
+        };
+
+        // Edge case scenarios for comprehensive testing
+        public static Disable2FARequest ValidDisable2FARequestWithLeadingZeros() => new()
+        {
+            VerificationCode = "000123"
+        };
+
+        public static Disable2FARequest ValidDisable2FARequestWithAllSameDigits() => new()
+        {
+            VerificationCode = "777777"
+        };
+
+        public static Disable2FARequest ValidDisable2FARequestMaxDigits() => new()
+        {
+            VerificationCode = "999999"
+        };
+
+        public static Disable2FARequest ValidDisable2FARequestMinDigits() => new()
+        {
+            VerificationCode = "000000"
+        };
+
+        public static Disable2FARequest ValidDisable2FARequestForEmergencyDisable() => new()
+        {
+            VerificationCode = "111222"
+        };
+
+        // Invalid request scenarios for validation testing
+        public static Disable2FARequest RequestWithEmptyCode() => new()
+        {
+            VerificationCode = ""
+        };
+
+        public static Disable2FARequest RequestWithShortCode() => new()
+        {
+            VerificationCode = "12345" // Only 5 digits
+        };
+
+        public static Disable2FARequest RequestWithLongCode() => new()
+        {
+            VerificationCode = "1234567" // 7 digits
+        };
+
+        public static Disable2FARequest RequestWithNonNumericCode() => new()
+        {
+            VerificationCode = "ABC123"
+        };
+
+        public static Disable2FARequest RequestWithSpecialCharacters() => new()
+        {
+            VerificationCode = "12@456"
+        };
+
+        public static Disable2FARequest RequestWithSpaces() => new()
+        {
+            VerificationCode = "12 34 56"
+        };
+
+        public static Disable2FARequest RequestWithDashes() => new()
+        {
+            VerificationCode = "123-456"
+        };
+
+        public static Disable2FARequest RequestWithPlusSign() => new()
+        {
+            VerificationCode = "+123456"
+        };
+
+        public static Disable2FARequest RequestWithExpiredCode() => new()
+        {
+            VerificationCode = "999888" // Simulates an expired code
+        };
+
+        public static Disable2FARequest RequestWithInvalidCode() => new()
+        {
+            VerificationCode = "555444" // Simulates an invalid verification code
+        };
+
+        // Rate limiting and security test scenarios
+        public static Disable2FARequest RequestForRateLimitTest() => new()
+        {
+            VerificationCode = "111111"
+        };
+
+        public static Disable2FARequest RequestForSecurityAuditTest() => new()
+        {
+            VerificationCode = "333222"
+        };
+
+        public static Disable2FARequest RequestForDataCleanupTest() => new()
+        {
+            VerificationCode = "444555"
+        };
+
+        public static Disable2FARequest RequestForRecoveryCodesInvalidation() => new()
+        {
+            VerificationCode = "666777"
+        };
+
+        // Utility method for creating custom requests
+        public static Disable2FARequest CustomDisable2FARequest(string verificationCode) => new()
+        {
+            VerificationCode = verificationCode
+        };
+    }
+
+    // SCRUM-49: Test data for GetMyWallet endpoint testing
+    public static class GetMyWallet
+    {
+        // Valid wallet response scenarios for different user types
+        public static WalletDto ValidUserWallet() => new()
+        {
+            WalletId = 1,
+            UserId = 1,
+            Balance = 1000.50m,
+            CurrencyCode = "USD",
+            EmailForQrCode = "testuser@example.com",
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        public static WalletDto ValidBusinessUserWallet() => new()
+        {
+            WalletId = 2,
+            UserId = 2,
+            Balance = 25000.75m,
+            CurrencyCode = "USD",
+            EmailForQrCode = "business.user@company.com",
+            UpdatedAt = DateTime.UtcNow.AddHours(-2)
+        };
+
+        public static WalletDto ValidAdminWallet() => new()
+        {
+            WalletId = 3,
+            UserId = 3,
+            Balance = 50000.00m,
+            CurrencyCode = "USD",
+            EmailForQrCode = "admin@quantumbands.ai",
+            UpdatedAt = DateTime.UtcNow.AddMinutes(-30)
+        };
+
+        // Edge case scenarios for comprehensive testing
+        public static WalletDto ZeroBalanceWallet() => new()
+        {
+            WalletId = 4,
+            UserId = 4,
+            Balance = 0.00m,
+            CurrencyCode = "USD",
+            EmailForQrCode = "newuser@example.com",
+            UpdatedAt = DateTime.UtcNow.AddDays(-1)
+        };
+
+        public static WalletDto SmallBalanceWallet() => new()
+        {
+            WalletId = 5,
+            UserId = 5,
+            Balance = 0.01m,
+            CurrencyCode = "USD",
+            EmailForQrCode = "smallbalance@test.com",
+            UpdatedAt = DateTime.UtcNow.AddHours(-6)
+        };
+
+        public static WalletDto LargeBalanceWallet() => new()
+        {
+            WalletId = 6,
+            UserId = 6,
+            Balance = 999999.99m,
+            CurrencyCode = "USD",
+            EmailForQrCode = "largebalance@example.org",
+            UpdatedAt = DateTime.UtcNow.AddDays(-7)
+        };
+
+        public static WalletDto WalletWithPreciseBalance() => new()
+        {
+            WalletId = 7,
+            UserId = 7,
+            Balance = 123.456789m, // High precision balance
+            CurrencyCode = "USD",
+            EmailForQrCode = "precision@test.com",
+            UpdatedAt = DateTime.UtcNow.AddMinutes(-15)
+        };
+
+        public static WalletDto WalletWithSpecialCharacterEmail() => new()
+        {
+            WalletId = 8,
+            UserId = 8,
+            Balance = 500.25m,
+            CurrencyCode = "USD",
+            EmailForQrCode = "special+user@test-domain.co.uk",
+            UpdatedAt = DateTime.UtcNow.AddHours(-1)
+        };
+
+        public static WalletDto WalletWithDifferentCurrency() => new()
+        {
+            WalletId = 9,
+            UserId = 9,
+            Balance = 1500.00m,
+            CurrencyCode = "EUR",
+            EmailForQrCode = "euro.user@europe.com",
+            UpdatedAt = DateTime.UtcNow.AddHours(-4)
+        };
+
+        public static WalletDto WalletWithQrCodePrefix() => new()
+        {
+            WalletId = 10,
+            UserId = 10,
+            Balance = 750.33m,
+            CurrencyCode = "USD",
+            EmailForQrCode = "mailto:qrcode@example.com", // With QR code prefix
+            UpdatedAt = DateTime.UtcNow.AddMinutes(-45)
+        };
+
+        public static WalletDto WalletWithLongEmail() => new()
+        {
+            WalletId = 11,
+            UserId = 11,
+            Balance = 2000.00m,
+            CurrencyCode = "USD",
+            EmailForQrCode = "very.long.email.address.for.testing.purposes@extremely-long-domain-name.example.org",
+            UpdatedAt = DateTime.UtcNow.AddDays(-3)
+        };
+
+        public static WalletDto WalletWithMinimalData() => new()
+        {
+            WalletId = 12,
+            UserId = 12,
+            Balance = 10.00m,
+            CurrencyCode = "USD",
+            EmailForQrCode = "min@t.co",
+            UpdatedAt = DateTime.UtcNow.AddHours(-12)
+        };
+
+        public static WalletDto WalletForVipUser() => new()
+        {
+            WalletId = 13,
+            UserId = 13,
+            Balance = 100000.00m,
+            CurrencyCode = "USD",
+            EmailForQrCode = "vip.member@quantumbands.ai",
+            UpdatedAt = DateTime.UtcNow.AddMinutes(-5)
+        };
+
+        // Historical data scenarios
+        public static WalletDto WalletWithOldTimestamp() => new()
+        {
+            WalletId = 14,
+            UserId = 14,
+            Balance = 800.75m,
+            CurrencyCode = "USD",
+            EmailForQrCode = "old.user@legacy.com",
+            UpdatedAt = DateTime.UtcNow.AddDays(-365) // One year old
+        };
+
+        public static WalletDto WalletWithRecentActivity() => new()
+        {
+            WalletId = 15,
+            UserId = 15,
+            Balance = 300.50m,
+            CurrencyCode = "USD",
+            EmailForQrCode = "active.user@current.com",
+            UpdatedAt = DateTime.UtcNow.AddMinutes(-1) // Very recent
+        };
+
+        // Utility method for creating custom wallets
+        public static WalletDto CustomWallet(int walletId, int userId, decimal balance, string currencyCode, string email) => new()
+        {
+            WalletId = walletId,
+            UserId = userId,
+            Balance = balance,
+            CurrencyCode = currencyCode,
+            EmailForQrCode = email,
+            UpdatedAt = DateTime.UtcNow
         };
     }
 } 
