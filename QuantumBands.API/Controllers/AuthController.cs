@@ -239,7 +239,12 @@ public class AuthController : ControllerBase
         {
             _logger.LogWarning("Password reset failed for email {Email}. Reason: {Reason}", request.Email, message);
             // Phân biệt lỗi do người dùng (token sai/hết hạn) hay lỗi hệ thống
-            if (message.Contains("Invalid") || message.Contains("expired"))
+            if (!string.IsNullOrEmpty(message) && (message.Contains("Invalid") || message.Contains("expired") || 
+                message.Contains("required") || message.Contains("match") || message.Contains("complexity") ||
+                message.Contains("format") || message.Contains("used") || message.Contains("contain") ||
+                message.Contains("character") || message.Contains("number") || message.Contains("uppercase") ||
+                message.Contains("Password") || message.Contains("Email") || message.Contains("Token") ||
+                message.Contains("not found") || message.Contains("already")))
             {
                 return BadRequest(new { Message = message });
             }

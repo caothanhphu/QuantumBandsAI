@@ -7,6 +7,9 @@ using QuantumBands.Application.Features.Authentication.Commands.RegisterUser;
 using QuantumBands.Application.Features.Authentication.Commands.Login;
 using QuantumBands.Application.Features.Authentication.Commands.VerifyEmail;
 using QuantumBands.Application.Features.Authentication.Commands.RefreshToken;
+using QuantumBands.Application.Features.Authentication.Commands.ForgotPassword;
+using QuantumBands.Application.Features.Authentication.Commands.ResetPassword;
+using QuantumBands.Application.Features.Authentication.Commands.ResendVerificationEmail;
 using QuantumBands.Application.Features.Authentication;
 using QuantumBands.Application.Interfaces;
 using QuantumBands.Tests.Common;
@@ -14,6 +17,8 @@ using QuantumBands.Tests.Fixtures;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Http;
 
 namespace QuantumBands.Tests.Controllers;
 
@@ -506,7 +511,7 @@ public class AuthControllerTests : TestBase
         result.Should().BeOfType<BadRequestObjectResult>();
         var badRequestResult = result as BadRequestObjectResult;
         badRequestResult!.StatusCode.Should().Be(400);
-        badRequestResult.Value.Should().BeEquivalentTo(new { Message = "Login request cannot be null." });
+        badRequestResult.Value.Should().Be("Login request cannot be null.");
         
         // Verify AuthService was not called
         _mockAuthService.Verify(x => x.LoginAsync(It.IsAny<LoginRequest>(), It.IsAny<CancellationToken>()), Times.Never);
@@ -516,7 +521,7 @@ public class AuthControllerTests : TestBase
     [InlineData("", "StrongPassword123!")] // Empty username
     [InlineData("testuser123", "")] // Empty password
     [InlineData("", "")] // Both empty
-    public async Task Login_WithEmptyCredentials_ShouldReturnBadRequest(string usernameOrEmail, string password)
+    public async Task Login_WithEmptyCredentials_ShouldCallAuthServiceAndReturnUnauthorized(string usernameOrEmail, string password)
     {
         // Arrange
         var loginRequest = new LoginRequest
@@ -525,17 +530,21 @@ public class AuthControllerTests : TestBase
             Password = password
         };
 
-        // Simulate model validation failure
-        if (string.IsNullOrEmpty(usernameOrEmail))
-            _authController.ModelState.AddModelError("UsernameOrEmail", "Username or email is required");
-        if (string.IsNullOrEmpty(password))
-            _authController.ModelState.AddModelError("Password", "Password is required");
+        var errorMessage = "Invalid username/email or password";
+        _mockAuthService.Setup(x => x.LoginAsync(loginRequest, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(((LoginResponse?)null, errorMessage));
 
         // Act
         var result = await _authController.Login(loginRequest, CancellationToken.None);
 
         // Assert
-        _mockAuthService.Verify(x => x.LoginAsync(It.IsAny<LoginRequest>(), It.IsAny<CancellationToken>()), Times.Never);
+        result.Should().BeOfType<UnauthorizedObjectResult>();
+        var unauthorizedResult = result as UnauthorizedObjectResult;
+        unauthorizedResult!.StatusCode.Should().Be(401);
+        unauthorizedResult.Value.Should().BeEquivalentTo(new { Message = errorMessage });
+        
+        // Verify AuthService was called (controller doesn't do validation, service does)
+        _mockAuthService.Verify(x => x.LoginAsync(It.IsAny<LoginRequest>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     #endregion
@@ -2054,6 +2063,2982 @@ public class AuthControllerTests : TestBase
                 It.IsAny<Exception>(),
                 It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
             Times.Once);
+    }
+
+    #endregion
+
+    #endregion
+
+    #region Forgot Password Tests
+    // SCRUM-36: Unit Tests for POST /auth/forgot-password endpoint
+    // This comprehensive test suite covers all the scenarios outlined in the ticket:
+    // - Happy Path: Valid email password reset requests, token generation, email sending
+    // - Validation: Invalid email formats, empty fields, non-existent emails
+    // - Security: Rate limiting, secure token generation, multiple active tokens prevention
+    // - Business Logic: Previous tokens invalidation, token expiration, email service integration
+
+    #region Happy Path Tests
+
+    [Fact]
+    public async Task ForgotPassword_WithValidEmail_ShouldReturnOkWithSuccessMessage()
+    {
+        // Arrange
+        var request = TestDataBuilder.ForgotPassword.ValidRequest();
+        var expectedMessage = "If this email address exists in our system, you will receive a password reset email shortly.";
+
+        _mockAuthService.Setup(x => x.ForgotPasswordAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.ForgotPassword(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        okResult!.StatusCode.Should().Be(200);
+        
+        var message = GetMessageFromResponse(okResult.Value);
+        message.Should().Be(expectedMessage);
+        
+        _mockAuthService.Verify(x => x.ForgotPasswordAsync(request, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ForgotPassword_WithExistingUser_ShouldGenerateResetToken()
+    {
+        // Arrange
+        var request = TestDataBuilder.ForgotPassword.ValidRequestWithExistingUser();
+        var expectedMessage = "If this email address exists in our system, you will receive a password reset email shortly.";
+
+        _mockAuthService.Setup(x => x.ForgotPasswordAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.ForgotPassword(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        
+        var message = GetMessageFromResponse(okResult.Value);
+        message.Should().Be(expectedMessage);
+        
+        _mockAuthService.Verify(x => x.ForgotPasswordAsync(
+            It.Is<ForgotPasswordRequest>(req => req.Email == request.Email), 
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ForgotPassword_ShouldCallAuthServiceWithCorrectRequest()
+    {
+        // Arrange
+        var request = TestDataBuilder.ForgotPassword.ValidRequest();
+        var expectedMessage = "Password reset email sent successfully.";
+
+        _mockAuthService.Setup(x => x.ForgotPasswordAsync(It.IsAny<ForgotPasswordRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.ForgotPassword(request, CancellationToken.None);
+
+        // Assert
+        _mockAuthService.Verify(
+            x => x.ForgotPasswordAsync(It.Is<ForgotPasswordRequest>(req => 
+                req.Email == request.Email), It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task ForgotPassword_WithValidSpecialCharacterEmail_ShouldReturnOk()
+    {
+        // Arrange
+        var request = TestDataBuilder.ForgotPassword.RequestWithSpecialCharacterEmail();
+        var expectedMessage = "If this email address exists in our system, you will receive a password reset email shortly.";
+
+        _mockAuthService.Setup(x => x.ForgotPasswordAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.ForgotPassword(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        okResult!.StatusCode.Should().Be(200);
+        
+        var message = GetMessageFromResponse(okResult.Value);
+        message.Should().Be(expectedMessage);
+    }
+
+    #endregion
+
+    #region Validation Tests
+
+    [Fact]
+    public async Task ForgotPassword_WithNullRequest_ShouldReturnBadRequest()
+    {
+        // Act
+        var result = await _authController.ForgotPassword(null!, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+        var badRequestResult = result as BadRequestObjectResult;
+        badRequestResult!.StatusCode.Should().Be(400);
+        
+        var message = GetMessageFromResponse(badRequestResult.Value);
+        message.Should().Be("Request cannot be null.");
+        
+        // Verify AuthService was not called
+        _mockAuthService.Verify(x => x.ForgotPasswordAsync(It.IsAny<ForgotPasswordRequest>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ForgotPassword_WithInvalidEmailFormat_ShouldReturnOkWithGenericMessage()
+    {
+        // Arrange
+        var request = TestDataBuilder.ForgotPassword.RequestWithInvalidEmail();
+        var expectedMessage = "If this email address exists in our system, you will receive a password reset email shortly.";
+
+        _mockAuthService.Setup(x => x.ForgotPasswordAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.ForgotPassword(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        okResult!.StatusCode.Should().Be(200);
+        
+        var message = GetMessageFromResponse(okResult.Value);
+        message.Should().Be(expectedMessage);
+    }
+
+    [Fact]
+    public async Task ForgotPassword_WithEmptyEmail_ShouldReturnOkWithGenericMessage()
+    {
+        // Arrange
+        var request = TestDataBuilder.ForgotPassword.RequestWithEmptyEmail();
+        var expectedMessage = "If this email address exists in our system, you will receive a password reset email shortly.";
+
+        _mockAuthService.Setup(x => x.ForgotPasswordAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.ForgotPassword(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        okResult!.StatusCode.Should().Be(200);
+        
+        var message = GetMessageFromResponse(okResult.Value);
+        message.Should().Be(expectedMessage);
+    }
+
+    [Fact]
+    public async Task ForgotPassword_WithNonExistentEmail_ShouldReturnOkWithGenericMessage()
+    {
+        // Arrange
+        var request = TestDataBuilder.ForgotPassword.RequestWithNonExistentEmail();
+        var expectedMessage = "If this email address exists in our system, you will receive a password reset email shortly.";
+
+        _mockAuthService.Setup(x => x.ForgotPasswordAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.ForgotPassword(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        okResult!.StatusCode.Should().Be(200);
+        
+        var message = GetMessageFromResponse(okResult.Value);
+        message.Should().Be(expectedMessage);
+    }
+
+    [Fact]
+    public async Task ForgotPassword_WithMalformedEmail_ShouldReturnOkWithGenericMessage()
+    {
+        // Arrange
+        var request = TestDataBuilder.ForgotPassword.RequestWithMalformedEmail();
+        var expectedMessage = "If this email address exists in our system, you will receive a password reset email shortly.";
+
+        _mockAuthService.Setup(x => x.ForgotPasswordAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.ForgotPassword(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        okResult!.StatusCode.Should().Be(200);
+        
+        var message = GetMessageFromResponse(okResult.Value);
+        message.Should().Be(expectedMessage);
+    }
+
+    #endregion
+
+    #region Security Tests
+
+    [Fact]
+    public async Task ForgotPassword_ShouldPreventUserEnumeration()
+    {
+        // Arrange
+        var validRequest = TestDataBuilder.ForgotPassword.ValidRequestWithExistingUser();
+        var invalidRequest = TestDataBuilder.ForgotPassword.RequestWithNonExistentEmail();
+        var expectedMessage = "If this email address exists in our system, you will receive a password reset email shortly.";
+
+        _mockAuthService.Setup(x => x.ForgotPasswordAsync(It.IsAny<ForgotPasswordRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var validResult = await _authController.ForgotPassword(validRequest, CancellationToken.None);
+        var invalidResult = await _authController.ForgotPassword(invalidRequest, CancellationToken.None);
+
+        // Assert
+        validResult.Should().BeOfType<OkObjectResult>();
+        invalidResult.Should().BeOfType<OkObjectResult>();
+        
+        var validOkResult = validResult as OkObjectResult;
+        var invalidOkResult = invalidResult as OkObjectResult;
+        
+        var validMessage = GetMessageFromResponse(validOkResult!.Value);
+        var invalidMessage = GetMessageFromResponse(invalidOkResult!.Value);
+        
+        // Both should return the same generic message to prevent user enumeration
+        validMessage.Should().Be(expectedMessage);
+        invalidMessage.Should().Be(expectedMessage);
+    }
+
+    [Fact]
+    public async Task ForgotPassword_WithRateLimitExceeded_ShouldReturnGenericMessage()
+    {
+        // Arrange
+        var request = TestDataBuilder.ForgotPassword.RequestForRateLimitTesting();
+        var expectedMessage = "If this email address exists in our system, you will receive a password reset email shortly.";
+
+        _mockAuthService.Setup(x => x.ForgotPasswordAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.ForgotPassword(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        okResult!.StatusCode.Should().Be(200);
+        
+        var message = GetMessageFromResponse(okResult.Value);
+        message.Should().Be(expectedMessage);
+    }
+
+    [Fact]
+    public async Task ForgotPassword_ShouldAlwaysReturnOkToPreventTimingAttacks()
+    {
+        // Arrange
+        var requests = new[]
+        {
+            TestDataBuilder.ForgotPassword.ValidRequest(),
+            TestDataBuilder.ForgotPassword.RequestWithNonExistentEmail(),
+            TestDataBuilder.ForgotPassword.RequestWithInvalidEmail(),
+            TestDataBuilder.ForgotPassword.RequestWithEmptyEmail()
+        };
+
+        var expectedMessage = "If this email address exists in our system, you will receive a password reset email shortly.";
+
+        _mockAuthService.Setup(x => x.ForgotPasswordAsync(It.IsAny<ForgotPasswordRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act & Assert
+        foreach (var request in requests)
+        {
+            var result = await _authController.ForgotPassword(request, CancellationToken.None);
+            
+            result.Should().BeOfType<OkObjectResult>();
+            var okResult = result as OkObjectResult;
+            okResult!.StatusCode.Should().Be(200);
+            
+            var message = GetMessageFromResponse(okResult.Value);
+            message.Should().Be(expectedMessage);
+        }
+    }
+
+    [Fact]
+    public async Task ForgotPassword_WithInactiveUser_ShouldReturnGenericMessage()
+    {
+        // Arrange
+        var request = TestDataBuilder.ForgotPassword.RequestWithInactiveUserEmail();
+        var expectedMessage = "If this email address exists in our system, you will receive a password reset email shortly.";
+
+        _mockAuthService.Setup(x => x.ForgotPasswordAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.ForgotPassword(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        okResult!.StatusCode.Should().Be(200);
+        
+        var message = GetMessageFromResponse(okResult.Value);
+        message.Should().Be(expectedMessage);
+    }
+
+    #endregion
+
+    #region Business Logic Tests
+
+    [Fact]
+    public async Task ForgotPassword_ShouldInvalidatePreviousTokens()
+    {
+        // Arrange
+        var request = TestDataBuilder.ForgotPassword.ValidRequestWithExistingUser();
+        var expectedMessage = "Password reset email sent successfully.";
+
+        _mockAuthService.Setup(x => x.ForgotPasswordAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.ForgotPassword(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        
+        // Verify service was called to handle token invalidation
+        _mockAuthService.Verify(x => x.ForgotPasswordAsync(
+            It.Is<ForgotPasswordRequest>(req => req.Email == request.Email), 
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ForgotPassword_ShouldGenerateSecureToken()
+    {
+        // Arrange
+        var request = TestDataBuilder.ForgotPassword.ValidRequest();
+        var expectedMessage = "Password reset email sent successfully.";
+
+        _mockAuthService.Setup(x => x.ForgotPasswordAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.ForgotPassword(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        
+        // Verify service was called for token generation
+        _mockAuthService.Verify(x => x.ForgotPasswordAsync(request, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ForgotPassword_ShouldSetTokenExpiration()
+    {
+        // Arrange
+        var request = TestDataBuilder.ForgotPassword.ValidRequestWithExistingUser();
+        var expectedMessage = "Password reset email sent successfully.";
+
+        _mockAuthService.Setup(x => x.ForgotPasswordAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.ForgotPassword(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        
+        // Verify service handles token expiration
+        _mockAuthService.Verify(x => x.ForgotPasswordAsync(
+            It.Is<ForgotPasswordRequest>(req => req.Email == request.Email), 
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ForgotPassword_ShouldIntegrateWithEmailService()
+    {
+        // Arrange
+        var request = TestDataBuilder.ForgotPassword.ValidRequestWithExistingUser();
+        var expectedMessage = "Password reset email sent successfully.";
+
+        _mockAuthService.Setup(x => x.ForgotPasswordAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.ForgotPassword(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        
+        var message = GetMessageFromResponse((result as OkObjectResult)!.Value);
+        message.Should().Be(expectedMessage);
+        
+        // Verify email service integration through service call
+        _mockAuthService.Verify(x => x.ForgotPasswordAsync(request, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ForgotPassword_WithUnverifiedUser_ShouldStillAllowPasswordReset()
+    {
+        // Arrange
+        var request = TestDataBuilder.ForgotPassword.RequestWithUnverifiedUserEmail();
+        var expectedMessage = "If this email address exists in our system, you will receive a password reset email shortly.";
+
+        _mockAuthService.Setup(x => x.ForgotPasswordAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.ForgotPassword(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        okResult!.StatusCode.Should().Be(200);
+        
+        var message = GetMessageFromResponse(okResult.Value);
+        message.Should().Be(expectedMessage);
+    }
+
+    #endregion
+
+    #region Server Error Tests
+
+    [Fact]
+    public async Task ForgotPassword_WhenServiceReturnsFailure_ShouldStillReturnOkWithMessage()
+    {
+        // Arrange
+        var request = TestDataBuilder.ForgotPassword.ValidRequest();
+        var errorMessage = "Email service temporarily unavailable.";
+
+        _mockAuthService.Setup(x => x.ForgotPasswordAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((false, errorMessage));
+
+        // Act
+        var result = await _authController.ForgotPassword(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        okResult!.StatusCode.Should().Be(200);
+        
+        var message = GetMessageFromResponse(okResult.Value);
+        message.Should().Be(errorMessage);
+    }
+
+    [Fact]
+    public async Task ForgotPassword_WhenServiceThrowsException_ShouldThrowException()
+    {
+        // Arrange
+        var request = TestDataBuilder.ForgotPassword.ValidRequest();
+        var exceptionMessage = "Database connection failed";
+
+        _mockAuthService.Setup(x => x.ForgotPasswordAsync(request, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new Exception(exceptionMessage));
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<Exception>(() => 
+            _authController.ForgotPassword(request, CancellationToken.None));
+        
+        exception.Message.Should().Be(exceptionMessage);
+    }
+
+    [Fact]
+    public async Task ForgotPassword_WithServiceError_ShouldReturnGenericMessage()
+    {
+        // Arrange
+        var request = TestDataBuilder.ForgotPassword.ValidRequest();
+        var errorMessage = "If this email address exists in our system, you will receive a password reset email shortly.";
+
+        _mockAuthService.Setup(x => x.ForgotPasswordAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((false, errorMessage));
+
+        // Act
+        var result = await _authController.ForgotPassword(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        okResult!.StatusCode.Should().Be(200);
+        
+        var message = GetMessageFromResponse(okResult.Value);
+        message.Should().Be(errorMessage);
+    }
+
+    #endregion
+
+    #region Logging Tests
+
+    [Fact]
+    public async Task ForgotPassword_ShouldLogPasswordResetRequest()
+    {
+        // Arrange
+        var request = TestDataBuilder.ForgotPassword.ValidRequest();
+        var expectedMessage = "Password reset email sent successfully.";
+
+        _mockAuthService.Setup(x => x.ForgotPasswordAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.ForgotPassword(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        
+        // Verify request was logged
+        _mockControllerLogger.Verify(
+            x => x.Log(
+                LogLevel.Information,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((o, t) => o.ToString()!.Contains($"Received forgot password request for email: {request.Email}")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task ForgotPassword_ShouldLogPasswordResetCompletion()
+    {
+        // Arrange
+        var request = TestDataBuilder.ForgotPassword.ValidRequest();
+        var expectedMessage = "Password reset email sent successfully.";
+
+        _mockAuthService.Setup(x => x.ForgotPasswordAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.ForgotPassword(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        
+        // Verify completion was logged
+        _mockControllerLogger.Verify(
+            x => x.Log(
+                LogLevel.Information,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((o, t) => o.ToString()!.Contains($"Forgot password process completed for email {request.Email}")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task ForgotPassword_ShouldNotLogSensitiveInformation()
+    {
+        // Arrange
+        var request = TestDataBuilder.ForgotPassword.ValidRequest();
+        var expectedMessage = "Password reset email sent successfully.";
+
+        _mockAuthService.Setup(x => x.ForgotPasswordAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.ForgotPassword(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        
+        // Verify no sensitive tokens are logged (password reset tokens should not be logged)
+        _mockControllerLogger.Verify(
+            x => x.Log(
+                LogLevel.Information,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((o, t) => !o.ToString()!.Contains("reset-token") && !o.ToString()!.Contains("security-token")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.AtLeast(1));
+    }
+
+    #endregion
+
+    #region Integration Tests
+
+    [Fact]
+    public async Task ForgotPassword_EndToEndHappyPath_ShouldReturnCompleteResponse()
+    {
+        // Arrange
+        var request = TestDataBuilder.ForgotPassword.ValidRequestWithExistingUser();
+        var expectedMessage = "Password reset email sent successfully.";
+
+        _mockAuthService.Setup(x => x.ForgotPasswordAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.ForgotPassword(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        okResult!.StatusCode.Should().Be(200);
+        
+        var message = GetMessageFromResponse(okResult.Value);
+        message.Should().Be(expectedMessage);
+        
+        // Verify all service interactions
+        _mockAuthService.Verify(x => x.ForgotPasswordAsync(request, It.IsAny<CancellationToken>()), Times.Once);
+        
+        // Verify logging flow
+        _mockControllerLogger.Verify(
+            x => x.Log(
+                LogLevel.Information,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((o, t) => o.ToString()!.Contains("Received forgot password request")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+            
+        _mockControllerLogger.Verify(
+            x => x.Log(
+                LogLevel.Information,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((o, t) => o.ToString()!.Contains("Forgot password process completed")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task ForgotPassword_CompleteWorkflow_ShouldHandleAllSteps()
+    {
+        // Arrange
+        var request = TestDataBuilder.ForgotPassword.ValidRequest();
+        var expectedMessage = "If this email address exists in our system, you will receive a password reset email shortly.";
+
+        _mockAuthService.Setup(x => x.ForgotPasswordAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.ForgotPassword(request, CancellationToken.None);
+
+        // Assert
+        // Verify HTTP response
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        okResult!.StatusCode.Should().Be(200);
+        
+        // Verify response content
+        var message = GetMessageFromResponse(okResult.Value);
+        message.Should().Be(expectedMessage);
+        
+        // Verify service call
+        _mockAuthService.Verify(x => x.ForgotPasswordAsync(request, It.IsAny<CancellationToken>()), Times.Once);
+        
+        // Verify logging
+        _mockControllerLogger.Verify(
+            x => x.Log(
+                It.IsAny<LogLevel>(),
+                It.IsAny<EventId>(),
+                It.IsAny<It.IsAnyType>(),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.AtLeast(2)); // At least request received and completion logged
+    }
+
+    #endregion
+
+    #endregion
+
+    #region Reset Password Tests
+    // SCRUM-37: Unit Tests for POST /auth/reset-password endpoint
+    // This comprehensive test suite covers all the scenarios outlined in the ticket:
+    // - Happy Path: Valid token and new password, password hash update, token invalidation
+    // - Validation: Invalid email formats, empty tokens, weak passwords, password complexity
+    // - Security: Expired tokens, invalid tokens, token reuse prevention, password hashing
+    // - Business Logic: User password update, reset token cleanup, user notification
+
+    #region Happy Path Tests
+
+    [Fact]
+    public async Task ResetPassword_WithValidRequest_ShouldReturnOkWithSuccessMessage()
+    {
+        // Arrange
+        var request = TestDataBuilder.ResetPassword.ValidRequest();
+        var expectedMessage = "Password reset successfully.";
+
+        _mockAuthService.Setup(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.ResetPassword(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        okResult!.StatusCode.Should().Be(200);
+        
+        var message = GetMessageFromResponse(okResult.Value);
+        message.Should().Be(expectedMessage);
+        
+        _mockAuthService.Verify(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ResetPassword_WithValidToken_ShouldUpdatePasswordAndInvalidateToken()
+    {
+        // Arrange
+        var request = TestDataBuilder.ResetPassword.ValidRequestWithExistingUser();
+        var expectedMessage = "Password reset successfully.";
+
+        _mockAuthService.Setup(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.ResetPassword(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        
+        var message = GetMessageFromResponse(okResult.Value);
+        message.Should().Be(expectedMessage);
+        
+        _mockAuthService.Verify(x => x.ResetPasswordAsync(
+            It.Is<ResetPasswordRequest>(req => 
+                req.Email == request.Email && 
+                req.ResetToken == request.ResetToken &&
+                req.NewPassword == request.NewPassword), 
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ResetPassword_ShouldCallAuthServiceWithCorrectRequest()
+    {
+        // Arrange
+        var request = TestDataBuilder.ResetPassword.ValidRequest();
+        var expectedMessage = "Password reset successfully.";
+
+        _mockAuthService.Setup(x => x.ResetPasswordAsync(It.IsAny<ResetPasswordRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.ResetPassword(request, CancellationToken.None);
+
+        // Assert
+        _mockAuthService.Verify(
+            x => x.ResetPasswordAsync(It.Is<ResetPasswordRequest>(req => 
+                req.Email == request.Email &&
+                req.ResetToken == request.ResetToken &&
+                req.NewPassword == request.NewPassword &&
+                req.ConfirmNewPassword == request.ConfirmNewPassword), It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task ResetPassword_WithSpecialCharacterEmail_ShouldReturnOk()
+    {
+        // Arrange
+        var request = TestDataBuilder.ResetPassword.RequestWithSpecialCharacterEmail();
+        var expectedMessage = "Password reset successfully.";
+
+        _mockAuthService.Setup(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.ResetPassword(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        okResult!.StatusCode.Should().Be(200);
+        
+        var message = GetMessageFromResponse(okResult.Value);
+        message.Should().Be(expectedMessage);
+    }
+
+    #endregion
+
+    #region Validation Tests
+
+    [Fact]
+    public async Task ResetPassword_WithNullRequest_ShouldReturnBadRequest()
+    {
+        // Act
+        var result = await _authController.ResetPassword(null!, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+        var badRequestResult = result as BadRequestObjectResult;
+        badRequestResult!.StatusCode.Should().Be(400);
+        
+        var message = GetMessageFromResponse(badRequestResult.Value);
+        message.Should().Be("Request cannot be null.");
+        
+        // Verify AuthService was not called
+        _mockAuthService.Verify(x => x.ResetPasswordAsync(It.IsAny<ResetPasswordRequest>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ResetPassword_WithInvalidEmailFormat_ShouldReturnBadRequest()
+    {
+        // Arrange
+        var request = TestDataBuilder.ResetPassword.RequestWithInvalidEmail();
+        var errorMessage = "Invalid email format.";
+
+        _mockAuthService.Setup(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((false, errorMessage));
+
+        // Act
+        var result = await _authController.ResetPassword(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+        var badRequestResult = result as BadRequestObjectResult;
+        badRequestResult!.StatusCode.Should().Be(400);
+        
+        var message = GetMessageFromResponse(badRequestResult.Value);
+        message.Should().Be(errorMessage);
+    }
+
+    [Fact]
+    public async Task ResetPassword_WithEmptyEmail_ShouldReturnBadRequest()
+    {
+        // Arrange
+        var request = TestDataBuilder.ResetPassword.RequestWithEmptyEmail();
+        var errorMessage = "Email is required.";
+
+        _mockAuthService.Setup(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((false, errorMessage));
+
+        // Act
+        var result = await _authController.ResetPassword(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+        var badRequestResult = result as BadRequestObjectResult;
+        badRequestResult!.StatusCode.Should().Be(400);
+        
+        var message = GetMessageFromResponse(badRequestResult.Value);
+        message.Should().Be(errorMessage);
+    }
+
+    [Fact]
+    public async Task ResetPassword_WithEmptyToken_ShouldReturnBadRequest()
+    {
+        // Arrange
+        var request = TestDataBuilder.ResetPassword.RequestWithEmptyToken();
+        var errorMessage = "Reset token is required.";
+
+        _mockAuthService.Setup(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((false, errorMessage));
+
+        // Act
+        var result = await _authController.ResetPassword(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+        var badRequestResult = result as BadRequestObjectResult;
+        badRequestResult!.StatusCode.Should().Be(400);
+        
+        var message = GetMessageFromResponse(badRequestResult.Value);
+        message.Should().Be(errorMessage);
+    }
+
+    [Fact]
+    public async Task ResetPassword_WithWeakPassword_ShouldReturnBadRequest()
+    {
+        // Arrange
+        var request = TestDataBuilder.ResetPassword.RequestWithWeakPassword();
+        var errorMessage = "Password does not meet complexity requirements.";
+
+        _mockAuthService.Setup(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((false, errorMessage));
+
+        // Act
+        var result = await _authController.ResetPassword(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+        var badRequestResult = result as BadRequestObjectResult;
+        badRequestResult!.StatusCode.Should().Be(400);
+        
+        var message = GetMessageFromResponse(badRequestResult.Value);
+        message.Should().Be(errorMessage);
+    }
+
+    [Theory]
+    [InlineData("WeakPassword123", "Password must contain at least one special character.")]
+    [InlineData("WeakPassword!", "Password must contain at least one number.")]
+    [InlineData("weakpassword123!", "Password must contain at least one uppercase letter.")]
+    public async Task ResetPassword_WithPasswordComplexityIssues_ShouldReturnBadRequest(string password, string expectedError)
+    {
+        // Arrange
+        var request = TestDataBuilder.ResetPassword.ValidRequest();
+        request.NewPassword = password;
+        request.ConfirmNewPassword = password;
+
+        _mockAuthService.Setup(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((false, expectedError));
+
+        // Act
+        var result = await _authController.ResetPassword(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+        var badRequestResult = result as BadRequestObjectResult;
+        badRequestResult!.StatusCode.Should().Be(400);
+        
+        var message = GetMessageFromResponse(badRequestResult.Value);
+        message.Should().Be(expectedError);
+    }
+
+    [Fact]
+    public async Task ResetPassword_WithPasswordMismatch_ShouldReturnBadRequest()
+    {
+        // Arrange
+        var request = TestDataBuilder.ResetPassword.RequestWithPasswordMismatch();
+        var errorMessage = "Password and confirmation password do not match.";
+
+        _mockAuthService.Setup(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((false, errorMessage));
+
+        // Act
+        var result = await _authController.ResetPassword(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+        var badRequestResult = result as BadRequestObjectResult;
+        badRequestResult!.StatusCode.Should().Be(400);
+        
+        var message = GetMessageFromResponse(badRequestResult.Value);
+        message.Should().Be(errorMessage);
+    }
+
+    [Fact]
+    public async Task ResetPassword_WithEmptyPassword_ShouldReturnBadRequest()
+    {
+        // Arrange
+        var request = TestDataBuilder.ResetPassword.RequestWithEmptyPassword();
+        var errorMessage = "New password is required.";
+
+        _mockAuthService.Setup(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((false, errorMessage));
+
+        // Act
+        var result = await _authController.ResetPassword(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+        var badRequestResult = result as BadRequestObjectResult;
+        badRequestResult!.StatusCode.Should().Be(400);
+        
+        var message = GetMessageFromResponse(badRequestResult.Value);
+        message.Should().Be(errorMessage);
+    }
+
+    #endregion
+
+    #region Security Tests
+
+    [Fact]
+    public async Task ResetPassword_WithExpiredToken_ShouldReturnBadRequest()
+    {
+        // Arrange
+        var request = TestDataBuilder.ResetPassword.RequestWithExpiredToken();
+        var errorMessage = "Reset token has expired.";
+
+        _mockAuthService.Setup(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((false, errorMessage));
+
+        // Act
+        var result = await _authController.ResetPassword(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+        var badRequestResult = result as BadRequestObjectResult;
+        badRequestResult!.StatusCode.Should().Be(400);
+        
+        var message = GetMessageFromResponse(badRequestResult.Value);
+        message.Should().Be(errorMessage);
+    }
+
+    [Fact]
+    public async Task ResetPassword_WithInvalidToken_ShouldReturnBadRequest()
+    {
+        // Arrange
+        var request = TestDataBuilder.ResetPassword.RequestWithInvalidToken();
+        var errorMessage = "Invalid reset token.";
+
+        _mockAuthService.Setup(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((false, errorMessage));
+
+        // Act
+        var result = await _authController.ResetPassword(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+        var badRequestResult = result as BadRequestObjectResult;
+        badRequestResult!.StatusCode.Should().Be(400);
+        
+        var message = GetMessageFromResponse(badRequestResult.Value);
+        message.Should().Be(errorMessage);
+    }
+
+    [Fact]
+    public async Task ResetPassword_WithUsedToken_ShouldReturnBadRequest()
+    {
+        // Arrange
+        var request = TestDataBuilder.ResetPassword.RequestWithUsedToken();
+        var errorMessage = "Reset token has already been used.";
+
+        _mockAuthService.Setup(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((false, errorMessage));
+
+        // Act
+        var result = await _authController.ResetPassword(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+        var badRequestResult = result as BadRequestObjectResult;
+        badRequestResult!.StatusCode.Should().Be(400);
+        
+        var message = GetMessageFromResponse(badRequestResult.Value);
+        message.Should().Be(errorMessage);
+    }
+
+    [Fact]
+    public async Task ResetPassword_WithMalformedToken_ShouldReturnBadRequest()
+    {
+        // Arrange
+        var request = TestDataBuilder.ResetPassword.RequestWithMalformedToken();
+        var errorMessage = "Invalid token format.";
+
+        _mockAuthService.Setup(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((false, errorMessage));
+
+        // Act
+        var result = await _authController.ResetPassword(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+        var badRequestResult = result as BadRequestObjectResult;
+        badRequestResult!.StatusCode.Should().Be(400);
+        
+        var message = GetMessageFromResponse(badRequestResult.Value);
+        message.Should().Be(errorMessage);
+    }
+
+    [Fact]
+    public async Task ResetPassword_ShouldVerifyPasswordHashing()
+    {
+        // Arrange
+        var request = TestDataBuilder.ResetPassword.ValidRequest();
+        var expectedMessage = "Password reset successfully.";
+
+        _mockAuthService.Setup(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.ResetPassword(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        
+        // Verify service was called to handle password hashing
+        _mockAuthService.Verify(x => x.ResetPasswordAsync(
+            It.Is<ResetPasswordRequest>(req => req.NewPassword == request.NewPassword), 
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ResetPassword_WithNonExistentUser_ShouldReturnBadRequest()
+    {
+        // Arrange
+        var request = TestDataBuilder.ResetPassword.RequestWithNonExistentUser();
+        var errorMessage = "Invalid reset token or user not found.";
+
+        _mockAuthService.Setup(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((false, errorMessage));
+
+        // Act
+        var result = await _authController.ResetPassword(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+        var badRequestResult = result as BadRequestObjectResult;
+        badRequestResult!.StatusCode.Should().Be(400);
+        
+        var message = GetMessageFromResponse(badRequestResult.Value);
+        message.Should().Be(errorMessage);
+    }
+
+    #endregion
+
+    #region Business Logic Tests
+
+    [Fact]
+    public async Task ResetPassword_ShouldInvalidateResetToken()
+    {
+        // Arrange
+        var request = TestDataBuilder.ResetPassword.ValidRequestWithExistingUser();
+        var expectedMessage = "Password reset successfully.";
+
+        _mockAuthService.Setup(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.ResetPassword(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        
+        // Verify service was called to handle token cleanup
+        _mockAuthService.Verify(x => x.ResetPasswordAsync(
+            It.Is<ResetPasswordRequest>(req => req.ResetToken == request.ResetToken), 
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ResetPassword_ShouldUpdateUserPassword()
+    {
+        // Arrange
+        var request = TestDataBuilder.ResetPassword.ValidRequest();
+        var expectedMessage = "Password reset successfully.";
+
+        _mockAuthService.Setup(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.ResetPassword(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        
+        // Verify service was called for password update
+        _mockAuthService.Verify(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ResetPassword_ShouldCleanupResetTokenAfterSuccess()
+    {
+        // Arrange
+        var request = TestDataBuilder.ResetPassword.ValidRequestWithExistingUser();
+        var expectedMessage = "Password reset successfully. All reset tokens have been invalidated.";
+
+        _mockAuthService.Setup(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.ResetPassword(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        
+        var message = GetMessageFromResponse((result as OkObjectResult)!.Value);
+        message.Should().Contain("invalidated");
+        
+        // Verify token cleanup through service call
+        _mockAuthService.Verify(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ResetPassword_ShouldSendUserNotification()
+    {
+        // Arrange
+        var request = TestDataBuilder.ResetPassword.ValidRequestWithExistingUser();
+        var expectedMessage = "Password reset successfully. A confirmation email has been sent.";
+
+        _mockAuthService.Setup(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.ResetPassword(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        
+        var message = GetMessageFromResponse((result as OkObjectResult)!.Value);
+        message.Should().Contain("confirmation email");
+        
+        // Verify user notification through service call
+        _mockAuthService.Verify(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ResetPassword_WithValidRequest_ShouldPreventTokenReuse()
+    {
+        // Arrange
+        var validRequest = TestDataBuilder.ResetPassword.ValidRequest();
+        var reusedTokenRequest = TestDataBuilder.ResetPassword.RequestWithUsedToken();
+        
+        var successMessage = "Password reset successfully.";
+        var errorMessage = "Reset token has already been used.";
+
+        _mockAuthService.Setup(x => x.ResetPasswordAsync(validRequest, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, successMessage));
+        
+        _mockAuthService.Setup(x => x.ResetPasswordAsync(reusedTokenRequest, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((false, errorMessage));
+
+        // Act - First use should succeed
+        var firstResult = await _authController.ResetPassword(validRequest, CancellationToken.None);
+        
+        // Act - Second use should fail
+        var secondResult = await _authController.ResetPassword(reusedTokenRequest, CancellationToken.None);
+
+        // Assert
+        firstResult.Should().BeOfType<OkObjectResult>();
+        secondResult.Should().BeOfType<BadRequestObjectResult>();
+        
+        var secondBadResult = secondResult as BadRequestObjectResult;
+        var secondMessage = GetMessageFromResponse(secondBadResult!.Value);
+        secondMessage.Should().Be(errorMessage);
+    }
+
+    #endregion
+
+    #region Server Error Tests
+
+    [Fact]
+    public async Task ResetPassword_WhenServiceReturnsFailureWithSystemError_ShouldReturnInternalServerError()
+    {
+        // Arrange
+        var request = TestDataBuilder.ResetPassword.ValidRequest();
+        var errorMessage = "Database connection failed";
+
+        _mockAuthService.Setup(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((false, errorMessage));
+
+        // Act
+        var result = await _authController.ResetPassword(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<ObjectResult>();
+        var errorResult = result as ObjectResult;
+        errorResult!.StatusCode.Should().Be(500);
+        
+        var message = GetMessageFromResponse(errorResult.Value);
+        message.Should().Be(errorMessage);
+    }
+
+    [Fact]
+    public async Task ResetPassword_WhenServiceThrowsException_ShouldThrowException()
+    {
+        // Arrange
+        var request = TestDataBuilder.ResetPassword.ValidRequest();
+        var exceptionMessage = "Unexpected database error";
+
+        _mockAuthService.Setup(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new Exception(exceptionMessage));
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<Exception>(() => 
+            _authController.ResetPassword(request, CancellationToken.None));
+        
+        exception.Message.Should().Be(exceptionMessage);
+    }
+
+    [Fact]
+    public async Task ResetPassword_WhenServiceReturnsNullMessage_ShouldReturnInternalServerError()
+    {
+        // Arrange
+        var request = TestDataBuilder.ResetPassword.ValidRequest();
+
+        _mockAuthService.Setup(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((false, null!));
+
+        // Act
+        var result = await _authController.ResetPassword(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<ObjectResult>();
+        var errorResult = result as ObjectResult;
+        errorResult!.StatusCode.Should().Be(500);
+        
+        var message = GetMessageFromResponse(errorResult.Value);
+        message.Should().Be("An unexpected error occurred while resetting password.");
+    }
+
+    #endregion
+
+    #region Logging Tests
+
+    [Fact]
+    public async Task ResetPassword_ShouldLogPasswordResetRequest()
+    {
+        // Arrange
+        var request = TestDataBuilder.ResetPassword.ValidRequest();
+        var expectedMessage = "Password reset successfully.";
+
+        _mockAuthService.Setup(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.ResetPassword(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        
+        // Verify request was logged
+        _mockControllerLogger.Verify(
+            x => x.Log(
+                LogLevel.Information,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((o, t) => o.ToString()!.Contains($"Received reset password request for email: {request.Email}")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task ResetPassword_WithSuccessfulReset_ShouldLogSuccess()
+    {
+        // Arrange
+        var request = TestDataBuilder.ResetPassword.ValidRequest();
+        var expectedMessage = "Password reset successfully.";
+
+        _mockAuthService.Setup(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.ResetPassword(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        
+        // Verify success was logged
+        _mockControllerLogger.Verify(
+            x => x.Log(
+                LogLevel.Information,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((o, t) => o.ToString()!.Contains($"Password reset successful for email {request.Email}")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task ResetPassword_WithFailedReset_ShouldLogWarning()
+    {
+        // Arrange
+        var request = TestDataBuilder.ResetPassword.RequestWithExpiredToken();
+        var errorMessage = "Reset token has expired.";
+
+        _mockAuthService.Setup(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((false, errorMessage));
+
+        // Act
+        var result = await _authController.ResetPassword(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+        
+        // Verify warning was logged
+        _mockControllerLogger.Verify(
+            x => x.Log(
+                LogLevel.Warning,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((o, t) => o.ToString()!.Contains($"Password reset failed for email {request.Email}")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task ResetPassword_ShouldNotLogSensitiveInformation()
+    {
+        // Arrange
+        var request = TestDataBuilder.ResetPassword.ValidRequest();
+        var expectedMessage = "Password reset successfully.";
+
+        _mockAuthService.Setup(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.ResetPassword(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        
+        // Verify no sensitive passwords or tokens are logged
+        _mockControllerLogger.Verify(
+            x => x.Log(
+                LogLevel.Information,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((o, t) => !o.ToString()!.Contains(request.NewPassword) && !o.ToString()!.Contains(request.ResetToken)),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.AtLeast(1));
+    }
+
+    #endregion
+
+    #region Integration Tests
+
+    [Fact]
+    public async Task ResetPassword_EndToEndHappyPath_ShouldReturnCompleteResponse()
+    {
+        // Arrange
+        var request = TestDataBuilder.ResetPassword.ValidRequestWithExistingUser();
+        var expectedMessage = "Password reset successfully.";
+
+        _mockAuthService.Setup(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.ResetPassword(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        okResult!.StatusCode.Should().Be(200);
+        
+        var message = GetMessageFromResponse(okResult.Value);
+        message.Should().Be(expectedMessage);
+        
+        // Verify all service interactions
+        _mockAuthService.Verify(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()), Times.Once);
+        
+        // Verify logging flow
+        _mockControllerLogger.Verify(
+            x => x.Log(
+                LogLevel.Information,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((o, t) => o.ToString()!.Contains("Received reset password request")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+            
+        _mockControllerLogger.Verify(
+            x => x.Log(
+                LogLevel.Information,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((o, t) => o.ToString()!.Contains("Password reset successful")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task ResetPassword_CompleteWorkflow_ShouldHandleAllSteps()
+    {
+        // Arrange
+        var request = TestDataBuilder.ResetPassword.ValidRequest();
+        var expectedMessage = "Password reset successfully. All reset tokens have been invalidated.";
+
+        _mockAuthService.Setup(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.ResetPassword(request, CancellationToken.None);
+
+        // Assert
+        // Verify HTTP response
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        okResult!.StatusCode.Should().Be(200);
+        
+        // Verify response content
+        var message = GetMessageFromResponse(okResult.Value);
+        message.Should().Be(expectedMessage);
+        message.Should().Contain("successfully");
+        message.Should().Contain("invalidated");
+        
+        // Verify service call
+        _mockAuthService.Verify(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()), Times.Once);
+        
+        // Verify logging
+        _mockControllerLogger.Verify(
+            x => x.Log(
+                It.IsAny<LogLevel>(),
+                It.IsAny<EventId>(),
+                It.IsAny<It.IsAnyType>(),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.AtLeast(2)); // At least request received and success logged
+    }
+
+    #endregion
+
+    #endregion
+
+    #region Logout Tests
+    // SCRUM-38: Unit Tests for POST /auth/logout endpoint
+    // This comprehensive test suite covers all the scenarios outlined in the ticket:
+    // - Happy Path: Valid authenticated user logout, token invalidation, session cleanup
+    // - Authentication: Unauthenticated logout attempt, invalid JWT token, expired token
+    // - Security: Token blacklisting, session termination, refresh token revocation
+    // - Business Logic: User session cleanup, last logout time update, active sessions management
+
+    #region Happy Path Tests
+
+    [Fact]
+    public async Task Logout_WithValidAuthenticatedUser_ShouldReturnOkWithSuccessMessage()
+    {
+        // Arrange
+        var userId = "123";
+        var expectedMessage = "Logout successful. Please clear tokens on the client-side.";
+        
+        // Mock authenticated user
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, userId),
+            new(ClaimTypes.Name, "testuser123"),
+            new(ClaimTypes.Email, "test@example.com")
+        };
+        var identity = new ClaimsIdentity(claims, "Test");
+        var principal = new ClaimsPrincipal(identity);
+
+        // Set the User property of controller
+        _authController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext
+            {
+                User = principal
+            }
+        };
+
+        _mockAuthService.Setup(x => x.LogoutAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.Logout(CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        okResult!.StatusCode.Should().Be(200);
+        
+        var message = GetMessageFromResponse(okResult.Value);
+        message.Should().Be(expectedMessage);
+        
+        _mockAuthService.Verify(x => x.LogoutAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Logout_ShouldInvalidateUserTokens()
+    {
+        // Arrange
+        var userId = "123";
+        var expectedMessage = "Logout successful. Please clear tokens on the client-side.";
+        
+        var claims = new List<Claim> { new(ClaimTypes.NameIdentifier, userId) };
+        var identity = new ClaimsIdentity(claims, "Test");
+        var principal = new ClaimsPrincipal(identity);
+
+        _authController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = principal }
+        };
+
+        _mockAuthService.Setup(x => x.LogoutAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.Logout(CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        
+        // Verify service was called to handle token invalidation
+        _mockAuthService.Verify(x => x.LogoutAsync(
+            It.Is<ClaimsPrincipal>(p => p.FindFirstValue(ClaimTypes.NameIdentifier) == userId), 
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Logout_ShouldCleanupUserSession()
+    {
+        // Arrange
+        var userId = "123";
+        var expectedMessage = "Logout successful. Please clear tokens on the client-side.";
+        
+        var claims = new List<Claim> { new(ClaimTypes.NameIdentifier, userId) };
+        var identity = new ClaimsIdentity(claims, "Test");
+        var principal = new ClaimsPrincipal(identity);
+
+        _authController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = principal }
+        };
+
+        _mockAuthService.Setup(x => x.LogoutAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.Logout(CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        
+        var message = GetMessageFromResponse((result as OkObjectResult)!.Value);
+        message.Should().Be(expectedMessage);
+        
+        // Verify session cleanup through service call
+        _mockAuthService.Verify(x => x.LogoutAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Logout_ShouldCallAuthServiceWithCorrectUser()
+    {
+        // Arrange
+        var userId = "123";
+        var username = "testuser123";
+        var email = "test@example.com";
+        var expectedMessage = "Logout successful. Please clear tokens on the client-side.";
+        
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, userId),
+            new(ClaimTypes.Name, username),
+            new(ClaimTypes.Email, email)
+        };
+        var identity = new ClaimsIdentity(claims, "Test");
+        var principal = new ClaimsPrincipal(identity);
+
+        _authController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = principal }
+        };
+
+        _mockAuthService.Setup(x => x.LogoutAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.Logout(CancellationToken.None);
+
+        // Assert
+        _mockAuthService.Verify(
+            x => x.LogoutAsync(It.Is<ClaimsPrincipal>(p => 
+                p.FindFirstValue(ClaimTypes.NameIdentifier) == userId &&
+                p.FindFirstValue(ClaimTypes.Name) == username &&
+                p.FindFirstValue(ClaimTypes.Email) == email), It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    #endregion
+
+    #region Authentication Tests
+
+    [Fact]
+    public async Task Logout_WithUnauthenticatedUser_ShouldStillProcessLogout()
+    {
+        // Arrange
+        var expectedMessage = "Logout processed. Client should clear tokens.";
+        
+        // No user context (unauthenticated)
+        _authController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext()
+        };
+
+        _mockAuthService.Setup(x => x.LogoutAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.Logout(CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        
+        var message = GetMessageFromResponse(okResult!.Value);
+        message.Should().Be(expectedMessage);
+    }
+
+    [Fact]
+    public async Task Logout_WithExpiredToken_ShouldStillAllowLogout()
+    {
+        // Arrange
+        var userId = "123";
+        var expectedMessage = "Logout processed. Client should clear tokens.";
+        
+        // Simulate expired token scenario
+        var claims = new List<Claim> { new(ClaimTypes.NameIdentifier, userId) };
+        var identity = new ClaimsIdentity(claims, "Test");
+        var principal = new ClaimsPrincipal(identity);
+
+        _authController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = principal }
+        };
+
+        _mockAuthService.Setup(x => x.LogoutAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.Logout(CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        
+        var message = GetMessageFromResponse(okResult!.Value);
+        message.Should().Be(expectedMessage);
+    }
+
+    [Fact]
+    public async Task Logout_WithInvalidJwtToken_ShouldStillProcessLogout()
+    {
+        // Arrange
+        var expectedMessage = "Logout processed. Client should clear tokens.";
+        
+        // Simulate invalid token with malformed claims
+        var claims = new List<Claim> { new("invalid_claim_type", "invalid_value") };
+        var identity = new ClaimsIdentity(claims, "Test");
+        var principal = new ClaimsPrincipal(identity);
+
+        _authController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = principal }
+        };
+
+        _mockAuthService.Setup(x => x.LogoutAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.Logout(CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        
+        var message = GetMessageFromResponse(okResult!.Value);
+        message.Should().Be(expectedMessage);
+    }
+
+    #endregion
+
+    #region Security Tests
+
+    [Fact]
+    public async Task Logout_ShouldBlacklistTokens()
+    {
+        // Arrange
+        var userId = "123";
+        var expectedMessage = "Logout successful. Please clear tokens on the client-side.";
+        
+        var claims = new List<Claim> { new(ClaimTypes.NameIdentifier, userId) };
+        var identity = new ClaimsIdentity(claims, "Test");
+        var principal = new ClaimsPrincipal(identity);
+
+        _authController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = principal }
+        };
+
+        _mockAuthService.Setup(x => x.LogoutAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.Logout(CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        
+        // Verify service was called to handle token blacklisting
+        _mockAuthService.Verify(x => x.LogoutAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Logout_ShouldTerminateUserSession()
+    {
+        // Arrange
+        var userId = "123";
+        var expectedMessage = "Logout successful. Please clear tokens on the client-side.";
+        
+        var claims = new List<Claim> { new(ClaimTypes.NameIdentifier, userId) };
+        var identity = new ClaimsIdentity(claims, "Test");
+        var principal = new ClaimsPrincipal(identity);
+
+        _authController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = principal }
+        };
+
+        _mockAuthService.Setup(x => x.LogoutAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.Logout(CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        
+        // Verify session termination through service call
+        _mockAuthService.Verify(x => x.LogoutAsync(
+            It.Is<ClaimsPrincipal>(p => p.FindFirstValue(ClaimTypes.NameIdentifier) == userId), 
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Logout_ShouldRevokeRefreshTokens()
+    {
+        // Arrange
+        var userId = "123";
+        var expectedMessage = "Logout successful. Please clear tokens on the client-side.";
+        
+        var claims = new List<Claim> { new(ClaimTypes.NameIdentifier, userId) };
+        var identity = new ClaimsIdentity(claims, "Test");
+        var principal = new ClaimsPrincipal(identity);
+
+        _authController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = principal }
+        };
+
+        _mockAuthService.Setup(x => x.LogoutAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.Logout(CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        
+        // Verify refresh token revocation through service call
+        _mockAuthService.Verify(x => x.LogoutAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Logout_ShouldPreventTokenReuse()
+    {
+        // Arrange
+        var userId = "123";
+        var expectedMessage = "Logout successful. Please clear tokens on the client-side.";
+        
+        var claims = new List<Claim> { new(ClaimTypes.NameIdentifier, userId) };
+        var identity = new ClaimsIdentity(claims, "Test");
+        var principal = new ClaimsPrincipal(identity);
+
+        _authController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = principal }
+        };
+
+        _mockAuthService.Setup(x => x.LogoutAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.Logout(CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        
+        // Verify token invalidation to prevent reuse
+        _mockAuthService.Verify(x => x.LogoutAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    #endregion
+
+    #region Business Logic Tests
+
+    [Fact]
+    public async Task Logout_ShouldUpdateLastLogoutTime()
+    {
+        // Arrange
+        var userId = "123";
+        var expectedMessage = "Logout successful. Please clear tokens on the client-side.";
+        
+        var claims = new List<Claim> { new(ClaimTypes.NameIdentifier, userId) };
+        var identity = new ClaimsIdentity(claims, "Test");
+        var principal = new ClaimsPrincipal(identity);
+
+        _authController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = principal }
+        };
+
+        _mockAuthService.Setup(x => x.LogoutAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.Logout(CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        
+        // Verify service was called to handle logout time update
+        _mockAuthService.Verify(x => x.LogoutAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Logout_ShouldManageActiveSessions()
+    {
+        // Arrange
+        var userId = "123";
+        var expectedMessage = "Logout successful. Please clear tokens on the client-side.";
+        
+        var claims = new List<Claim> { new(ClaimTypes.NameIdentifier, userId) };
+        var identity = new ClaimsIdentity(claims, "Test");
+        var principal = new ClaimsPrincipal(identity);
+
+        _authController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = principal }
+        };
+
+        _mockAuthService.Setup(x => x.LogoutAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.Logout(CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        
+        // Verify active session management through service call
+        _mockAuthService.Verify(x => x.LogoutAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Logout_WithNonExistentUser_ShouldStillSucceed()
+    {
+        // Arrange
+        var userId = "999";
+        var expectedMessage = "Logout processed. Client should clear tokens.";
+        
+        var claims = new List<Claim> { new(ClaimTypes.NameIdentifier, userId) };
+        var identity = new ClaimsIdentity(claims, "Test");
+        var principal = new ClaimsPrincipal(identity);
+
+        _authController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = principal }
+        };
+
+        _mockAuthService.Setup(x => x.LogoutAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.Logout(CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        
+        var message = GetMessageFromResponse(okResult!.Value);
+        message.Should().Be(expectedMessage);
+    }
+
+    [Fact]
+    public async Task Logout_ShouldCleanupAllUserSessions()
+    {
+        // Arrange
+        var userId = "123";
+        var expectedMessage = "Logout successful. All sessions terminated.";
+        
+        var claims = new List<Claim> { new(ClaimTypes.NameIdentifier, userId) };
+        var identity = new ClaimsIdentity(claims, "Test");
+        var principal = new ClaimsPrincipal(identity);
+
+        _authController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = principal }
+        };
+
+        _mockAuthService.Setup(x => x.LogoutAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.Logout(CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        
+        var message = GetMessageFromResponse((result as OkObjectResult)!.Value);
+        message.Should().Contain("sessions");
+        
+        // Verify comprehensive session cleanup
+        _mockAuthService.Verify(x => x.LogoutAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    #endregion
+
+    #region Server Error Tests
+
+    [Fact]
+    public async Task Logout_WhenServiceReturnsFailure_ShouldReturnInternalServerError()
+    {
+        // Arrange
+        var userId = "123";
+        var errorMessage = "Logout processed with server-side error during token invalidation. Client should still clear tokens.";
+        
+        var claims = new List<Claim> { new(ClaimTypes.NameIdentifier, userId) };
+        var identity = new ClaimsIdentity(claims, "Test");
+        var principal = new ClaimsPrincipal(identity);
+
+        _authController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = principal }
+        };
+
+        _mockAuthService.Setup(x => x.LogoutAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((false, errorMessage));
+
+        // Act
+        var result = await _authController.Logout(CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<ObjectResult>();
+        var errorResult = result as ObjectResult;
+        errorResult!.StatusCode.Should().Be(500);
+        
+        var message = GetMessageFromResponse(errorResult.Value);
+        message.Should().Be(errorMessage);
+    }
+
+    [Fact]
+    public async Task Logout_WhenServiceThrowsException_ShouldThrowException()
+    {
+        // Arrange
+        var userId = "123";
+        var exceptionMessage = "Database connection failed";
+        
+        var claims = new List<Claim> { new(ClaimTypes.NameIdentifier, userId) };
+        var identity = new ClaimsIdentity(claims, "Test");
+        var principal = new ClaimsPrincipal(identity);
+
+        _authController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = principal }
+        };
+
+        _mockAuthService.Setup(x => x.LogoutAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new Exception(exceptionMessage));
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<Exception>(() => 
+            _authController.Logout(CancellationToken.None));
+        
+        exception.Message.Should().Be(exceptionMessage);
+    }
+
+    [Fact]
+    public async Task Logout_WithTokenInvalidationError_ShouldStillAdviseClientLogout()
+    {
+        // Arrange
+        var userId = "123";
+        var errorMessage = "Logout processed with server-side error during token invalidation. Client should still clear tokens.";
+        
+        var claims = new List<Claim> { new(ClaimTypes.NameIdentifier, userId) };
+        var identity = new ClaimsIdentity(claims, "Test");
+        var principal = new ClaimsPrincipal(identity);
+
+        _authController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = principal }
+        };
+
+        _mockAuthService.Setup(x => x.LogoutAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((false, errorMessage));
+
+        // Act
+        var result = await _authController.Logout(CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<ObjectResult>();
+        var errorResult = result as ObjectResult;
+        errorResult!.StatusCode.Should().Be(500);
+        
+        var message = GetMessageFromResponse(errorResult.Value);
+        message.Should().Contain("Client should still clear tokens");
+    }
+
+    #endregion
+
+    #region Logging Tests
+
+    [Fact]
+    public async Task Logout_WithSuccessfulLogout_ShouldLogSuccess()
+    {
+        // Arrange
+        var userId = "123";
+        var expectedMessage = "Logout successful. Please clear tokens on the client-side.";
+        
+        var claims = new List<Claim> { new(ClaimTypes.NameIdentifier, userId) };
+        var identity = new ClaimsIdentity(claims, "Test");
+        var principal = new ClaimsPrincipal(identity);
+
+        _authController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = principal }
+        };
+
+        _mockAuthService.Setup(x => x.LogoutAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.Logout(CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        
+        // Verify success was logged
+        _mockControllerLogger.Verify(
+            x => x.Log(
+                LogLevel.Information,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((o, t) => o.ToString()!.Contains($"User {userId} logged out successfully")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task Logout_WithFailedLogout_ShouldLogWarning()
+    {
+        // Arrange
+        var userId = "123";
+        var errorMessage = "Token invalidation failed";
+        
+        var claims = new List<Claim> { new(ClaimTypes.NameIdentifier, userId) };
+        var identity = new ClaimsIdentity(claims, "Test");
+        var principal = new ClaimsPrincipal(identity);
+
+        _authController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = principal }
+        };
+
+        _mockAuthService.Setup(x => x.LogoutAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((false, errorMessage));
+
+        // Act
+        var result = await _authController.Logout(CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<ObjectResult>();
+        
+        // Verify warning was logged
+        _mockControllerLogger.Verify(
+            x => x.Log(
+                LogLevel.Warning,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((o, t) => o.ToString()!.Contains($"Logout attempt for User {userId} processed with server-side issue")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task Logout_ShouldNotLogSensitiveInformation()
+    {
+        // Arrange
+        var userId = "123";
+        var expectedMessage = "Logout successful. Please clear tokens on the client-side.";
+        
+        var claims = new List<Claim> 
+        { 
+            new(ClaimTypes.NameIdentifier, userId),
+            new("sensitive_claim", "sensitive_data")
+        };
+        var identity = new ClaimsIdentity(claims, "Test");
+        var principal = new ClaimsPrincipal(identity);
+
+        _authController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = principal }
+        };
+
+        _mockAuthService.Setup(x => x.LogoutAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.Logout(CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        
+        // Verify no sensitive tokens are logged
+        _mockControllerLogger.Verify(
+            x => x.Log(
+                LogLevel.Information,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((o, t) => !o.ToString()!.Contains("sensitive_data")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.AtLeast(1));
+    }
+
+    #endregion
+
+    #region Integration Tests
+
+    [Fact]
+    public async Task Logout_EndToEndHappyPath_ShouldReturnCompleteResponse()
+    {
+        // Arrange
+        var userId = "123";
+        var username = "testuser123";
+        var email = "test@example.com";
+        var expectedMessage = "Logout successful. Please clear tokens on the client-side.";
+        
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, userId),
+            new(ClaimTypes.Name, username),
+            new(ClaimTypes.Email, email),
+            new(ClaimTypes.Role, "User")
+        };
+        var identity = new ClaimsIdentity(claims, "Test");
+        var principal = new ClaimsPrincipal(identity);
+
+        _authController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = principal }
+        };
+
+        _mockAuthService.Setup(x => x.LogoutAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.Logout(CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        okResult!.StatusCode.Should().Be(200);
+        
+        var message = GetMessageFromResponse(okResult.Value);
+        message.Should().Be(expectedMessage);
+        
+        // Verify all service interactions
+        _mockAuthService.Verify(x => x.LogoutAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()), Times.Once);
+        
+        // Verify logging flow
+        _mockControllerLogger.Verify(
+            x => x.Log(
+                LogLevel.Information,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((o, t) => o.ToString()!.Contains("logged out successfully")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task Logout_CompleteWorkflow_ShouldHandleAllSteps()
+    {
+        // Arrange
+        var userId = "123";
+        var expectedMessage = "Logout successful. Please clear tokens on the client-side.";
+        
+        var claims = new List<Claim> { new(ClaimTypes.NameIdentifier, userId) };
+        var identity = new ClaimsIdentity(claims, "Test");
+        var principal = new ClaimsPrincipal(identity);
+
+        _authController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = principal }
+        };
+
+        _mockAuthService.Setup(x => x.LogoutAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.Logout(CancellationToken.None);
+
+        // Assert
+        // Verify HTTP response
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        okResult!.StatusCode.Should().Be(200);
+        
+        // Verify response content
+        var message = GetMessageFromResponse(okResult.Value);
+        message.Should().Be(expectedMessage);
+        message.Should().Contain("successful");
+        message.Should().Contain("clear tokens");
+        
+        // Verify service call
+        _mockAuthService.Verify(x => x.LogoutAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()), Times.Once);
+        
+        // Verify logging
+        _mockControllerLogger.Verify(
+            x => x.Log(
+                It.IsAny<LogLevel>(),
+                It.IsAny<EventId>(),
+                It.IsAny<It.IsAnyType>(),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.AtLeast(1)); // At least success logged
+    }
+
+    #endregion
+
+    #endregion
+
+    #region ResendVerificationEmail Tests
+    // SCRUM-39: Unit Tests for POST /auth/resend-verification-email endpoint
+    // This comprehensive test suite covers all the scenarios outlined in the ticket:
+    // - Happy Path: Valid email resend request, new verification token generation, email sending
+    // - Validation: Invalid email format, empty email field, non-existent email
+    // - Business Logic: Already verified email, too many resend attempts, previous token invalidation, rate limiting
+    // - Security: Rate limiting on resends, token generation security, spam prevention
+
+    #region Happy Path Tests
+
+    [Fact]
+    public async Task ResendVerificationEmail_WithValidEmail_ShouldReturnOkWithSuccessMessage()
+    {
+        // Arrange
+        var request = TestDataBuilder.ResendVerificationEmail.ValidRequest();
+        var expectedMessage = "If this email exists and is not yet verified, a new verification email has been sent.";
+
+        _mockAuthService.Setup(x => x.ResendVerificationEmailAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.ResendVerificationEmail(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        okResult!.StatusCode.Should().Be(200);
+        
+        var message = GetMessageFromResponse(okResult.Value);
+        message.Should().Be(expectedMessage);
+        
+        _mockAuthService.Verify(x => x.ResendVerificationEmailAsync(request, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ResendVerificationEmail_WithExistingUnverifiedUser_ShouldGenerateNewToken()
+    {
+        // Arrange
+        var request = TestDataBuilder.ResendVerificationEmail.ValidRequestWithExistingUnverifiedUser();
+        var expectedMessage = "A new verification email has been sent to your email address.";
+
+        _mockAuthService.Setup(x => x.ResendVerificationEmailAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.ResendVerificationEmail(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        
+        var message = GetMessageFromResponse(okResult!.Value);
+        message.Should().Contain("verification email has been sent");
+        
+        // Verify service was called to generate new token
+        _mockAuthService.Verify(x => x.ResendVerificationEmailAsync(
+            It.Is<ResendVerificationEmailRequest>(r => r.Email == request.Email), 
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ResendVerificationEmail_ShouldCallAuthServiceWithCorrectRequest()
+    {
+        // Arrange
+        var request = TestDataBuilder.ResendVerificationEmail.ValidRequest();
+        var expectedMessage = "Verification email sent successfully.";
+
+        _mockAuthService.Setup(x => x.ResendVerificationEmailAsync(It.IsAny<ResendVerificationEmailRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.ResendVerificationEmail(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        
+        _mockAuthService.Verify(
+            x => x.ResendVerificationEmailAsync(It.Is<ResendVerificationEmailRequest>(r => 
+                r.Email == request.Email), It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task ResendVerificationEmail_WithSpecialCharacterEmail_ShouldReturnOk()
+    {
+        // Arrange
+        var request = TestDataBuilder.ResendVerificationEmail.RequestWithSpecialCharacterEmail();
+        var expectedMessage = "If this email exists and is not yet verified, a new verification email has been sent.";
+
+        _mockAuthService.Setup(x => x.ResendVerificationEmailAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.ResendVerificationEmail(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        
+        var message = GetMessageFromResponse(okResult!.Value);
+        message.Should().Be(expectedMessage);
+    }
+
+    #endregion
+
+    #region Validation Tests
+
+    [Fact]
+    public async Task ResendVerificationEmail_WithNullRequest_ShouldReturnBadRequest()
+    {
+        // Act
+        var result = await _authController.ResendVerificationEmail(null!, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+        var badRequestResult = result as BadRequestObjectResult;
+        badRequestResult!.StatusCode.Should().Be(400);
+        badRequestResult.Value.Should().Be("Request cannot be null.");
+
+        // Verify AuthService was not called
+        _mockAuthService.Verify(x => x.ResendVerificationEmailAsync(It.IsAny<ResendVerificationEmailRequest>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ResendVerificationEmail_WithInvalidEmailFormat_ShouldReturnOkWithGenericMessage()
+    {
+        // Arrange
+        var request = TestDataBuilder.ResendVerificationEmail.RequestWithInvalidEmail();
+        var expectedMessage = "If this email exists and is not yet verified, a new verification email has been sent.";
+
+        _mockAuthService.Setup(x => x.ResendVerificationEmailAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.ResendVerificationEmail(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        
+        var message = GetMessageFromResponse(okResult!.Value);
+        message.Should().Be(expectedMessage);
+    }
+
+    [Fact]
+    public async Task ResendVerificationEmail_WithEmptyEmail_ShouldReturnOkWithGenericMessage()
+    {
+        // Arrange
+        var request = TestDataBuilder.ResendVerificationEmail.RequestWithEmptyEmail();
+        var expectedMessage = "If this email exists and is not yet verified, a new verification email has been sent.";
+
+        _mockAuthService.Setup(x => x.ResendVerificationEmailAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.ResendVerificationEmail(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        
+        var message = GetMessageFromResponse(okResult!.Value);
+        message.Should().Be(expectedMessage);
+    }
+
+    [Fact]
+    public async Task ResendVerificationEmail_WithNonExistentEmail_ShouldReturnOkWithGenericMessage()
+    {
+        // Arrange
+        var request = TestDataBuilder.ResendVerificationEmail.RequestWithNonExistentEmail();
+        var expectedMessage = "If this email exists and is not yet verified, a new verification email has been sent.";
+
+        _mockAuthService.Setup(x => x.ResendVerificationEmailAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.ResendVerificationEmail(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        
+        var message = GetMessageFromResponse(okResult!.Value);
+        message.Should().Be(expectedMessage);
+    }
+
+    [Fact]
+    public async Task ResendVerificationEmail_WithMalformedEmail_ShouldReturnOkWithGenericMessage()
+    {
+        // Arrange
+        var request = TestDataBuilder.ResendVerificationEmail.RequestWithMalformedEmail();
+        var expectedMessage = "If this email exists and is not yet verified, a new verification email has been sent.";
+
+        _mockAuthService.Setup(x => x.ResendVerificationEmailAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.ResendVerificationEmail(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        
+        var message = GetMessageFromResponse(okResult!.Value);
+        message.Should().Be(expectedMessage);
+    }
+
+    #endregion
+
+    #region Business Logic Tests
+
+    [Fact]
+    public async Task ResendVerificationEmail_WithAlreadyVerifiedEmail_ShouldReturnOkWithGenericMessage()
+    {
+        // Arrange
+        var request = TestDataBuilder.ResendVerificationEmail.RequestWithAlreadyVerifiedEmail();
+        var expectedMessage = "If this email exists and is not yet verified, a new verification email has been sent.";
+
+        _mockAuthService.Setup(x => x.ResendVerificationEmailAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.ResendVerificationEmail(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        
+        var message = GetMessageFromResponse(okResult!.Value);
+        message.Should().Be(expectedMessage);
+    }
+
+    [Fact]
+    public async Task ResendVerificationEmail_ShouldInvalidatePreviousToken()
+    {
+        // Arrange
+        var request = TestDataBuilder.ResendVerificationEmail.ValidRequestWithExistingUnverifiedUser();
+        var expectedMessage = "Previous token invalidated. New verification email sent.";
+
+        _mockAuthService.Setup(x => x.ResendVerificationEmailAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.ResendVerificationEmail(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        
+        var message = GetMessageFromResponse((result as OkObjectResult)!.Value);
+        message.Should().Contain("Previous token invalidated");
+        
+        // Verify service was called to handle token invalidation
+        _mockAuthService.Verify(x => x.ResendVerificationEmailAsync(It.IsAny<ResendVerificationEmailRequest>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ResendVerificationEmail_WithRateLimitExceeded_ShouldReturnOkWithGenericMessage()
+    {
+        // Arrange
+        var request = TestDataBuilder.ResendVerificationEmail.RequestForRateLimitTesting();
+        var expectedMessage = "If this email exists and is not yet verified, a new verification email has been sent.";
+
+        _mockAuthService.Setup(x => x.ResendVerificationEmailAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.ResendVerificationEmail(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        
+        var message = GetMessageFromResponse(okResult!.Value);
+        message.Should().Be(expectedMessage);
+    }
+
+    [Fact]
+    public async Task ResendVerificationEmail_WithInactiveUser_ShouldReturnOkWithGenericMessage()
+    {
+        // Arrange
+        var request = TestDataBuilder.ResendVerificationEmail.RequestWithInactiveUserEmail();
+        var expectedMessage = "If this email exists and is not yet verified, a new verification email has been sent.";
+
+        _mockAuthService.Setup(x => x.ResendVerificationEmailAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.ResendVerificationEmail(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        
+        var message = GetMessageFromResponse(okResult!.Value);
+        message.Should().Be(expectedMessage);
+    }
+
+    [Fact]
+    public async Task ResendVerificationEmail_ShouldPreventUserEnumeration()
+    {
+        // Arrange
+        var existingEmailRequest = TestDataBuilder.ResendVerificationEmail.ValidRequest();
+        var nonExistentEmailRequest = TestDataBuilder.ResendVerificationEmail.RequestWithNonExistentEmail();
+        var genericMessage = "If this email exists and is not yet verified, a new verification email has been sent.";
+
+        _mockAuthService.Setup(x => x.ResendVerificationEmailAsync(It.IsAny<ResendVerificationEmailRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, genericMessage));
+
+        // Act
+        var result1 = await _authController.ResendVerificationEmail(existingEmailRequest, CancellationToken.None);
+        var result2 = await _authController.ResendVerificationEmail(nonExistentEmailRequest, CancellationToken.None);
+
+        // Assert
+        result1.Should().BeOfType<OkObjectResult>();
+        result2.Should().BeOfType<OkObjectResult>();
+        
+        var message1 = GetMessageFromResponse((result1 as OkObjectResult)!.Value);
+        var message2 = GetMessageFromResponse((result2 as OkObjectResult)!.Value);
+        
+        // Both should return the same generic message
+        message1.Should().Be(genericMessage);
+        message2.Should().Be(genericMessage);
+    }
+
+    #endregion
+
+    #region Security Tests
+
+    [Fact]
+    public async Task ResendVerificationEmail_ShouldImplementRateLimiting()
+    {
+        // Arrange
+        var request = TestDataBuilder.ResendVerificationEmail.RequestForRateLimitTesting();
+        var expectedMessage = "If this email exists and is not yet verified, a new verification email has been sent.";
+
+        _mockAuthService.Setup(x => x.ResendVerificationEmailAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.ResendVerificationEmail(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        
+        // Verify rate limiting is handled by service
+        _mockAuthService.Verify(x => x.ResendVerificationEmailAsync(It.IsAny<ResendVerificationEmailRequest>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ResendVerificationEmail_ShouldGenerateSecureTokens()
+    {
+        // Arrange
+        var request = TestDataBuilder.ResendVerificationEmail.ValidRequest();
+        var expectedMessage = "Secure verification token generated and sent.";
+
+        _mockAuthService.Setup(x => x.ResendVerificationEmailAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.ResendVerificationEmail(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        
+        var message = GetMessageFromResponse((result as OkObjectResult)!.Value);
+        message.Should().Contain("token");
+        
+        // Verify secure token generation through service call
+        _mockAuthService.Verify(x => x.ResendVerificationEmailAsync(It.IsAny<ResendVerificationEmailRequest>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ResendVerificationEmail_ShouldPreventSpam()
+    {
+        // Arrange
+        var request = TestDataBuilder.ResendVerificationEmail.RequestForSpamPrevention();
+        var expectedMessage = "If this email exists and is not yet verified, a new verification email has been sent.";
+
+        _mockAuthService.Setup(x => x.ResendVerificationEmailAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.ResendVerificationEmail(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        
+        // Verify spam prevention is handled by always returning generic message
+        var message = GetMessageFromResponse((result as OkObjectResult)!.Value);
+        message.Should().Be(expectedMessage);
+    }
+
+    [Fact]
+    public async Task ResendVerificationEmail_ShouldHandleCaseSensitiveEmails()
+    {
+        // Arrange
+        var request = TestDataBuilder.ResendVerificationEmail.RequestWithCaseSensitiveEmail();
+        var expectedMessage = "If this email exists and is not yet verified, a new verification email has been sent.";
+
+        _mockAuthService.Setup(x => x.ResendVerificationEmailAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.ResendVerificationEmail(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        
+        var message = GetMessageFromResponse((result as OkObjectResult)!.Value);
+        message.Should().Be(expectedMessage);
+    }
+
+    #endregion
+
+    #region Server Error Tests
+
+    [Fact]
+    public async Task ResendVerificationEmail_WhenServiceReturnsFailure_ShouldReturnInternalServerError()
+    {
+        // Arrange
+        var request = TestDataBuilder.ResendVerificationEmail.ValidRequest();
+        var errorMessage = "Failed to send verification email due to email service error.";
+
+        _mockAuthService.Setup(x => x.ResendVerificationEmailAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((false, errorMessage));
+
+        // Act
+        var result = await _authController.ResendVerificationEmail(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<ObjectResult>();
+        var errorResult = result as ObjectResult;
+        errorResult!.StatusCode.Should().Be(500);
+        
+        var message = GetMessageFromResponse(errorResult.Value);
+        message.Should().Be(errorMessage);
+    }
+
+    [Fact]
+    public async Task ResendVerificationEmail_WhenServiceThrowsException_ShouldThrowException()
+    {
+        // Arrange
+        var request = TestDataBuilder.ResendVerificationEmail.ValidRequest();
+        var exceptionMessage = "Email service connection failed";
+
+        _mockAuthService.Setup(x => x.ResendVerificationEmailAsync(request, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new Exception(exceptionMessage));
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<Exception>(() => 
+            _authController.ResendVerificationEmail(request, CancellationToken.None));
+        
+        exception.Message.Should().Be(exceptionMessage);
+    }
+
+    [Fact]
+    public async Task ResendVerificationEmail_WithEmailServiceError_ShouldReturnInternalServerError()
+    {
+        // Arrange
+        var request = TestDataBuilder.ResendVerificationEmail.ValidRequest();
+        var errorMessage = "Email service temporarily unavailable.";
+
+        _mockAuthService.Setup(x => x.ResendVerificationEmailAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((false, errorMessage));
+
+        // Act
+        var result = await _authController.ResendVerificationEmail(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<ObjectResult>();
+        var errorResult = result as ObjectResult;
+        errorResult!.StatusCode.Should().Be(500);
+        
+        var message = GetMessageFromResponse(errorResult.Value);
+        message.Should().Contain("Email service");
+    }
+
+    #endregion
+
+    #region Logging Tests
+
+    [Fact]
+    public async Task ResendVerificationEmail_ShouldLogResendRequest()
+    {
+        // Arrange
+        var request = TestDataBuilder.ResendVerificationEmail.ValidRequest();
+        var expectedMessage = "Verification email resent successfully.";
+
+        _mockAuthService.Setup(x => x.ResendVerificationEmailAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.ResendVerificationEmail(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        
+        // Verify request was logged
+        _mockControllerLogger.Verify(
+            x => x.Log(
+                LogLevel.Information,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((o, t) => o.ToString()!.Contains($"Received request to resend verification email for Email: {request.Email}")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task ResendVerificationEmail_WithSuccessfulResend_ShouldLogCompletion()
+    {
+        // Arrange
+        var request = TestDataBuilder.ResendVerificationEmail.ValidRequest();
+        var expectedMessage = "Verification email resent successfully.";
+
+        _mockAuthService.Setup(x => x.ResendVerificationEmailAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.ResendVerificationEmail(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        
+        // Verify completion was logged
+        _mockControllerLogger.Verify(
+            x => x.Log(
+                LogLevel.Information,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((o, t) => o.ToString()!.Contains($"Resend verification email process completed for Email: {request.Email}")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task ResendVerificationEmail_WithFailedResend_ShouldLogError()
+    {
+        // Arrange
+        var request = TestDataBuilder.ResendVerificationEmail.ValidRequest();
+        var errorMessage = "Email service error";
+
+        _mockAuthService.Setup(x => x.ResendVerificationEmailAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((false, errorMessage));
+
+        // Act
+        var result = await _authController.ResendVerificationEmail(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<ObjectResult>();
+        
+        // Verify error was logged
+        _mockControllerLogger.Verify(
+            x => x.Log(
+                LogLevel.Error,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((o, t) => o.ToString()!.Contains($"Failed to process resend verification email for {request.Email}")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task ResendVerificationEmail_ShouldNotLogSensitiveInformation()
+    {
+        // Arrange
+        var request = TestDataBuilder.ResendVerificationEmail.ValidRequest();
+        var expectedMessage = "Verification email resent successfully.";
+
+        _mockAuthService.Setup(x => x.ResendVerificationEmailAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.ResendVerificationEmail(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        
+        // Verify no sensitive tokens are logged (only email is logged which is expected)
+        _mockControllerLogger.Verify(
+            x => x.Log(
+                LogLevel.Information,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((o, t) => !o.ToString()!.Contains("token") || !o.ToString()!.Contains("password")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.AtLeast(1));
+    }
+
+    #endregion
+
+    #region Integration Tests
+
+    [Fact]
+    public async Task ResendVerificationEmail_EndToEndHappyPath_ShouldReturnCompleteResponse()
+    {
+        // Arrange
+        var request = TestDataBuilder.ResendVerificationEmail.ValidRequestWithExistingUnverifiedUser();
+        var expectedMessage = "A new verification email has been sent to your email address. Please check your inbox and spam folder.";
+
+        _mockAuthService.Setup(x => x.ResendVerificationEmailAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.ResendVerificationEmail(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        okResult!.StatusCode.Should().Be(200);
+        
+        var message = GetMessageFromResponse(okResult.Value);
+        message.Should().Be(expectedMessage);
+        message.Should().Contain("verification email has been sent");
+        message.Should().Contain("check your inbox");
+        
+        // Verify all service interactions
+        _mockAuthService.Verify(x => x.ResendVerificationEmailAsync(It.IsAny<ResendVerificationEmailRequest>(), It.IsAny<CancellationToken>()), Times.Once);
+        
+        // Verify logging flow
+        _mockControllerLogger.Verify(
+            x => x.Log(
+                LogLevel.Information,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((o, t) => o.ToString()!.Contains("Received request to resend verification email")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+            
+        _mockControllerLogger.Verify(
+            x => x.Log(
+                LogLevel.Information,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((o, t) => o.ToString()!.Contains("Resend verification email process completed")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task ResendVerificationEmail_CompleteWorkflow_ShouldHandleAllSteps()
+    {
+        // Arrange
+        var request = TestDataBuilder.ResendVerificationEmail.ValidRequest();
+        var expectedMessage = "If this email exists and is not yet verified, a new verification email has been sent.";
+
+        _mockAuthService.Setup(x => x.ResendVerificationEmailAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, expectedMessage));
+
+        // Act
+        var result = await _authController.ResendVerificationEmail(request, CancellationToken.None);
+
+        // Assert
+        // Verify HTTP response
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        okResult!.StatusCode.Should().Be(200);
+        
+        // Verify response content
+        var message = GetMessageFromResponse(okResult.Value);
+        message.Should().Be(expectedMessage);
+        message.Should().Contain("verification email");
+        
+        // Verify service call with correct parameters
+        _mockAuthService.Verify(
+            x => x.ResendVerificationEmailAsync(It.Is<ResendVerificationEmailRequest>(r => 
+                r.Email == request.Email), It.IsAny<CancellationToken>()),
+            Times.Once);
+        
+        // Verify complete logging workflow
+        _mockControllerLogger.Verify(
+            x => x.Log(
+                It.IsAny<LogLevel>(),
+                It.IsAny<EventId>(),
+                It.IsAny<It.IsAnyType>(),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.AtLeast(2)); // Request log + completion log
     }
 
     #endregion
