@@ -8,13 +8,22 @@ using QuantumBands.Application.Features.Users.Commands.UpdateProfile;
 using QuantumBands.Application.Features.Users.Commands.ChangePassword;
 using QuantumBands.Application.Features.Authentication;
 using QuantumBands.Application.Features.Wallets.Commands.BankDeposit;
+using QuantumBands.Application.Features.Wallets.Commands.CreateWithdrawal;
+using QuantumBands.Application.Features.Wallets.Commands.InternalTransfer;
 using QuantumBands.Application.Features.Wallets.Dtos;
 using QuantumBands.Application.Features.Exchange.Commands.CreateOrder;
 using QuantumBands.Application.Features.Exchange.Dtos;
+using QuantumBands.Application.Features.Exchange.Queries;
 using QuantumBands.Application.Features.Users.Commands.Setup2FA;
 using QuantumBands.Application.Features.Users.Commands.Enable2FA;
 using QuantumBands.Application.Features.Users.Commands.Verify2FA;
 using QuantumBands.Application.Features.Users.Commands.Disable2FA;
+using QuantumBands.Application.Features.Wallets.Queries.GetTransactions;
+using QuantumBands.Application.Features.TradingAccounts.Queries;
+using QuantumBands.Application.Features.Admin.TradingAccounts.Dtos;
+using QuantumBands.Application.Features.TradingAccounts.Dtos;
+using QuantumBands.Application.Features.Portfolio.Dtos;
+using QuantumBands.Application.Common.Models;
 using QuantumBands.Domain.Entities;
 
 namespace QuantumBands.Tests.Fixtures;
@@ -2236,6 +2245,2405 @@ public static class TestDataBuilder
             CurrencyCode = currencyCode,
             EmailForQrCode = email,
             UpdatedAt = DateTime.UtcNow
+        };
+    }
+
+    public static class GetTransactions
+    {
+        /// <summary>
+        /// Valid query with default pagination
+        /// </summary>
+        public static GetWalletTransactionsQuery ValidQuery() => new()
+        {
+            PageNumber = 1,
+            PageSize = 10,
+            SortBy = "TransactionDate",
+            SortOrder = "desc"
+        };
+
+        /// <summary>
+        /// Query with maximum allowed page size
+        /// </summary>
+        public static GetWalletTransactionsQuery QueryWithMaxPageSize() => new()
+        {
+            PageNumber = 1,
+            PageSize = 50, // According to ticket: max 50
+            SortBy = "TransactionDate",
+            SortOrder = "desc"
+        };
+
+        /// <summary>
+        /// Query with page size exceeding maximum
+        /// </summary>
+        public static GetWalletTransactionsQuery QueryWithExcessivePageSize() => new()
+        {
+            PageNumber = 1,
+            PageSize = 100, // Exceeds max 50
+            SortBy = "TransactionDate",
+            SortOrder = "desc"
+        };
+
+        /// <summary>
+        /// Query with zero page size
+        /// </summary>
+        public static GetWalletTransactionsQuery QueryWithZeroPageSize() => new()
+        {
+            PageNumber = 1,
+            PageSize = 0,
+            SortBy = "TransactionDate",
+            SortOrder = "desc"
+        };
+
+        /// <summary>
+        /// Query with negative page number
+        /// </summary>
+        public static GetWalletTransactionsQuery QueryWithNegativePageNumber() => new()
+        {
+            PageNumber = -1,
+            PageSize = 10,
+            SortBy = "TransactionDate",
+            SortOrder = "desc"
+        };
+
+        /// <summary>
+        /// Query with transaction type filter
+        /// </summary>
+        public static GetWalletTransactionsQuery QueryWithTransactionTypeFilter() => new()
+        {
+            PageNumber = 1,
+            PageSize = 10,
+            TransactionType = "Deposit",
+            SortBy = "TransactionDate",
+            SortOrder = "desc"
+        };
+
+        /// <summary>
+        /// Query with date range filter
+        /// </summary>
+        public static GetWalletTransactionsQuery QueryWithDateRangeFilter() => new()
+        {
+            PageNumber = 1,
+            PageSize = 10,
+            StartDate = DateTime.UtcNow.AddDays(-30),
+            EndDate = DateTime.UtcNow,
+            SortBy = "TransactionDate",
+            SortOrder = "desc"
+        };
+
+        /// <summary>
+        /// Query with all filters combined
+        /// </summary>
+        public static GetWalletTransactionsQuery QueryWithCombinedFilters() => new()
+        {
+            PageNumber = 1,
+            PageSize = 20,
+            TransactionType = "Withdrawal",
+            Status = "Completed",
+            StartDate = DateTime.UtcNow.AddDays(-7),
+            EndDate = DateTime.UtcNow,
+            SortBy = "Amount",
+            SortOrder = "asc"
+        };
+
+        /// <summary>
+        /// Valid paginated result with transactions
+        /// </summary>
+        public static PaginatedList<WalletTransactionDto> ValidPaginatedTransactions() => new(
+            new List<WalletTransactionDto>
+            {
+                ValidDepositTransaction(),
+                ValidWithdrawalTransaction(),
+                ValidTransferTransaction()
+            },
+            15, // totalCount
+            1,  // pageNumber
+            10  // pageSize
+        );
+
+        /// <summary>
+        /// Empty paginated result
+        /// </summary>
+        public static PaginatedList<WalletTransactionDto> EmptyPaginatedTransactions() => new(
+            new List<WalletTransactionDto>(),
+            0,  // totalCount
+            1,  // pageNumber
+            10  // pageSize
+        );
+
+        /// <summary>
+        /// Large paginated result with max page size
+        /// </summary>
+        public static PaginatedList<WalletTransactionDto> LargePaginatedTransactions() => new(
+            GenerateTransactionList(50),
+            250, // totalCount
+            1,   // pageNumber
+            50   // pageSize
+        );
+
+        /// <summary>
+        /// Single page result
+        /// </summary>
+        public static PaginatedList<WalletTransactionDto> SinglePageTransactions() => new(
+            new List<WalletTransactionDto>
+            {
+                ValidDepositTransaction(),
+                ValidWithdrawalTransaction()
+            },
+            2,  // totalCount
+            1,  // pageNumber
+            10  // pageSize
+        );
+
+        /// <summary>
+        /// Valid deposit transaction DTO
+        /// </summary>
+        public static WalletTransactionDto ValidDepositTransaction() => new()
+        {
+            TransactionId = 1001,
+            TransactionTypeName = "Bank Deposit",
+            Amount = 1000.50m,
+            CurrencyCode = "USD",
+            BalanceAfter = 2500.75m,
+            ReferenceId = "FINIXDEP202401001",
+            PaymentMethod = "Bank Transfer",
+            Description = "Bank deposit via reference code",
+            Status = "Completed",
+            TransactionDate = DateTime.UtcNow.AddDays(-5)
+        };
+
+        /// <summary>
+        /// Valid withdrawal transaction DTO
+        /// </summary>
+        public static WalletTransactionDto ValidWithdrawalTransaction() => new()
+        {
+            TransactionId = 1002,
+            TransactionTypeName = "Withdrawal",
+            Amount = -500.00m,
+            CurrencyCode = "USD",
+            BalanceAfter = 2000.75m,
+            ReferenceId = "FINIXWTH202401002",
+            PaymentMethod = "Bank Transfer",
+            Description = "Withdrawal to bank account",
+            Status = "Completed",
+            TransactionDate = DateTime.UtcNow.AddDays(-3)
+        };
+
+        /// <summary>
+        /// Valid internal transfer transaction DTO
+        /// </summary>
+        public static WalletTransactionDto ValidTransferTransaction() => new()
+        {
+            TransactionId = 1003,
+            TransactionTypeName = "Internal Transfer",
+            Amount = -250.25m,
+            CurrencyCode = "USD",
+            BalanceAfter = 1750.50m,
+            ReferenceId = "FINIXTRF202401003",
+            PaymentMethod = "Internal",
+            Description = "Transfer to user@example.com",
+            Status = "Completed",
+            TransactionDate = DateTime.UtcNow.AddDays(-1)
+        };
+
+        /// <summary>
+        /// Pending transaction DTO
+        /// </summary>
+        public static WalletTransactionDto PendingTransaction() => new()
+        {
+            TransactionId = 1004,
+            TransactionTypeName = "Bank Deposit",
+            Amount = 2000.00m,
+            CurrencyCode = "USD",
+            BalanceAfter = 1750.50m, // Balance not updated yet
+            ReferenceId = "FINIXDEP202401004",
+            PaymentMethod = "Bank Transfer",
+            Description = "Pending bank deposit confirmation",
+            Status = "PendingAdminConfirmation",
+            TransactionDate = DateTime.UtcNow
+        };
+
+        /// <summary>
+        /// Small amount transaction DTO
+        /// </summary>
+        public static WalletTransactionDto SmallAmountTransaction() => new()
+        {
+            TransactionId = 1005,
+            TransactionTypeName = "Micro Deposit",
+            Amount = 0.01m,
+            CurrencyCode = "USD",
+            BalanceAfter = 1750.51m,
+            ReferenceId = "FINIXMIC202401005",
+            PaymentMethod = "System",
+            Description = "Interest payment",
+            Status = "Completed",
+            TransactionDate = DateTime.UtcNow.AddHours(-2)
+        };
+
+        /// <summary>
+        /// Generate a list of transactions for testing
+        /// </summary>
+        private static List<WalletTransactionDto> GenerateTransactionList(int count)
+        {
+            var transactions = new List<WalletTransactionDto>();
+            for (int i = 1; i <= count; i++)
+            {
+                transactions.Add(new WalletTransactionDto
+                {
+                    TransactionId = 2000 + i,
+                    TransactionTypeName = i % 2 == 0 ? "Deposit" : "Withdrawal",
+                    Amount = i % 2 == 0 ? 100.00m + i : -(50.00m + i),
+                    CurrencyCode = "USD",
+                    BalanceAfter = 1000.00m + (i * 10),
+                    ReferenceId = $"FINIXTEST{DateTime.UtcNow:yyyyMM}{i:D3}",
+                    PaymentMethod = "Bank Transfer",
+                    Description = $"Test transaction #{i}",
+                    Status = "Completed",
+                    TransactionDate = DateTime.UtcNow.AddDays(-i)
+                });
+            }
+            return transactions;
+        }
+    }
+
+    public static class CreateWithdrawal
+    {
+        /// <summary>
+        /// Valid withdrawal request
+        /// </summary>
+        public static CreateWithdrawalRequest ValidRequest() => new()
+        {
+            Amount = 500.00m,
+            CurrencyCode = "USD",
+            WithdrawalMethodDetails = "Bank: VCB, Account: 0012300456, Name: Test User, Branch: HN",
+            Notes = "Withdrawal for personal use"
+        };
+
+        /// <summary>
+        /// Withdrawal request with minimum amount
+        /// </summary>
+        public static CreateWithdrawalRequest MinimumAmountRequest() => new()
+        {
+            Amount = 0.01m,
+            CurrencyCode = "USD", 
+            WithdrawalMethodDetails = "Bank: VCB, Account: 0012300456, Name: Test User, Branch: HN",
+            Notes = "Test minimum withdrawal"
+        };
+
+        /// <summary>
+        /// Withdrawal request with large amount
+        /// </summary>
+        public static CreateWithdrawalRequest LargeAmountRequest() => new()
+        {
+            Amount = 50000.00m,
+            CurrencyCode = "USD",
+            WithdrawalMethodDetails = "Bank: VCB, Account: 0012300456, Name: Test User, Branch: HN",
+            Notes = "Large withdrawal for business"
+        };
+
+        /// <summary>
+        /// Withdrawal request with zero amount (invalid)
+        /// </summary>
+        public static CreateWithdrawalRequest ZeroAmountRequest() => new()
+        {
+            Amount = 0.00m,
+            CurrencyCode = "USD",
+            WithdrawalMethodDetails = "Bank: VCB, Account: 0012300456, Name: Test User, Branch: HN",
+            Notes = "Invalid zero withdrawal"
+        };
+
+        /// <summary>
+        /// Withdrawal request with negative amount (invalid)
+        /// </summary>
+        public static CreateWithdrawalRequest NegativeAmountRequest() => new()
+        {
+            Amount = -100.00m,
+            CurrencyCode = "USD",
+            WithdrawalMethodDetails = "Bank: VCB, Account: 0012300456, Name: Test User, Branch: HN",
+            Notes = "Invalid negative withdrawal"
+        };
+
+        /// <summary>
+        /// Withdrawal request with invalid currency
+        /// </summary>
+        public static CreateWithdrawalRequest InvalidCurrencyRequest() => new()
+        {
+            Amount = 500.00m,
+            CurrencyCode = "EUR", // Not supported
+            WithdrawalMethodDetails = "Bank: VCB, Account: 0012300456, Name: Test User, Branch: HN",
+            Notes = "Withdrawal with unsupported currency"
+        };
+
+        /// <summary>
+        /// Withdrawal request with empty withdrawal method details
+        /// </summary>
+        public static CreateWithdrawalRequest EmptyWithdrawalMethodRequest() => new()
+        {
+            Amount = 500.00m,
+            CurrencyCode = "USD",
+            WithdrawalMethodDetails = "",
+            Notes = "Missing withdrawal details"
+        };
+
+        /// <summary>
+        /// Withdrawal request with too long withdrawal method details
+        /// </summary>
+        public static CreateWithdrawalRequest TooLongWithdrawalMethodRequest() => new()
+        {
+            Amount = 500.00m,
+            CurrencyCode = "USD",
+            WithdrawalMethodDetails = new string('A', 1001), // Exceeds 1000 characters
+            Notes = "Withdrawal with too long details"
+        };
+
+        /// <summary>
+        /// Withdrawal request with too long notes
+        /// </summary>
+        public static CreateWithdrawalRequest TooLongNotesRequest() => new()
+        {
+            Amount = 500.00m,
+            CurrencyCode = "USD",
+            WithdrawalMethodDetails = "Bank: VCB, Account: 0012300456, Name: Test User, Branch: HN",
+            Notes = new string('N', 501) // Exceeds 500 characters
+        };
+
+        /// <summary>
+        /// Withdrawal request without notes
+        /// </summary>
+        public static CreateWithdrawalRequest RequestWithoutNotes() => new()
+        {
+            Amount = 500.00m,
+            CurrencyCode = "USD",
+            WithdrawalMethodDetails = "Bank: VCB, Account: 0012300456, Name: Test User, Branch: HN",
+            Notes = null
+        };
+
+        /// <summary>
+        /// Withdrawal request with amount exceeding balance
+        /// </summary>
+        public static CreateWithdrawalRequest AmountExceedingBalanceRequest() => new()
+        {
+            Amount = 100000.00m, // Very large amount
+            CurrencyCode = "USD",
+            WithdrawalMethodDetails = "Bank: VCB, Account: 0012300456, Name: Test User, Branch: HN",
+            Notes = "Amount exceeding wallet balance"
+        };
+
+        /// <summary>
+        /// Valid withdrawal request response DTO
+        /// </summary>
+        public static WithdrawalRequestDto ValidResponse() => new()
+        {
+            WithdrawalRequestId = 3001,
+            UserId = 1,
+            Amount = 500.00m,
+            CurrencyCode = "USD",
+            Status = "PendingAdminApproval",
+            WithdrawalMethodDetails = "Bank: VCB, Account: 0012300456, Name: Test User, Branch: HN",
+            Notes = "Withdrawal for personal use",
+            RequestedAt = DateTime.UtcNow
+        };
+
+        /// <summary>
+        /// Withdrawal request response for large amount
+        /// </summary>
+        public static WithdrawalRequestDto LargeAmountResponse() => new()
+        {
+            WithdrawalRequestId = 3002,
+            UserId = 1,
+            Amount = 50000.00m,
+            CurrencyCode = "USD",
+            Status = "PendingAdminApproval",
+            WithdrawalMethodDetails = "Bank: VCB, Account: 0012300456, Name: Test User, Branch: HN",
+            Notes = "Large withdrawal for business",
+            RequestedAt = DateTime.UtcNow
+        };
+
+        /// <summary>
+        /// Withdrawal request response without notes
+        /// </summary>
+        public static WithdrawalRequestDto ResponseWithoutNotes() => new()
+        {
+            WithdrawalRequestId = 3003,
+            UserId = 1,
+            Amount = 500.00m,
+            CurrencyCode = "USD",
+            Status = "PendingAdminApproval",
+            WithdrawalMethodDetails = "Bank: VCB, Account: 0012300456, Name: Test User, Branch: HN",
+            Notes = null,
+            RequestedAt = DateTime.UtcNow
+        };
+
+        /// <summary>
+        /// Custom withdrawal request
+        /// </summary>
+        public static CreateWithdrawalRequest CustomRequest(decimal amount, string currencyCode, string withdrawalDetails, string? notes = null) => new()
+        {
+            Amount = amount,
+            CurrencyCode = currencyCode,
+            WithdrawalMethodDetails = withdrawalDetails,
+            Notes = notes
+        };
+
+        /// <summary>
+        /// Custom withdrawal response
+        /// </summary>
+        public static WithdrawalRequestDto CustomResponse(long requestId, int userId, decimal amount, string status = "PendingAdminApproval") => new()
+        {
+            WithdrawalRequestId = requestId,
+            UserId = userId,
+            Amount = amount,
+            CurrencyCode = "USD",
+            Status = status,
+            WithdrawalMethodDetails = "Bank: VCB, Account: 0012300456, Name: Test User, Branch: HN",
+            Notes = "Custom withdrawal request",
+            RequestedAt = DateTime.UtcNow
+        };
+    }
+
+    public static class VerifyRecipient
+    {
+        /// <summary>
+        /// Valid recipient verification request
+        /// </summary>
+        public static VerifyRecipientRequest ValidRequest() => new()
+        {
+            RecipientEmail = "recipient@example.com"
+        };
+
+        /// <summary>
+        /// Valid recipient verification request with different email
+        /// </summary>
+        public static VerifyRecipientRequest ValidAlternativeRequest() => new()
+        {
+            RecipientEmail = "user_b@example.com"
+        };
+
+        /// <summary>
+        /// Request with empty email
+        /// </summary>
+        public static VerifyRecipientRequest EmptyEmailRequest() => new()
+        {
+            RecipientEmail = ""
+        };
+
+        /// <summary>
+        /// Request with invalid email format
+        /// </summary>
+        public static VerifyRecipientRequest InvalidEmailFormatRequest() => new()
+        {
+            RecipientEmail = "invalid-email-format"
+        };
+
+        /// <summary>
+        /// Request with non-existent email
+        /// </summary>
+        public static VerifyRecipientRequest NonExistentEmailRequest() => new()
+        {
+            RecipientEmail = "nonexistent@example.com"
+        };
+
+        /// <summary>
+        /// Request with self email (for testing self-transfer prevention)
+        /// </summary>
+        public static VerifyRecipientRequest SelfEmailRequest() => new()
+        {
+            RecipientEmail = "testuser@example.com"
+        };
+
+        /// <summary>
+        /// Request with inactive user email
+        /// </summary>
+        public static VerifyRecipientRequest InactiveUserEmailRequest() => new()
+        {
+            RecipientEmail = "inactive@example.com"
+        };
+
+        /// <summary>
+        /// Request with too long email
+        /// </summary>
+        public static VerifyRecipientRequest TooLongEmailRequest() => new()
+        {
+            RecipientEmail = new string('a', 250) + "@example.com" // Over 255 chars
+        };
+
+        /// <summary>
+        /// Valid recipient info response
+        /// </summary>
+        public static RecipientInfoResponse ValidResponse() => new()
+        {
+            RecipientUserId = 2,
+            RecipientUsername = "recipient_user",
+            RecipientFullName = "Recipient Full Name"
+        };
+
+        /// <summary>
+        /// Alternative valid recipient info response
+        /// </summary>
+        public static RecipientInfoResponse AlternativeValidResponse() => new()
+        {
+            RecipientUserId = 3,
+            RecipientUsername = "user_b",
+            RecipientFullName = "User B Full Name"
+        };
+
+        /// <summary>
+        /// Recipient info response without full name
+        /// </summary>
+        public static RecipientInfoResponse ResponseWithoutFullName() => new()
+        {
+            RecipientUserId = 4,
+            RecipientUsername = "minimal_user",
+            RecipientFullName = null
+        };
+    }
+
+    public static class ExecuteInternalTransfer
+    {
+        /// <summary>
+        /// Valid internal transfer request
+        /// </summary>
+        public static ExecuteInternalTransferRequest ValidRequest() => new()
+        {
+            RecipientUserId = 2,
+            Amount = 100.00m,
+            CurrencyCode = "USD",
+            Description = "Transfer for lunch payment"
+        };
+
+        /// <summary>
+        /// Large amount transfer request
+        /// </summary>
+        public static ExecuteInternalTransferRequest LargeAmountRequest() => new()
+        {
+            RecipientUserId = 2,
+            Amount = 5000.00m,
+            CurrencyCode = "USD",
+            Description = "Large transfer for business payment"
+        };
+
+        /// <summary>
+        /// Minimum amount transfer request
+        /// </summary>
+        public static ExecuteInternalTransferRequest MinimumAmountRequest() => new()
+        {
+            RecipientUserId = 2,
+            Amount = 0.01m,
+            CurrencyCode = "USD",
+            Description = "Minimum transfer test"
+        };
+
+        /// <summary>
+        /// Transfer without description
+        /// </summary>
+        public static ExecuteInternalTransferRequest RequestWithoutDescription() => new()
+        {
+            RecipientUserId = 2,
+            Amount = 100.00m,
+            CurrencyCode = "USD",
+            Description = null
+        };
+
+        /// <summary>
+        /// Transfer request with zero amount (invalid)
+        /// </summary>
+        public static ExecuteInternalTransferRequest ZeroAmountRequest() => new()
+        {
+            RecipientUserId = 2,
+            Amount = 0.00m,
+            CurrencyCode = "USD",
+            Description = "Invalid zero transfer"
+        };
+
+        /// <summary>
+        /// Transfer request with negative amount (invalid)
+        /// </summary>
+        public static ExecuteInternalTransferRequest NegativeAmountRequest() => new()
+        {
+            RecipientUserId = 2,
+            Amount = -50.00m,
+            CurrencyCode = "USD",
+            Description = "Invalid negative transfer"
+        };
+
+        /// <summary>
+        /// Transfer request with invalid recipient ID
+        /// </summary>
+        public static ExecuteInternalTransferRequest InvalidRecipientIdRequest() => new()
+        {
+            RecipientUserId = -1,
+            Amount = 100.00m,
+            CurrencyCode = "USD",
+            Description = "Transfer to invalid recipient"
+        };
+
+        /// <summary>
+        /// Transfer request with zero recipient ID
+        /// </summary>
+        public static ExecuteInternalTransferRequest ZeroRecipientIdRequest() => new()
+        {
+            RecipientUserId = 0,
+            Amount = 100.00m,
+            CurrencyCode = "USD",
+            Description = "Transfer to zero recipient ID"
+        };
+
+        /// <summary>
+        /// Transfer request with invalid currency
+        /// </summary>
+        public static ExecuteInternalTransferRequest InvalidCurrencyRequest() => new()
+        {
+            RecipientUserId = 2,
+            Amount = 100.00m,
+            CurrencyCode = "EUR", // Not supported
+            Description = "Transfer with unsupported currency"
+        };
+
+        /// <summary>
+        /// Transfer request with too long description
+        /// </summary>
+        public static ExecuteInternalTransferRequest TooLongDescriptionRequest() => new()
+        {
+            RecipientUserId = 2,
+            Amount = 100.00m,
+            CurrencyCode = "USD",
+            Description = new string('D', 501) // Exceeds 500 characters
+        };
+
+        /// <summary>
+        /// Self-transfer request (invalid)
+        /// </summary>
+        public static ExecuteInternalTransferRequest SelfTransferRequest() => new()
+        {
+            RecipientUserId = 1, // Same as sender
+            Amount = 100.00m,
+            CurrencyCode = "USD",
+            Description = "Invalid self-transfer"
+        };
+
+        /// <summary>
+        /// Transfer request with amount exceeding balance
+        /// </summary>
+        public static ExecuteInternalTransferRequest AmountExceedingBalanceRequest() => new()
+        {
+            RecipientUserId = 2,
+            Amount = 100000.00m, // Very large amount
+            CurrencyCode = "USD",
+            Description = "Amount exceeding sender balance"
+        };
+
+        /// <summary>
+        /// Transfer to inactive user
+        /// </summary>
+        public static ExecuteInternalTransferRequest TransferToInactiveUserRequest() => new()
+        {
+            RecipientUserId = 999, // Inactive user
+            Amount = 100.00m,
+            CurrencyCode = "USD",
+            Description = "Transfer to inactive user"
+        };
+
+        /// <summary>
+        /// Transfer to non-existent user
+        /// </summary>
+        public static ExecuteInternalTransferRequest TransferToNonExistentUserRequest() => new()
+        {
+            RecipientUserId = 99999, // Non-existent user
+            Amount = 100.00m,
+            CurrencyCode = "USD",
+            Description = "Transfer to non-existent user"
+        };
+
+        /// <summary>
+        /// Valid wallet transaction DTO response for sender
+        /// </summary>
+        public static WalletTransactionDto ValidSenderTransactionResponse() => new()
+        {
+            TransactionId = 4001,
+            TransactionTypeName = "InternalTransferSent",
+            Amount = 100.00m,
+            CurrencyCode = "USD",
+            BalanceAfter = 900.00m, // Assuming balance was 1000 before
+            ReferenceId = "TRANSFER_TO_USER_2",
+            PaymentMethod = "InternalTransfer",
+            Description = "Sent to recipient@example.com (User ID: 2). Notes: Transfer for lunch payment",
+            Status = "Completed",
+            TransactionDate = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        /// <summary>
+        /// Large amount sender transaction response
+        /// </summary>
+        public static WalletTransactionDto LargeAmountSenderTransactionResponse() => new()
+        {
+            TransactionId = 4002,
+            TransactionTypeName = "InternalTransferSent",
+            Amount = 5000.00m,
+            CurrencyCode = "USD",
+            BalanceAfter = 5000.00m, // Assuming balance was 10000 before
+            ReferenceId = "TRANSFER_TO_USER_2",
+            PaymentMethod = "InternalTransfer",
+            Description = "Sent to recipient@example.com (User ID: 2). Notes: Large transfer for business payment",
+            Status = "Completed",
+            TransactionDate = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        /// <summary>
+        /// Minimum amount sender transaction response
+        /// </summary>
+        public static WalletTransactionDto MinimumAmountSenderTransactionResponse() => new()
+        {
+            TransactionId = 4003,
+            TransactionTypeName = "InternalTransferSent",
+            Amount = 0.01m,
+            CurrencyCode = "USD",
+            BalanceAfter = 999.99m, // Assuming balance was 1000 before
+            ReferenceId = "TRANSFER_TO_USER_2",
+            PaymentMethod = "InternalTransfer",
+            Description = "Sent to recipient@example.com (User ID: 2). Notes: Minimum transfer test",
+            Status = "Completed",
+            TransactionDate = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        /// <summary>
+        /// Transaction response without description
+        /// </summary>
+        public static WalletTransactionDto TransactionResponseWithoutDescription() => new()
+        {
+            TransactionId = 4004,
+            TransactionTypeName = "InternalTransferSent",
+            Amount = 100.00m,
+            CurrencyCode = "USD",
+            BalanceAfter = 900.00m,
+            ReferenceId = "TRANSFER_TO_USER_2",
+            PaymentMethod = "InternalTransfer",
+            Description = "Sent to recipient@example.com (User ID: 2). Notes: N/A",
+            Status = "Completed",
+            TransactionDate = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        /// <summary>
+        /// Custom transfer request
+        /// </summary>
+        public static ExecuteInternalTransferRequest CustomRequest(int recipientUserId, decimal amount, string currencyCode, string? description = null) => new()
+        {
+            RecipientUserId = recipientUserId,
+            Amount = amount,
+            CurrencyCode = currencyCode,
+            Description = description
+        };
+
+        /// <summary>
+        /// Custom sender transaction response
+        /// </summary>
+        public static WalletTransactionDto CustomSenderTransactionResponse(long transactionId, decimal amount, decimal balanceAfter, int recipientUserId, string? description = null) => new()
+        {
+            TransactionId = transactionId,
+            TransactionTypeName = "InternalTransferSent",
+            Amount = amount,
+            CurrencyCode = "USD",
+            BalanceAfter = balanceAfter,
+            ReferenceId = $"TRANSFER_TO_USER_{recipientUserId}",
+            PaymentMethod = "InternalTransfer",
+            Description = $"Sent to recipient (User ID: {recipientUserId}). Notes: {description ?? "N/A"}",
+            Status = "Completed",
+            TransactionDate = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+    }
+
+    public static class TradingAccounts
+    {
+        /// <summary>
+        /// Valid GetPublicTradingAccountsQuery with default parameters
+        /// </summary>
+        public static GetPublicTradingAccountsQuery ValidDefaultQuery() => new()
+        {
+            PageNumber = 1,
+            PageSize = 10,
+            SortBy = "CreatedAt",
+            SortOrder = "Desc",
+            IsActive = null,
+            SearchTerm = null
+        };
+
+        /// <summary>
+        /// Query with pagination - page 2
+        /// </summary>
+        public static GetPublicTradingAccountsQuery SecondPageQuery() => new()
+        {
+            PageNumber = 2,
+            PageSize = 10,
+            SortBy = "AccountName",
+            SortOrder = "Asc",
+            IsActive = true,
+            SearchTerm = null
+        };
+
+        /// <summary>
+        /// Query with search term
+        /// </summary>
+        public static GetPublicTradingAccountsQuery SearchQuery() => new()
+        {
+            PageNumber = 1,
+            PageSize = 10,
+            SortBy = "AccountName",
+            SortOrder = "Asc",
+            IsActive = null,
+            SearchTerm = "AI Fund"
+        };
+
+        /// <summary>
+        /// Query with active filter
+        /// </summary>
+        public static GetPublicTradingAccountsQuery ActiveOnlyQuery() => new()
+        {
+            PageNumber = 1,
+            PageSize = 10,
+            SortBy = "CreatedAt",
+            SortOrder = "Desc",
+            IsActive = true,
+            SearchTerm = null
+        };
+
+        /// <summary>
+        /// Query with maximum page size
+        /// </summary>
+        public static GetPublicTradingAccountsQuery MaxPageSizeQuery() => new()
+        {
+            PageNumber = 1,
+            PageSize = 50, // Maximum allowed
+            SortBy = "CreatedAt",
+            SortOrder = "Desc",
+            IsActive = null,
+            SearchTerm = null
+        };
+
+        /// <summary>
+        /// Valid paginated response with multiple trading accounts
+        /// </summary>
+        public static PaginatedList<TradingAccountDto> ValidPaginatedResponse() => new(
+            new List<TradingAccountDto>
+            {
+                new()
+                {
+                    TradingAccountId = 1,
+                    AccountName = "AI Growth Fund",
+                    Description = "Artificial Intelligence focused growth fund",
+                    EaName = "QuantumBands AI v1.0",
+                    BrokerPlatformIdentifier = "QB-AI-001",
+                    InitialCapital = 1000000.00m,
+                    TotalSharesIssued = 100000,
+                    CurrentNetAssetValue = 1150000.00m,
+                    CurrentSharePrice = 11.50m,
+                    ManagementFeeRate = 0.02m,
+                    IsActive = true,
+                    CreatedByUserId = 1,
+                    CreatorUsername = "admin",
+                    CreatedAt = DateTime.UtcNow.AddDays(-30),
+                    UpdatedAt = DateTime.UtcNow.AddDays(-1)
+                },
+                new()
+                {
+                    TradingAccountId = 2,
+                    AccountName = "Tech Innovation Fund",
+                    Description = "Technology and innovation focused investment fund",
+                    EaName = "QuantumBands AI v2.0",
+                    BrokerPlatformIdentifier = "QB-TECH-002",
+                    InitialCapital = 2000000.00m,
+                    TotalSharesIssued = 150000,
+                    CurrentNetAssetValue = 2300000.00m,
+                    CurrentSharePrice = 15.33m,
+                    ManagementFeeRate = 0.025m,
+                    IsActive = true,
+                    CreatedByUserId = 1,
+                    CreatorUsername = "admin",
+                    CreatedAt = DateTime.UtcNow.AddDays(-20),
+                    UpdatedAt = DateTime.UtcNow.AddHours(-2)
+                }
+            },
+            count: 2,
+            pageNumber: 1,
+            pageSize: 10
+        );
+
+        /// <summary>
+        /// Empty paginated response
+        /// </summary>
+        public static PaginatedList<TradingAccountDto> EmptyResponse() => new(
+            new List<TradingAccountDto>(),
+            count: 0,
+            pageNumber: 1,
+            pageSize: 10
+        );
+
+        // SCRUM-55: Test data for GetTradingAccountDetails endpoint
+
+        /// <summary>
+        /// Valid GetTradingAccountDetailsQuery with default parameters
+        /// </summary>
+        public static GetTradingAccountDetailsQuery ValidDetailsQuery() => new()
+        {
+            ClosedTradesPageNumber = 1,
+            ClosedTradesPageSize = 10,
+            SnapshotsPageNumber = 1,
+            SnapshotsPageSize = 10,
+            OpenPositionsLimit = 20
+        };
+
+        /// <summary>
+        /// Query with custom pagination parameters
+        /// </summary>
+        public static GetTradingAccountDetailsQuery CustomPaginationQuery() => new()
+        {
+            ClosedTradesPageNumber = 2,
+            ClosedTradesPageSize = 5,
+            SnapshotsPageNumber = 1,
+            SnapshotsPageSize = 7,
+            OpenPositionsLimit = 10
+        };
+
+        /// <summary>
+        /// Query with maximum limits
+        /// </summary>
+        public static GetTradingAccountDetailsQuery MaxLimitsQuery() => new()
+        {
+            ClosedTradesPageNumber = 1,
+            ClosedTradesPageSize = 50,
+            SnapshotsPageNumber = 1,
+            SnapshotsPageSize = 30,
+            OpenPositionsLimit = 50
+        };
+
+        /// <summary>
+        /// Valid TradingAccountDetailDto response with complete data
+        /// </summary>
+        public static TradingAccountDetailDto ValidDetailResponse() => new()
+        {
+            TradingAccountId = 1,
+            AccountName = "AI Growth Fund",
+            Description = "Artificial Intelligence focused growth fund",
+            EaName = "QuantumBands AI v1.0",
+            BrokerPlatformIdentifier = "QB-AI-001",
+            InitialCapital = 1000000.00m,
+            TotalSharesIssued = 100000,
+            CurrentNetAssetValue = 1150000.00m,
+            CurrentSharePrice = 11.50m,
+            ManagementFeeRate = 0.02m,
+            IsActive = true,
+            CreatedByUserId = 1,
+            CreatorUsername = "admin",
+            CreatedAt = DateTime.UtcNow.AddDays(-30),
+            UpdatedAt = DateTime.UtcNow.AddDays(-1),
+            OpenPositions = ValidOpenPositions(),
+            ClosedTradesHistory = ValidClosedTradesHistory(),
+            DailySnapshotsInfo = ValidSnapshotsHistory()
+        };
+
+        /// <summary>
+        /// Valid list of open positions
+        /// </summary>
+        public static List<EAOpenPositionDto> ValidOpenPositions() => new()
+        {
+            new()
+            {
+                OpenPositionId = 1,
+                EaTicketId = "TKT001",
+                Symbol = "EURUSD",
+                TradeType = "BUY",
+                VolumeLots = 0.10m,
+                OpenPrice = 1.0850m,
+                OpenTime = DateTime.UtcNow.AddHours(-2),
+                CurrentMarketPrice = 1.0875m,
+                Swap = -0.25m,
+                Commission = 0.50m,
+                FloatingPAndL = 25.00m,
+                LastUpdateTime = DateTime.UtcNow.AddMinutes(-5)
+            },
+            new()
+            {
+                OpenPositionId = 2,
+                EaTicketId = "TKT002",
+                Symbol = "GBPUSD",
+                TradeType = "SELL",
+                VolumeLots = 0.05m,
+                OpenPrice = 1.2650m,
+                OpenTime = DateTime.UtcNow.AddHours(-1),
+                CurrentMarketPrice = 1.2640m,
+                Swap = -0.15m,
+                Commission = 0.25m,
+                FloatingPAndL = 5.00m,
+                LastUpdateTime = DateTime.UtcNow.AddMinutes(-2)
+            }
+        };
+
+        /// <summary>
+        /// Valid paginated closed trades history
+        /// </summary>
+        public static PaginatedList<EAClosedTradeDto> ValidClosedTradesHistory() => new(
+            new List<EAClosedTradeDto>
+            {
+                new()
+                {
+                    ClosedTradeId = 1,
+                    EaTicketId = "TKT_CLOSED_001",
+                    Symbol = "EURUSD",
+                    TradeType = "BUY",
+                    VolumeLots = 0.10m,
+                    OpenPrice = 1.0800m,
+                    OpenTime = DateTime.UtcNow.AddDays(-2),
+                    ClosePrice = 1.0850m,
+                    CloseTime = DateTime.UtcNow.AddDays(-1),
+                    Swap = -0.50m,
+                    Commission = 1.00m,
+                    RealizedPAndL = 49.50m,
+                    RecordedAt = DateTime.UtcNow.AddDays(-1)
+                },
+                new()
+                {
+                    ClosedTradeId = 2,
+                    EaTicketId = "TKT_CLOSED_002",
+                    Symbol = "GBPUSD",
+                    TradeType = "SELL",
+                    VolumeLots = 0.05m,
+                    OpenPrice = 1.2700m,
+                    OpenTime = DateTime.UtcNow.AddDays(-3),
+                    ClosePrice = 1.2650m,
+                    CloseTime = DateTime.UtcNow.AddDays(-2),
+                    Swap = -0.30m,
+                    Commission = 0.50m,
+                    RealizedPAndL = 24.20m,
+                    RecordedAt = DateTime.UtcNow.AddDays(-2)
+                }
+            },
+            count: 15,
+            pageNumber: 1,
+            pageSize: 10
+        );
+
+        /// <summary>
+        /// Valid paginated snapshots history
+        /// </summary>
+        public static PaginatedList<TradingAccountSnapshotDto> ValidSnapshotsHistory() => new(
+            new List<TradingAccountSnapshotDto>
+            {
+                new()
+                {
+                    SnapshotId = 1,
+                    SnapshotDate = DateOnly.FromDateTime(DateTime.UtcNow.Date.AddDays(-1)),
+                    OpeningNAV = 1140000.00m,
+                    RealizedPAndLForTheDay = 8000.00m,
+                    UnrealizedPAndLForTheDay = 2000.00m,
+                    ManagementFeeDeducted = 62.33m,
+                    ProfitDistributed = 0.00m,
+                    ClosingNAV = 1150000.00m,
+                    ClosingSharePrice = 11.50m,
+                    CreatedAt = DateTime.UtcNow.AddDays(-1)
+                },
+                new()
+                {
+                    SnapshotId = 2,
+                    SnapshotDate = DateOnly.FromDateTime(DateTime.UtcNow.Date.AddDays(-2)),
+                    OpeningNAV = 1125000.00m,
+                    RealizedPAndLForTheDay = 12000.00m,
+                    UnrealizedPAndLForTheDay = 3000.00m,
+                    ManagementFeeDeducted = 61.64m,
+                    ProfitDistributed = 0.00m,
+                    ClosingNAV = 1140000.00m,
+                    ClosingSharePrice = 11.40m,
+                    CreatedAt = DateTime.UtcNow.AddDays(-2)
+                }
+            },
+            count: 30,
+            pageNumber: 1,
+            pageSize: 10
+        );
+
+        /// <summary>
+        /// Empty detail response with no additional data
+        /// </summary>
+        public static TradingAccountDetailDto EmptyDetailResponse() => new()
+        {
+            TradingAccountId = 1,
+            AccountName = "Empty Fund",
+            Description = "Test fund with no activity",
+            EaName = "Test EA",
+            BrokerPlatformIdentifier = "TEST-001",
+            InitialCapital = 10000.00m,
+            TotalSharesIssued = 1000,
+            CurrentNetAssetValue = 10000.00m,
+            CurrentSharePrice = 10.00m,
+            ManagementFeeRate = 0.02m,
+            IsActive = true,
+            CreatedByUserId = 1,
+            CreatorUsername = "testuser",
+            CreatedAt = DateTime.UtcNow.AddDays(-1),
+            UpdatedAt = DateTime.UtcNow,
+            OpenPositions = new List<EAOpenPositionDto>(),
+            ClosedTradesHistory = new PaginatedList<EAClosedTradeDto>(
+                new List<EAClosedTradeDto>(),
+                count: 0,
+                pageNumber: 1,
+                pageSize: 10
+            ),
+            DailySnapshotsInfo = new PaginatedList<TradingAccountSnapshotDto>(
+                new List<TradingAccountSnapshotDto>(),
+                count: 0,
+                pageNumber: 1,
+                pageSize: 10
+            )
+        };
+
+        // SCRUM-56: Test data for GetInitialShareOfferings endpoint
+
+        /// <summary>
+        /// Valid GetInitialOfferingsQuery with default parameters
+        /// </summary>
+        public static GetInitialOfferingsQuery ValidOfferingsQuery() => new()
+        {
+            PageNumber = 1,
+            PageSize = 10,
+            SortBy = "OfferingStartDate",
+            SortOrder = "desc",
+            Status = null
+        };
+
+        /// <summary>
+        /// Query with status filter for Active offerings
+        /// </summary>
+        public static GetInitialOfferingsQuery ActiveOfferingsQuery() => new()
+        {
+            PageNumber = 1,
+            PageSize = 10,
+            SortBy = "OfferingStartDate",
+            SortOrder = "desc",
+            Status = "Active"
+        };
+
+        /// <summary>
+        /// Query with status filter for Completed offerings
+        /// </summary>
+        public static GetInitialOfferingsQuery CompletedOfferingsQuery() => new()
+        {
+            PageNumber = 1,
+            PageSize = 10,
+            SortBy = "OfferingPricePerShare",
+            SortOrder = "asc",
+            Status = "Completed"
+        };
+
+        /// <summary>
+        /// Query with custom pagination and sorting
+        /// </summary>
+        public static GetInitialOfferingsQuery CustomOfferingsQuery() => new()
+        {
+            PageNumber = 2,
+            PageSize = 5,
+            SortBy = "SharesOffered",
+            SortOrder = "desc",
+            Status = "Active"
+        };
+
+        /// <summary>
+        /// Query with maximum page size
+        /// </summary>
+        public static GetInitialOfferingsQuery MaxPageSizeOfferingsQuery() => new()
+        {
+            PageNumber = 1,
+            PageSize = 50,
+            SortBy = "OfferingStartDate",
+            SortOrder = "desc",
+            Status = null
+        };
+
+        /// <summary>
+        /// Valid paginated list of InitialShareOfferingDto
+        /// </summary>
+        public static PaginatedList<InitialShareOfferingDto> ValidOfferingsResponse() => new(
+            new List<InitialShareOfferingDto>
+            {
+                new()
+                {
+                    OfferingId = 1,
+                    TradingAccountId = 1,
+                    AdminUserId = 1,
+                    AdminUsername = "admin",
+                    SharesOffered = 10000,
+                    SharesSold = 7500,
+                    OfferingPricePerShare = 12.50m,
+                    FloorPricePerShare = 10.00m,
+                    CeilingPricePerShare = 15.00m,
+                    OfferingStartDate = DateTime.UtcNow.AddDays(-10),
+                    OfferingEndDate = DateTime.UtcNow.AddDays(20),
+                    Status = "Active",
+                    CreatedAt = DateTime.UtcNow.AddDays(-15),
+                    UpdatedAt = DateTime.UtcNow.AddDays(-1)
+                },
+                new()
+                {
+                    OfferingId = 2,
+                    TradingAccountId = 1,
+                    AdminUserId = 1,
+                    AdminUsername = "admin",
+                    SharesOffered = 5000,
+                    SharesSold = 5000,
+                    OfferingPricePerShare = 10.75m,
+                    FloorPricePerShare = 9.50m,
+                    CeilingPricePerShare = 12.00m,
+                    OfferingStartDate = DateTime.UtcNow.AddDays(-60),
+                    OfferingEndDate = DateTime.UtcNow.AddDays(-30),
+                    Status = "Completed",
+                    CreatedAt = DateTime.UtcNow.AddDays(-65),
+                    UpdatedAt = DateTime.UtcNow.AddDays(-30)
+                }
+            },
+            count: 8,
+            pageNumber: 1,
+            pageSize: 10
+        );
+
+        /// <summary>
+        /// Active offerings only response
+        /// </summary>
+        public static PaginatedList<InitialShareOfferingDto> ActiveOfferingsResponse() => new(
+            new List<InitialShareOfferingDto>
+            {
+                new()
+                {
+                    OfferingId = 1,
+                    TradingAccountId = 1,
+                    AdminUserId = 1,
+                    AdminUsername = "admin",
+                    SharesOffered = 10000,
+                    SharesSold = 7500,
+                    OfferingPricePerShare = 12.50m,
+                    FloorPricePerShare = 10.00m,
+                    CeilingPricePerShare = 15.00m,
+                    OfferingStartDate = DateTime.UtcNow.AddDays(-10),
+                    OfferingEndDate = DateTime.UtcNow.AddDays(20),
+                    Status = "Active",
+                    CreatedAt = DateTime.UtcNow.AddDays(-15),
+                    UpdatedAt = DateTime.UtcNow.AddDays(-1)
+                }
+            },
+            count: 3,
+            pageNumber: 1,
+            pageSize: 10
+        );
+
+        /// <summary>
+        /// Empty offerings response
+        /// </summary>
+        public static PaginatedList<InitialShareOfferingDto> EmptyOfferingsResponse() => new(
+            new List<InitialShareOfferingDto>(),
+            count: 0,
+            pageNumber: 1,
+            pageSize: 10
+        );
+    }
+
+    // SCRUM-57: Test data for GET /exchange/orders/my endpoint testing
+    public static class GetMyOrders
+    {
+        /// <summary>
+        /// Valid query with all parameters
+        /// </summary>
+        public static GetMyShareOrdersQuery ValidFullQuery() => new()
+        {
+            PageNumber = 1,
+            PageSize = 10,
+            TradingAccountId = 1,
+            Status = "Active,PartiallyFilled",
+            OrderSide = "Buy",
+            OrderType = "Limit",
+            DateFrom = DateTime.UtcNow.AddDays(-30),
+            DateTo = DateTime.UtcNow,
+            SortBy = "OrderDate",
+            SortOrder = "desc"
+        };
+
+        /// <summary>
+        /// Valid query with minimal parameters
+        /// </summary>
+        public static GetMyShareOrdersQuery ValidMinimalQuery() => new()
+        {
+            PageNumber = 1,
+            PageSize = 10
+        };
+
+        /// <summary>
+        /// Query with invalid pagination
+        /// </summary>
+        public static GetMyShareOrdersQuery InvalidPaginationQuery() => new()
+        {
+            PageNumber = -1,
+            PageSize = 0
+        };
+
+        /// <summary>
+        /// Query with large page size
+        /// </summary>
+        public static GetMyShareOrdersQuery LargePageSizeQuery() => new()
+        {
+            PageNumber = 1,
+            PageSize = 200 // Exceeds max of 100
+        };
+
+        /// <summary>
+        /// Successful response with orders
+        /// </summary>
+        public static PaginatedList<ShareOrderDto> SuccessfulOrdersResponse() => new(
+            new List<ShareOrderDto>
+            {
+                new()
+                {
+                    OrderId = 1001,
+                    UserId = 1,
+                    TradingAccountId = 1,
+                    TradingAccountName = "Tech Solutions Inc.",
+                    OrderSide = "Buy",
+                    OrderType = "Limit",
+                    QuantityOrdered = 1000,
+                    QuantityFilled = 750,
+                    LimitPrice = 25.50m,
+                    AverageFillPrice = 25.25m,
+                    OrderStatus = "PartiallyFilled",
+                    OrderDate = DateTime.UtcNow.AddHours(-6),
+                    UpdatedAt = DateTime.UtcNow.AddMinutes(-30),
+                    TransactionFee = 12.65m
+                },
+                new()
+                {
+                    OrderId = 1002,
+                    UserId = 1,
+                    TradingAccountId = 2,
+                    TradingAccountName = "Green Energy Corp.",
+                    OrderSide = "Sell",
+                    OrderType = "Market",
+                    QuantityOrdered = 500,
+                    QuantityFilled = 500,
+                    LimitPrice = null,
+                    AverageFillPrice = 18.75m,
+                    OrderStatus = "Filled",
+                    OrderDate = DateTime.UtcNow.AddDays(-1),
+                    UpdatedAt = DateTime.UtcNow.AddDays(-1).AddMinutes(5),
+                    TransactionFee = 4.69m
+                }
+            },
+            15,
+            1,
+            10
+        );
+
+        /// <summary>
+        /// Filtered orders response (buy orders only)
+        /// </summary>
+        public static PaginatedList<ShareOrderDto> BuyOrdersResponse() => new(
+            new List<ShareOrderDto>
+            {
+                new()
+                {
+                    OrderId = 1003,
+                    UserId = 1,
+                    TradingAccountId = 1,
+                    TradingAccountName = "Tech Solutions Inc.",
+                    OrderSide = "Buy",
+                    OrderType = "Limit",
+                    QuantityOrdered = 2000,
+                    QuantityFilled = 0,
+                    LimitPrice = 22.00m,
+                    AverageFillPrice = null,
+                    OrderStatus = "Active",
+                    OrderDate = DateTime.UtcNow.AddHours(-2),
+                    UpdatedAt = DateTime.UtcNow.AddHours(-2),
+                    TransactionFee = null
+                }
+            },
+            8,
+            1,
+            10
+        );
+
+        /// <summary>
+        /// Empty orders response
+        /// </summary>
+        public static PaginatedList<ShareOrderDto> EmptyOrdersResponse() => new(
+            new List<ShareOrderDto>(),
+            0,
+            1,
+            10
+        );
+    }
+
+    // SCRUM-58: Test data for DELETE /exchange/orders/{orderId} endpoint testing
+    public static class CancelOrder
+    {
+        /// <summary>
+        /// Valid order ID for cancellation
+        /// </summary>
+        public static long ValidOrderId() => 1001;
+
+        /// <summary>
+        /// Invalid order ID (zero or negative)
+        /// </summary>
+        public static long InvalidOrderId() => -1;
+
+        /// <summary>
+        /// Non-existent order ID
+        /// </summary>
+        public static long NonExistentOrderId() => 9999;
+
+        /// <summary>
+        /// Order ID belonging to another user
+        /// </summary>
+        public static long OtherUserOrderId() => 2001;
+
+        /// <summary>
+        /// Already cancelled order ID
+        /// </summary>
+        public static long CancelledOrderId() => 1002;
+
+        /// <summary>
+        /// Already executed order ID
+        /// </summary>
+        public static long ExecutedOrderId() => 1003;
+
+        /// <summary>
+        /// Successfully cancelled order DTO
+        /// </summary>
+        public static ShareOrderDto CancelledOrderDto() => new()
+        {
+            OrderId = ValidOrderId(),
+            UserId = 1,
+            TradingAccountId = 1,
+            TradingAccountName = "Tech Solutions Inc.",
+            OrderSide = "Buy",
+            OrderType = "Limit",
+            QuantityOrdered = 1000,
+            QuantityFilled = 0,
+            LimitPrice = 25.50m,
+            AverageFillPrice = null,
+            OrderStatus = "Cancelled",
+            OrderDate = DateTime.UtcNow.AddHours(-2),
+            UpdatedAt = DateTime.UtcNow,
+            TransactionFee = null
+        };
+
+        /// <summary>
+        /// Partially filled order that can be cancelled
+        /// </summary>
+        public static ShareOrderDto PartiallyFilledOrderDto() => new()
+        {
+            OrderId = 1004,
+            UserId = 1,
+            TradingAccountId = 1,
+            TradingAccountName = "Tech Solutions Inc.",
+            OrderSide = "Buy",
+            OrderType = "Limit",
+            QuantityOrdered = 1000,
+            QuantityFilled = 300,
+            LimitPrice = 25.50m,
+            AverageFillPrice = 25.25m,
+            OrderStatus = "PartiallyFilled",
+            OrderDate = DateTime.UtcNow.AddHours(-1),
+            UpdatedAt = DateTime.UtcNow.AddMinutes(-30),
+            TransactionFee = 7.58m
+        };
+
+        /// <summary>
+        /// Active order ready for cancellation
+        /// </summary>
+        public static ShareOrderDto ActiveOrderDto() => new()
+        {
+            OrderId = ValidOrderId(),
+            UserId = 1,
+            TradingAccountId = 1,
+            TradingAccountName = "Tech Solutions Inc.",
+            OrderSide = "Buy",
+            OrderType = "Limit",
+            QuantityOrdered = 1000,
+            QuantityFilled = 0,
+            LimitPrice = 25.50m,
+            AverageFillPrice = null,
+            OrderStatus = "Active",
+            OrderDate = DateTime.UtcNow.AddHours(-2),
+            UpdatedAt = DateTime.UtcNow.AddHours(-2),
+            TransactionFee = null
+        };
+    }
+
+    // SCRUM-59: Test data for GET /exchange/order-book/{tradingAccountId} endpoint testing
+    public static class GetOrderBook
+    {
+        /// <summary>
+        /// Valid trading account ID
+        /// </summary>
+        public static int ValidTradingAccountId() => 1;
+
+        /// <summary>
+        /// Invalid trading account ID (zero or negative)
+        /// </summary>
+        public static int InvalidTradingAccountId() => -1;
+
+        /// <summary>
+        /// Non-existent trading account ID
+        /// </summary>
+        public static int NonExistentTradingAccountId() => 9999;
+
+        /// <summary>
+        /// Valid query with default depth
+        /// </summary>
+        public static GetOrderBookQuery ValidQuery() => new()
+        {
+            Depth = 10
+        };
+
+        /// <summary>
+        /// Query with custom depth
+        /// </summary>
+        public static GetOrderBookQuery CustomDepthQuery(int depth) => new()
+        {
+            Depth = depth
+        };
+
+        /// <summary>
+        /// Query with maximum depth
+        /// </summary>
+        public static GetOrderBookQuery MaxDepthQuery() => new()
+        {
+            Depth = 20
+        };
+
+        /// <summary>
+        /// Query with invalid depth (too high)
+        /// </summary>
+        public static GetOrderBookQuery InvalidDepthQuery() => new()
+        {
+            Depth = 100 // Exceeds max of 20
+        };
+
+        /// <summary>
+        /// Full order book with bids and asks
+        /// </summary>
+        public static OrderBookDto ValidOrderBookDto() => new()
+        {
+            TradingAccountId = ValidTradingAccountId(),
+            TradingAccountName = "Tech Solutions Inc.",
+            LastTradePrice = 25.50m,
+            Timestamp = DateTime.UtcNow,
+            Bids = new List<OrderBookEntryDto>
+            {
+                new() { Price = 25.45m, TotalQuantity = 1000 },
+                new() { Price = 25.40m, TotalQuantity = 1500 },
+                new() { Price = 25.35m, TotalQuantity = 2000 },
+                new() { Price = 25.30m, TotalQuantity = 800 },
+                new() { Price = 25.25m, TotalQuantity = 1200 }
+            },
+            Asks = new List<OrderBookEntryDto>
+            {
+                new() { Price = 25.55m, TotalQuantity = 900 },
+                new() { Price = 25.60m, TotalQuantity = 1100 },
+                new() { Price = 25.65m, TotalQuantity = 1300 },
+                new() { Price = 25.70m, TotalQuantity = 700 },
+                new() { Price = 25.75m, TotalQuantity = 1600 }
+            }
+        };
+
+        /// <summary>
+        /// Empty order book with no bids or asks
+        /// </summary>
+        public static OrderBookDto EmptyOrderBookDto() => new()
+        {
+            TradingAccountId = ValidTradingAccountId(),
+            TradingAccountName = "Tech Solutions Inc.",
+            LastTradePrice = null,
+            Timestamp = DateTime.UtcNow,
+            Bids = new List<OrderBookEntryDto>(),
+            Asks = new List<OrderBookEntryDto>()
+        };
+
+        /// <summary>
+        /// Order book with only bids (no asks)
+        /// </summary>
+        public static OrderBookDto BidsOnlyOrderBookDto() => new()
+        {
+            TradingAccountId = ValidTradingAccountId(),
+            TradingAccountName = "Tech Solutions Inc.",
+            LastTradePrice = 25.00m,
+            Timestamp = DateTime.UtcNow,
+            Bids = new List<OrderBookEntryDto>
+            {
+                new() { Price = 24.95m, TotalQuantity = 500 },
+                new() { Price = 24.90m, TotalQuantity = 750 }
+            },
+            Asks = new List<OrderBookEntryDto>()
+        };
+
+        /// <summary>
+        /// Order book with only asks (no bids)
+        /// </summary>
+        public static OrderBookDto AsksOnlyOrderBookDto() => new()
+        {
+            TradingAccountId = ValidTradingAccountId(),
+            TradingAccountName = "Tech Solutions Inc.",
+            LastTradePrice = 26.00m,
+            Timestamp = DateTime.UtcNow,
+            Bids = new List<OrderBookEntryDto>(),
+            Asks = new List<OrderBookEntryDto>
+            {
+                new() { Price = 26.05m, TotalQuantity = 300 },
+                new() { Price = 26.10m, TotalQuantity = 600 }
+            }
+        };
+
+        /// <summary>
+        /// Order book with limited depth (fewer entries)
+        /// </summary>
+        public static OrderBookDto LimitedDepthOrderBookDto() => new()
+        {
+            TradingAccountId = ValidTradingAccountId(),
+            TradingAccountName = "Tech Solutions Inc.",
+            LastTradePrice = 25.50m,
+            Timestamp = DateTime.UtcNow,
+            Bids = new List<OrderBookEntryDto>
+            {
+                new() { Price = 25.45m, TotalQuantity = 1000 },
+                new() { Price = 25.40m, TotalQuantity = 1500 }
+            },
+            Asks = new List<OrderBookEntryDto>
+            {
+                new() { Price = 25.55m, TotalQuantity = 900 },
+                new() { Price = 25.60m, TotalQuantity = 1100 }
+            }
+        };
+    }
+
+    public static class GetMarketData
+    {
+        public static GetMarketDataQuery ValidQuery() => new()
+        {
+            TradingAccountIds = "1,2,3",
+            RecentTradesLimit = 5,
+            ActiveOfferingsLimit = 3
+        };
+
+        public static GetMarketDataQuery QueryWithSingleTradingAccount() => new()
+        {
+            TradingAccountIds = "1",
+            RecentTradesLimit = 10,
+            ActiveOfferingsLimit = 5
+        };
+
+        public static GetMarketDataQuery QueryWithoutTradingAccountIds() => new()
+        {
+            RecentTradesLimit = 3,
+            ActiveOfferingsLimit = 2
+        };
+
+        public static GetMarketDataQuery QueryWithInvalidRecentTradesLimit() => new()
+        {
+            TradingAccountIds = "1,2",
+            RecentTradesLimit = 25, // Over max limit of 20
+            ActiveOfferingsLimit = 5
+        };
+
+        public static GetMarketDataQuery QueryWithInvalidActiveOfferingsLimit() => new()
+        {
+            TradingAccountIds = "1,2",
+            RecentTradesLimit = 5,
+            ActiveOfferingsLimit = 15 // Over max limit of 10
+        };
+
+        public static MarketDataResponse ValidMarketDataResponse() => new()
+        {
+            Items = new List<TradingAccountMarketDataDto>
+            {
+                ValidTradingAccountMarketData(),
+                TradingAccountMarketDataWithRecentTrades(),
+                TradingAccountMarketDataWithActiveOfferings()
+            },
+            GeneratedAt = DateTime.UtcNow
+        };
+
+        public static MarketDataResponse EmptyMarketDataResponse() => new()
+        {
+            Items = new List<TradingAccountMarketDataDto>(),
+            GeneratedAt = DateTime.UtcNow
+        };
+
+        public static TradingAccountMarketDataDto ValidTradingAccountMarketData() => new()
+        {
+            TradingAccountId = 1,
+            TradingAccountName = "Tesla Inc.",
+            LastTradePrice = 250.50m,
+            BestBids = new List<OrderBookEntryDto>
+            {
+                new() { Price = 250.00m, TotalQuantity = 1000 },
+                new() { Price = 249.50m, TotalQuantity = 1500 }
+            },
+            BestAsks = new List<OrderBookEntryDto>
+            {
+                new() { Price = 251.00m, TotalQuantity = 800 },
+                new() { Price = 251.50m, TotalQuantity = 1200 }
+            },
+            ActiveOfferings = new List<ActiveOfferingDto>
+            {
+                new() { OfferingId = 1, Price = 250.75m, AvailableQuantity = 5000 },
+                new() { OfferingId = 2, Price = 251.25m, AvailableQuantity = 3000 }
+            },
+            RecentTrades = new List<SimpleTradeDto>
+            {
+                new() { Price = 250.50m, Quantity = 100, TradeTime = DateTime.UtcNow.AddMinutes(-5) },
+                new() { Price = 250.25m, Quantity = 200, TradeTime = DateTime.UtcNow.AddMinutes(-10) }
+            }
+        };
+
+        public static TradingAccountMarketDataDto TradingAccountMarketDataWithRecentTrades() => new()
+        {
+            TradingAccountId = 2,
+            TradingAccountName = "Apple Inc.",
+            LastTradePrice = 175.80m,
+            BestBids = new List<OrderBookEntryDto>
+            {
+                new() { Price = 175.50m, TotalQuantity = 2000 }
+            },
+            BestAsks = new List<OrderBookEntryDto>
+            {
+                new() { Price = 176.00m, TotalQuantity = 1800 }
+            },
+            ActiveOfferings = new List<ActiveOfferingDto>(),
+            RecentTrades = new List<SimpleTradeDto>
+            {
+                new() { Price = 175.80m, Quantity = 150, TradeTime = DateTime.UtcNow.AddMinutes(-2) },
+                new() { Price = 175.75m, Quantity = 300, TradeTime = DateTime.UtcNow.AddMinutes(-7) },
+                new() { Price = 175.90m, Quantity = 75, TradeTime = DateTime.UtcNow.AddMinutes(-12) }
+            }
+        };
+
+        public static TradingAccountMarketDataDto TradingAccountMarketDataWithActiveOfferings() => new()
+        {
+            TradingAccountId = 3,
+            TradingAccountName = "Microsoft Corp.",
+            LastTradePrice = 420.25m,
+            BestBids = new List<OrderBookEntryDto>
+            {
+                new() { Price = 419.50m, TotalQuantity = 500 }
+            },
+            BestAsks = new List<OrderBookEntryDto>
+            {
+                new() { Price = 421.00m, TotalQuantity = 700 }
+            },
+            ActiveOfferings = new List<ActiveOfferingDto>
+            {
+                new() { OfferingId = 3, Price = 420.00m, AvailableQuantity = 10000 },
+                new() { OfferingId = 4, Price = 421.50m, AvailableQuantity = 7500 },
+                new() { OfferingId = 5, Price = 422.00m, AvailableQuantity = 5000 }
+            },
+            RecentTrades = new List<SimpleTradeDto>
+            {
+                new() { Price = 420.25m, Quantity = 50, TradeTime = DateTime.UtcNow.AddMinutes(-1) }
+            }
+        };
+
+        public static TradingAccountMarketDataDto EmptyTradingAccountMarketData() => new()
+        {
+            TradingAccountId = 4,
+            TradingAccountName = "Empty Trading Account",
+            LastTradePrice = null,
+            BestBids = new List<OrderBookEntryDto>(),
+            BestAsks = new List<OrderBookEntryDto>(),
+            ActiveOfferings = new List<ActiveOfferingDto>(),
+            RecentTrades = new List<SimpleTradeDto>()
+        };
+
+        public static string InvalidTradingAccountIds() => "invalid,format";
+
+        public static string ValidTradingAccountIds() => "1,2,3";
+
+        public static string SingleTradingAccountId() => "1";
+    }
+
+    // SCRUM-61: Test data for GET /exchange/trades/my endpoint testing
+    public static class GetMyTrades
+    {
+        /// <summary>
+        /// Valid query with all parameters
+        /// </summary>
+        public static GetMyShareTradesQuery ValidFullQuery() => new()
+        {
+            PageNumber = 1,
+            PageSize = 10,
+            TradingAccountId = 1,
+            OrderSide = "Buy",
+            DateFrom = DateTime.UtcNow.AddDays(-30),
+            DateTo = DateTime.UtcNow,
+            SortBy = "TradeDate",
+            SortOrder = "desc"
+        };
+
+        /// <summary>
+        /// Valid query with minimal parameters
+        /// </summary>
+        public static GetMyShareTradesQuery ValidMinimalQuery() => new()
+        {
+            PageNumber = 1,
+            PageSize = 10
+        };
+
+        /// <summary>
+        /// Query with invalid pagination
+        /// </summary>
+        public static GetMyShareTradesQuery InvalidPaginationQuery() => new()
+        {
+            PageNumber = -1,
+            PageSize = 0
+        };
+
+        /// <summary>
+        /// Query with large page size
+        /// </summary>
+        public static GetMyShareTradesQuery LargePageSizeQuery() => new()
+        {
+            PageNumber = 1,
+            PageSize = 200 // Exceeds max of 100
+        };
+
+        /// <summary>
+        /// Query with buy orders filter
+        /// </summary>
+        public static GetMyShareTradesQuery BuyTradesQuery() => new()
+        {
+            PageNumber = 1,
+            PageSize = 10,
+            OrderSide = "Buy"
+        };
+
+        /// <summary>
+        /// Query with sell orders filter
+        /// </summary>
+        public static GetMyShareTradesQuery SellTradesQuery() => new()
+        {
+            PageNumber = 1,
+            PageSize = 10,
+            OrderSide = "Sell"
+        };
+
+        /// <summary>
+        /// Query with date range filter
+        /// </summary>
+        public static GetMyShareTradesQuery DateRangeQuery() => new()
+        {
+            PageNumber = 1,
+            PageSize = 10,
+            DateFrom = DateTime.UtcNow.AddDays(-7),
+            DateTo = DateTime.UtcNow
+        };
+
+        /// <summary>
+        /// Query with trading account filter
+        /// </summary>
+        public static GetMyShareTradesQuery TradingAccountFilterQuery() => new()
+        {
+            PageNumber = 1,
+            PageSize = 10,
+            TradingAccountId = 2
+        };
+
+        /// <summary>
+        /// Query with combined filters
+        /// </summary>
+        public static GetMyShareTradesQuery CombinedFiltersQuery() => new()
+        {
+            PageNumber = 1,
+            PageSize = 15,
+            TradingAccountId = 1,
+            OrderSide = "Sell",
+            DateFrom = DateTime.UtcNow.AddDays(-14),
+            DateTo = DateTime.UtcNow,
+            SortBy = "TradePrice",
+            SortOrder = "asc"
+        };
+
+        /// <summary>
+        /// Successful response with trades
+        /// </summary>
+        public static PaginatedList<MyShareTradeDto> SuccessfulTradesResponse() => new(
+            new List<MyShareTradeDto>
+            {
+                new()
+                {
+                    TradeId = 2001,
+                    TradingAccountId = 1,
+                    TradingAccountName = "Tech Solutions Inc.",
+                    OrderSide = "Buy",
+                    QuantityTraded = 100,
+                    TradePrice = 25.50m,
+                    TotalValue = 2550.00m,
+                    FeeAmount = 5.10m,
+                    TradeDate = DateTime.UtcNow.AddHours(-2)
+                },
+                new()
+                {
+                    TradeId = 2002,
+                    TradingAccountId = 1,
+                    TradingAccountName = "Tech Solutions Inc.",
+                    OrderSide = "Sell",
+                    QuantityTraded = 50,
+                    TradePrice = 26.00m,
+                    TotalValue = 1300.00m,
+                    FeeAmount = 2.60m,
+                    TradeDate = DateTime.UtcNow.AddHours(-4)
+                },
+                new()
+                {
+                    TradeId = 2003,
+                    TradingAccountId = 2,
+                    TradingAccountName = "Green Energy Corp.",
+                    OrderSide = "Buy",
+                    QuantityTraded = 200,
+                    TradePrice = 18.75m,
+                    TotalValue = 3750.00m,
+                    FeeAmount = 7.50m,
+                    TradeDate = DateTime.UtcNow.AddDays(-1)
+                }
+            },
+            20,
+            1,
+            10
+        );
+
+        /// <summary>
+        /// Filtered trades response (buy orders only)
+        /// </summary>
+        public static PaginatedList<MyShareTradeDto> BuyTradesResponse() => new(
+            new List<MyShareTradeDto>
+            {
+                new()
+                {
+                    TradeId = 2004,
+                    TradingAccountId = 1,
+                    TradingAccountName = "Tech Solutions Inc.",
+                    OrderSide = "Buy",
+                    QuantityTraded = 150,
+                    TradePrice = 24.80m,
+                    TotalValue = 3720.00m,
+                    FeeAmount = 7.44m,
+                    TradeDate = DateTime.UtcNow.AddHours(-6)
+                },
+                new()
+                {
+                    TradeId = 2005,
+                    TradingAccountId = 2,
+                    TradingAccountName = "Green Energy Corp.",
+                    OrderSide = "Buy",
+                    QuantityTraded = 75,
+                    TradePrice = 19.20m,
+                    TotalValue = 1440.00m,
+                    FeeAmount = 2.88m,
+                    TradeDate = DateTime.UtcNow.AddHours(-8)
+                }
+            },
+            12,
+            1,
+            10
+        );
+
+        /// <summary>
+        /// Sell trades only response
+        /// </summary>
+        public static PaginatedList<MyShareTradeDto> SellTradesResponse() => new(
+            new List<MyShareTradeDto>
+            {
+                new()
+                {
+                    TradeId = 2006,
+                    TradingAccountId = 1,
+                    TradingAccountName = "Tech Solutions Inc.",
+                    OrderSide = "Sell",
+                    QuantityTraded = 80,
+                    TradePrice = 27.10m,
+                    TotalValue = 2168.00m,
+                    FeeAmount = 4.34m,
+                    TradeDate = DateTime.UtcNow.AddHours(-3)
+                }
+            },
+            8,
+            1,
+            10
+        );
+
+        /// <summary>
+        /// Empty trades response
+        /// </summary>
+        public static PaginatedList<MyShareTradeDto> EmptyTradesResponse() => new(
+            new List<MyShareTradeDto>(),
+            0,
+            1,
+            10
+        );
+
+        /// <summary>
+        /// Large trades response with high values
+        /// </summary>
+        public static PaginatedList<MyShareTradeDto> LargeTradesResponse() => new(
+            new List<MyShareTradeDto>
+            {
+                new()
+                {
+                    TradeId = 2007,
+                    TradingAccountId = 3,
+                    TradingAccountName = "Financial Holdings Ltd.",
+                    OrderSide = "Buy",
+                    QuantityTraded = 1000,
+                    TradePrice = 125.50m,
+                    TotalValue = 125500.00m,
+                    FeeAmount = 251.00m,
+                    TradeDate = DateTime.UtcNow.AddDays(-2)
+                }
+            },
+            5,
+            1,
+            10
+        );
+
+        /// <summary>
+        /// Trades from specific trading account
+        /// </summary>
+        public static PaginatedList<MyShareTradeDto> TradingAccountFilteredResponse() => new(
+            new List<MyShareTradeDto>
+            {
+                new()
+                {
+                    TradeId = 2008,
+                    TradingAccountId = 2,
+                    TradingAccountName = "Green Energy Corp.",
+                    OrderSide = "Buy",
+                    QuantityTraded = 300,
+                    TradePrice = 18.90m,
+                    TotalValue = 5670.00m,
+                    FeeAmount = 11.34m,
+                    TradeDate = DateTime.UtcNow.AddHours(-12)
+                },
+                new()
+                {
+                    TradeId = 2009,
+                    TradingAccountId = 2,
+                    TradingAccountName = "Green Energy Corp.",
+                    OrderSide = "Sell",
+                    QuantityTraded = 100,
+                    TradePrice = 19.25m,
+                    TotalValue = 1925.00m,
+                    FeeAmount = 3.85m,
+                    TradeDate = DateTime.UtcNow.AddHours(-15)
+                }
+            },
+            6,
+            1,
+            10
+        );
+
+        /// <summary>
+        /// Date range filtered response
+        /// </summary>
+        public static PaginatedList<MyShareTradeDto> DateRangeFilteredResponse() => new(
+            new List<MyShareTradeDto>
+            {
+                new()
+                {
+                    TradeId = 2010,
+                    TradingAccountId = 1,
+                    TradingAccountName = "Tech Solutions Inc.",
+                    OrderSide = "Buy",
+                    QuantityTraded = 60,
+                    TradePrice = 24.00m,
+                    TotalValue = 1440.00m,
+                    FeeAmount = 2.88m,
+                    TradeDate = DateTime.UtcNow.AddDays(-3)
+                }
+            },
+            3,
+            1,
+            10
+        );
+
+        /// <summary>
+        /// Multi-page response with pagination info
+        /// </summary>
+        public static PaginatedList<MyShareTradeDto> SecondPageResponse() => new(
+            new List<MyShareTradeDto>
+            {
+                new()
+                {
+                    TradeId = 2011,
+                    TradingAccountId = 1,
+                    TradingAccountName = "Tech Solutions Inc.",
+                    OrderSide = "Sell",
+                    QuantityTraded = 120,
+                    TradePrice = 25.75m,
+                    TotalValue = 3090.00m,
+                    FeeAmount = 6.18m,
+                    TradeDate = DateTime.UtcNow.AddDays(-5)
+                }
+            },
+            25,
+            2,
+            10
+        );
+
+        /// <summary>
+        /// Trades with zero fees
+        /// </summary>
+        public static PaginatedList<MyShareTradeDto> ZeroFeeTradesResponse() => new(
+            new List<MyShareTradeDto>
+            {
+                new()
+                {
+                    TradeId = 2012,
+                    TradingAccountId = 1,
+                    TradingAccountName = "Tech Solutions Inc.",
+                    OrderSide = "Buy",
+                    QuantityTraded = 25,
+                    TradePrice = 30.00m,
+                    TotalValue = 750.00m,
+                    FeeAmount = null, // No fee
+                    TradeDate = DateTime.UtcNow.AddHours(-1)
+                }
+            },
+            1,
+            1,
+            10
+        );
+
+        /// <summary>
+        /// Custom query for testing
+        /// </summary>
+        public static GetMyShareTradesQuery CustomQuery(int pageNumber, int pageSize, int? tradingAccountId = null, string? orderSide = null) => new()
+        {
+            PageNumber = pageNumber,
+            PageSize = pageSize,
+            TradingAccountId = tradingAccountId,
+            OrderSide = orderSide,
+            SortBy = "TradeDate",
+            SortOrder = "desc"
+        };
+
+        /// <summary>
+        /// Custom trade response
+        /// </summary>
+        public static MyShareTradeDto CustomTrade(long tradeId, int tradingAccountId, string tradingAccountName, string orderSide, long quantity, decimal price) => new()
+        {
+            TradeId = tradeId,
+            TradingAccountId = tradingAccountId,
+            TradingAccountName = tradingAccountName,
+            OrderSide = orderSide,
+            QuantityTraded = quantity,
+            TradePrice = price,
+            TotalValue = quantity * price,
+            FeeAmount = Math.Round((quantity * price) * 0.002m, 2), // 0.2% fee
+            TradeDate = DateTime.UtcNow
+        };
+    }
+
+    // SCRUM-62: Test data for GET /portfolio/me endpoint testing
+    public static class GetMyPortfolio
+    {
+        /// <summary>
+        /// Valid user portfolio with multiple positions
+        /// </summary>
+        public static List<SharePortfolioItemDto> ValidPortfolioResponse() => new()
+        {
+            new()
+            {
+                PortfolioId = 1,
+                TradingAccountId = 1,
+                TradingAccountName = "Tech Solutions Inc.",
+                Quantity = 150,
+                AverageBuyPrice = 25.50m,
+                CurrentSharePrice = 28.75m,
+                CurrentValue = 4312.50m,
+                UnrealizedPAndL = 487.50m,
+                LastUpdatedAt = DateTime.UtcNow.AddMinutes(-5)
+            },
+            new()
+            {
+                PortfolioId = 2,
+                TradingAccountId = 2,
+                TradingAccountName = "Green Energy Corp.",
+                Quantity = 200,
+                AverageBuyPrice = 18.90m,
+                CurrentSharePrice = 19.25m,
+                CurrentValue = 3850.00m,
+                UnrealizedPAndL = 70.00m,
+                LastUpdatedAt = DateTime.UtcNow.AddMinutes(-3)
+            }
+        };
+
+        /// <summary>
+        /// Portfolio with profitable positions
+        /// </summary>
+        public static List<SharePortfolioItemDto> ProfitablePortfolioResponse() => new()
+        {
+            new()
+            {
+                PortfolioId = 3,
+                TradingAccountId = 1,
+                TradingAccountName = "Tech Solutions Inc.",
+                Quantity = 100,
+                AverageBuyPrice = 20.00m,
+                CurrentSharePrice = 30.00m,
+                CurrentValue = 3000.00m,
+                UnrealizedPAndL = 1000.00m,
+                LastUpdatedAt = DateTime.UtcNow.AddMinutes(-2)
+            }
+        };
+
+        /// <summary>
+        /// Portfolio with losing positions
+        /// </summary>
+        public static List<SharePortfolioItemDto> LosingPortfolioResponse() => new()
+        {
+            new()
+            {
+                PortfolioId = 4,
+                TradingAccountId = 2,
+                TradingAccountName = "Green Energy Corp.",
+                Quantity = 80,
+                AverageBuyPrice = 35.00m,
+                CurrentSharePrice = 28.50m,
+                CurrentValue = 2280.00m,
+                UnrealizedPAndL = -520.00m,
+                LastUpdatedAt = DateTime.UtcNow.AddMinutes(-1)
+            }
+        };
+
+        /// <summary>
+        /// Empty portfolio response
+        /// </summary>
+        public static List<SharePortfolioItemDto> EmptyPortfolioResponse() => new();
+
+        /// <summary>
+        /// Portfolio with zero quantity positions (edge case)
+        /// </summary>
+        public static List<SharePortfolioItemDto> ZeroQuantityPortfolioResponse() => new()
+        {
+            new()
+            {
+                PortfolioId = 5,
+                TradingAccountId = 1,
+                TradingAccountName = "Tech Solutions Inc.",
+                Quantity = 0,
+                AverageBuyPrice = 25.00m,
+                CurrentSharePrice = 27.00m,
+                CurrentValue = 0.00m,
+                UnrealizedPAndL = 0.00m,
+                LastUpdatedAt = DateTime.UtcNow.AddHours(-1)
+            }
+        };
+
+        /// <summary>
+        /// Large portfolio with high values
+        /// </summary>
+        public static List<SharePortfolioItemDto> LargePortfolioResponse() => new()
+        {
+            new()
+            {
+                PortfolioId = 6,
+                TradingAccountId = 3,
+                TradingAccountName = "Financial Holdings Ltd.",
+                Quantity = 5000,
+                AverageBuyPrice = 100.00m,
+                CurrentSharePrice = 125.50m,
+                CurrentValue = 627500.00m,
+                UnrealizedPAndL = 127500.00m,
+                LastUpdatedAt = DateTime.UtcNow.AddMinutes(-10)
+            }
+        };
+
+        /// <summary>
+        /// Portfolio with multiple trading accounts
+        /// </summary>
+        public static List<SharePortfolioItemDto> MultiAccountPortfolioResponse() => new()
+        {
+            new()
+            {
+                PortfolioId = 7,
+                TradingAccountId = 1,
+                TradingAccountName = "Tech Solutions Inc.",
+                Quantity = 300,
+                AverageBuyPrice = 22.50m,
+                CurrentSharePrice = 24.75m,
+                CurrentValue = 7425.00m,
+                UnrealizedPAndL = 675.00m,
+                LastUpdatedAt = DateTime.UtcNow.AddMinutes(-7)
+            },
+            new()
+            {
+                PortfolioId = 8,
+                TradingAccountId = 2,
+                TradingAccountName = "Green Energy Corp.",
+                Quantity = 500,
+                AverageBuyPrice = 15.80m,
+                CurrentSharePrice = 16.90m,
+                CurrentValue = 8450.00m,
+                UnrealizedPAndL = 550.00m,
+                LastUpdatedAt = DateTime.UtcNow.AddMinutes(-4)
+            },
+            new()
+            {
+                PortfolioId = 9,
+                TradingAccountId = 3,
+                TradingAccountName = "Financial Holdings Ltd.",
+                Quantity = 200,
+                AverageBuyPrice = 45.25m,
+                CurrentSharePrice = 42.10m,
+                CurrentValue = 8420.00m,
+                UnrealizedPAndL = -630.00m,
+                LastUpdatedAt = DateTime.UtcNow.AddMinutes(-6)
+            }
+        };
+
+        /// <summary>
+        /// Portfolio with precise decimal calculations
+        /// </summary>
+        public static List<SharePortfolioItemDto> PreciseDecimalPortfolioResponse() => new()
+        {
+            new()
+            {
+                PortfolioId = 10,
+                TradingAccountId = 1,
+                TradingAccountName = "Tech Solutions Inc.",
+                Quantity = 123,
+                AverageBuyPrice = 12.3456m,
+                CurrentSharePrice = 13.7891m,
+                CurrentValue = 1696.0593m,
+                UnrealizedPAndL = 177.7548m,
+                LastUpdatedAt = DateTime.UtcNow.AddMinutes(-8)
+            }
+        };
+
+        /// <summary>
+        /// Custom portfolio item for testing
+        /// </summary>
+        public static SharePortfolioItemDto CustomPortfolioItem(
+            int portfolioId,
+            int tradingAccountId,
+            string tradingAccountName,
+            long quantity,
+            decimal averageBuyPrice,
+            decimal currentSharePrice) => new()
+        {
+            PortfolioId = portfolioId,
+            TradingAccountId = tradingAccountId,
+            TradingAccountName = tradingAccountName,
+            Quantity = quantity,
+            AverageBuyPrice = averageBuyPrice,
+            CurrentSharePrice = currentSharePrice,
+            CurrentValue = quantity * currentSharePrice,
+            UnrealizedPAndL = (quantity * currentSharePrice) - (quantity * averageBuyPrice),
+            LastUpdatedAt = DateTime.UtcNow
         };
     }
 } 

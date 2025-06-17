@@ -12,7 +12,7 @@ public class GetWalletTransactionsQuery
     public string SortBy { get; set; } = "TransactionDate";
     public string SortOrder { get; set; } = "desc";
 
-    private const int MaxPageSize = 100;
+    private const int MaxPageSize = 50;
     public int ValidatedPageSize
     {
         get => (PageSize > MaxPageSize || PageSize <= 0) ? MaxPageSize : PageSize;

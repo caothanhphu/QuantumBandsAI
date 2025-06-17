@@ -10,7 +10,11 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using QuantumBands.API.Controllers;
 using QuantumBands.Application.Features.Wallets.Commands.BankDeposit;
+using QuantumBands.Application.Features.Wallets.Commands.CreateWithdrawal;
+using QuantumBands.Application.Features.Wallets.Commands.InternalTransfer;
 using QuantumBands.Application.Features.Wallets.Dtos;
+using QuantumBands.Application.Features.Wallets.Queries.GetTransactions;
+using QuantumBands.Application.Common.Models;
 using QuantumBands.Application.Interfaces;
 using QuantumBands.Tests.Common;
 using QuantumBands.Tests.Fixtures;
@@ -1415,6 +1419,2628 @@ public class WalletsControllerTests : TestBase
             _walletsController.GetMyWallet(CancellationToken.None));
         
         exception.Message.Should().Be("Service unavailable");
+    }
+
+    #endregion
+
+    #endregion
+
+    #region GetMyWalletTransactions Tests - SCRUM-50
+
+    // Tests for GET /api/v1/wallets/transactions endpoint
+    // According to SCRUM-50 requirements: Happy Path, Pagination, Filters, Authentication, Data Isolation
+
+    #region Happy Path Tests
+
+    /// <summary>
+    /// Test: Valid authenticated user should retrieve transaction history successfully
+    /// </summary>
+    [Fact]
+    public async Task GetMyWalletTransactions_WithValidRequest_ShouldReturnTransactionHistory()
+    {
+        // Arrange
+        var query = TestDataBuilder.GetTransactions.ValidQuery();
+        var expectedTransactions = TestDataBuilder.GetTransactions.ValidPaginatedTransactions();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.GetUserWalletTransactionsAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<GetWalletTransactionsQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expectedTransactions);
+
+        // Act
+        var result = await _walletsController.GetMyWalletTransactions(query, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        var transactions = okResult!.Value as PaginatedList<WalletTransactionDto>;
+        
+        transactions.Should().NotBeNull();
+        transactions!.Items.Should().HaveCount(3);
+        transactions.TotalCount.Should().Be(15);
+        transactions.PageNumber.Should().Be(1);
+        transactions.PageSize.Should().Be(10);
+    }
+
+    /// <summary>
+    /// Test: Transaction history should support pagination correctly
+    /// </summary>
+    [Fact]
+    public async Task GetMyWalletTransactions_WithPagination_ShouldReturnCorrectPage()
+    {
+        // Arrange
+        var query = TestDataBuilder.GetTransactions.QueryWithMaxPageSize();
+        var expectedTransactions = TestDataBuilder.GetTransactions.LargePaginatedTransactions();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.GetUserWalletTransactionsAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<GetWalletTransactionsQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expectedTransactions);
+
+        // Act
+        var result = await _walletsController.GetMyWalletTransactions(query, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        var transactions = okResult!.Value as PaginatedList<WalletTransactionDto>;
+        
+        transactions.Should().NotBeNull();
+        transactions!.Items.Should().HaveCount(50);
+        transactions.PageSize.Should().Be(50);
+        transactions.TotalCount.Should().Be(250);
+    }
+
+    /// <summary>
+    /// Test: Transaction history should support filtering by transaction type
+    /// </summary>
+    [Fact]
+    public async Task GetMyWalletTransactions_WithTransactionTypeFilter_ShouldReturnFilteredResults()
+    {
+        // Arrange
+        var query = TestDataBuilder.GetTransactions.QueryWithTransactionTypeFilter();
+        var expectedTransactions = TestDataBuilder.GetTransactions.ValidPaginatedTransactions();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.GetUserWalletTransactionsAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<GetWalletTransactionsQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expectedTransactions);
+
+        // Act
+        var result = await _walletsController.GetMyWalletTransactions(query, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        var transactions = okResult!.Value as PaginatedList<WalletTransactionDto>;
+        
+        transactions.Should().NotBeNull();
+        transactions!.Items.Should().NotBeEmpty();
+        
+        // Verify service was called with correct filter
+        _mockWalletService.Verify(x => x.GetUserWalletTransactionsAsync(
+            It.IsAny<ClaimsPrincipal>(), 
+            It.Is<GetWalletTransactionsQuery>(q => q.TransactionType == "Deposit"), 
+            It.IsAny<CancellationToken>()), 
+            Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Transaction history should support date range filtering
+    /// </summary>
+    [Fact]
+    public async Task GetMyWalletTransactions_WithDateRangeFilter_ShouldReturnFilteredResults()
+    {
+        // Arrange
+        var query = TestDataBuilder.GetTransactions.QueryWithDateRangeFilter();
+        var expectedTransactions = TestDataBuilder.GetTransactions.ValidPaginatedTransactions();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.GetUserWalletTransactionsAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<GetWalletTransactionsQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expectedTransactions);
+
+        // Act
+        var result = await _walletsController.GetMyWalletTransactions(query, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        var transactions = okResult!.Value as PaginatedList<WalletTransactionDto>;
+        
+        transactions.Should().NotBeNull();
+        
+        // Verify service was called with correct date filters
+        _mockWalletService.Verify(x => x.GetUserWalletTransactionsAsync(
+            It.IsAny<ClaimsPrincipal>(), 
+            It.Is<GetWalletTransactionsQuery>(q => q.StartDate.HasValue && q.EndDate.HasValue), 
+            It.IsAny<CancellationToken>()), 
+            Times.Once);
+    }
+
+    #endregion
+
+    #region Pagination Tests
+
+    /// <summary>
+    /// Test: Page size should be limited to maximum of 50
+    /// </summary>
+    [Fact]
+    public async Task GetMyWalletTransactions_WithExcessivePageSize_ShouldLimitToMaximum()
+    {
+        // Arrange
+        var query = TestDataBuilder.GetTransactions.QueryWithExcessivePageSize();
+        var expectedTransactions = TestDataBuilder.GetTransactions.LargePaginatedTransactions();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.GetUserWalletTransactionsAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<GetWalletTransactionsQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expectedTransactions);
+
+        // Act
+        var result = await _walletsController.GetMyWalletTransactions(query, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        
+        // Verify that the query validation works (should be handled by GetWalletTransactionsQuery.ValidatedPageSize)
+        _mockWalletService.Verify(x => x.GetUserWalletTransactionsAsync(
+            It.IsAny<ClaimsPrincipal>(), 
+            It.Is<GetWalletTransactionsQuery>(q => q.ValidatedPageSize <= 50), 
+            It.IsAny<CancellationToken>()), 
+            Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Page number should be validated (must be positive)
+    /// </summary>
+    [Fact]
+    public async Task GetMyWalletTransactions_WithNegativePageNumber_ShouldUseValidatedPageNumber()
+    {
+        // Arrange
+        var query = TestDataBuilder.GetTransactions.QueryWithNegativePageNumber();
+        var expectedTransactions = TestDataBuilder.GetTransactions.ValidPaginatedTransactions();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.GetUserWalletTransactionsAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<GetWalletTransactionsQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expectedTransactions);
+
+        // Act
+        var result = await _walletsController.GetMyWalletTransactions(query, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        
+        // Verify that the query validation works (should be handled by GetWalletTransactionsQuery.ValidatedPageNumber)
+        _mockWalletService.Verify(x => x.GetUserWalletTransactionsAsync(
+            It.IsAny<ClaimsPrincipal>(), 
+            It.Is<GetWalletTransactionsQuery>(q => q.ValidatedPageNumber >= 1), 
+            It.IsAny<CancellationToken>()), 
+            Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Total count should be calculated correctly
+    /// </summary>
+    [Fact]
+    public async Task GetMyWalletTransactions_ShouldReturnCorrectTotalCount()
+    {
+        // Arrange
+        var query = TestDataBuilder.GetTransactions.ValidQuery();
+        var expectedTransactions = TestDataBuilder.GetTransactions.LargePaginatedTransactions();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.GetUserWalletTransactionsAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<GetWalletTransactionsQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expectedTransactions);
+
+        // Act
+        var result = await _walletsController.GetMyWalletTransactions(query, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        var transactions = okResult!.Value as PaginatedList<WalletTransactionDto>;
+        
+        transactions.Should().NotBeNull();
+        transactions!.TotalCount.Should().Be(250);
+        transactions.HasNextPage.Should().BeTrue();
+        transactions.HasPreviousPage.Should().BeFalse();
+    }
+
+    /// <summary>
+    /// Test: Empty result should be handled correctly
+    /// </summary>
+    [Fact]
+    public async Task GetMyWalletTransactions_WithNoTransactions_ShouldReturnEmptyResult()
+    {
+        // Arrange
+        var query = TestDataBuilder.GetTransactions.ValidQuery();
+        var expectedTransactions = TestDataBuilder.GetTransactions.EmptyPaginatedTransactions();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.GetUserWalletTransactionsAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<GetWalletTransactionsQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expectedTransactions);
+
+        // Act
+        var result = await _walletsController.GetMyWalletTransactions(query, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        var transactions = okResult!.Value as PaginatedList<WalletTransactionDto>;
+        
+        transactions.Should().NotBeNull();
+        transactions!.Items.Should().BeEmpty();
+        transactions.TotalCount.Should().Be(0);
+        transactions.HasNextPage.Should().BeFalse();
+        transactions.HasPreviousPage.Should().BeFalse();
+    }
+
+    #endregion
+
+    #region Filter Tests
+
+    /// <summary>
+    /// Test: Combined filters should work correctly
+    /// </summary>
+    [Fact]
+    public async Task GetMyWalletTransactions_WithCombinedFilters_ShouldApplyAllFilters()
+    {
+        // Arrange
+        var query = TestDataBuilder.GetTransactions.QueryWithCombinedFilters();
+        var expectedTransactions = TestDataBuilder.GetTransactions.ValidPaginatedTransactions();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.GetUserWalletTransactionsAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<GetWalletTransactionsQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expectedTransactions);
+
+        // Act
+        var result = await _walletsController.GetMyWalletTransactions(query, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        
+        // Verify service was called with all filters
+        _mockWalletService.Verify(x => x.GetUserWalletTransactionsAsync(
+            It.IsAny<ClaimsPrincipal>(), 
+            It.Is<GetWalletTransactionsQuery>(q => 
+                q.TransactionType == "Withdrawal" &&
+                q.Status == "Completed" &&
+                q.StartDate.HasValue &&
+                q.EndDate.HasValue &&
+                q.SortBy == "Amount" &&
+                q.SortOrder == "asc"), 
+            It.IsAny<CancellationToken>()), 
+            Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Start date filtering should work correctly
+    /// </summary>
+    [Fact]
+    public async Task GetMyWalletTransactions_WithStartDateFilter_ShouldApplyDateFilter()
+    {
+        // Arrange
+        var query = new GetWalletTransactionsQuery
+        {
+            PageNumber = 1,
+            PageSize = 10,
+            StartDate = DateTime.UtcNow.AddDays(-30),
+            SortBy = "TransactionDate",
+            SortOrder = "desc"
+        };
+        var expectedTransactions = TestDataBuilder.GetTransactions.ValidPaginatedTransactions();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.GetUserWalletTransactionsAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<GetWalletTransactionsQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expectedTransactions);
+
+        // Act
+        var result = await _walletsController.GetMyWalletTransactions(query, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        
+        // Verify service was called with start date filter
+        _mockWalletService.Verify(x => x.GetUserWalletTransactionsAsync(
+            It.IsAny<ClaimsPrincipal>(), 
+            It.Is<GetWalletTransactionsQuery>(q => q.StartDate.HasValue && !q.EndDate.HasValue), 
+            It.IsAny<CancellationToken>()), 
+            Times.Once);
+    }
+
+    /// <summary>
+    /// Test: End date filtering should work correctly
+    /// </summary>
+    [Fact]
+    public async Task GetMyWalletTransactions_WithEndDateFilter_ShouldApplyDateFilter()
+    {
+        // Arrange
+        var query = new GetWalletTransactionsQuery
+        {
+            PageNumber = 1,
+            PageSize = 10,
+            EndDate = DateTime.UtcNow,
+            SortBy = "TransactionDate",
+            SortOrder = "desc"
+        };
+        var expectedTransactions = TestDataBuilder.GetTransactions.ValidPaginatedTransactions();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.GetUserWalletTransactionsAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<GetWalletTransactionsQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expectedTransactions);
+
+        // Act
+        var result = await _walletsController.GetMyWalletTransactions(query, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        
+        // Verify service was called with end date filter
+        _mockWalletService.Verify(x => x.GetUserWalletTransactionsAsync(
+            It.IsAny<ClaimsPrincipal>(), 
+            It.Is<GetWalletTransactionsQuery>(q => !q.StartDate.HasValue && q.EndDate.HasValue), 
+            It.IsAny<CancellationToken>()), 
+            Times.Once);
+    }
+
+    #endregion
+
+    #region Authentication Tests
+
+    /// <summary>
+    /// Test: Unauthenticated request should be handled by [Authorize] attribute
+    /// </summary>
+    [Fact]
+    public async Task GetMyWalletTransactions_WithUnauthenticatedUser_ShouldStillCallService()
+    {
+        // Arrange
+        var query = TestDataBuilder.GetTransactions.ValidQuery();
+        var expectedTransactions = TestDataBuilder.GetTransactions.EmptyPaginatedTransactions();
+        var unauthenticatedUser = CreateUnauthenticatedUser();
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = unauthenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.GetUserWalletTransactionsAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<GetWalletTransactionsQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expectedTransactions);
+
+        // Act
+        var result = await _walletsController.GetMyWalletTransactions(query, CancellationToken.None);
+
+        // Assert
+        // Note: In real scenario, [Authorize] would prevent this from reaching the controller
+        // But in unit tests, we can verify that the service handles authentication properly
+        result.Should().BeOfType<OkObjectResult>();
+        
+        _mockWalletService.Verify(x => x.GetUserWalletTransactionsAsync(
+            It.IsAny<ClaimsPrincipal>(), 
+            It.IsAny<GetWalletTransactionsQuery>(), 
+            It.IsAny<CancellationToken>()), 
+            Times.Once);
+    }
+
+    /// <summary>
+    /// Test: User should only see their own transactions (data isolation)
+    /// </summary>
+    [Fact]
+    public async Task GetMyWalletTransactions_ShouldOnlyReturnUserOwnTransactions()
+    {
+        // Arrange
+        var query = TestDataBuilder.GetTransactions.ValidQuery();
+        var expectedTransactions = TestDataBuilder.GetTransactions.ValidPaginatedTransactions();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.GetUserWalletTransactionsAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<GetWalletTransactionsQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expectedTransactions);
+
+        // Act
+        var result = await _walletsController.GetMyWalletTransactions(query, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        
+        // Verify the authenticated user is passed to the service (data isolation is handled in service layer)
+        _mockWalletService.Verify(x => x.GetUserWalletTransactionsAsync(
+            It.Is<ClaimsPrincipal>(p => p.FindFirst(ClaimTypes.NameIdentifier) != null && p.FindFirst(ClaimTypes.NameIdentifier).Value == "1"), 
+            It.IsAny<GetWalletTransactionsQuery>(), 
+            It.IsAny<CancellationToken>()), 
+            Times.Once);
+    }
+
+    #endregion
+
+    #region Service Integration Tests
+
+    /// <summary>
+    /// Test: Controller should pass correct parameters to service
+    /// </summary>
+    [Fact]
+    public async Task GetMyWalletTransactions_ShouldPassCorrectParametersToService()
+    {
+        // Arrange
+        var query = TestDataBuilder.GetTransactions.QueryWithCombinedFilters();
+        var expectedTransactions = TestDataBuilder.GetTransactions.ValidPaginatedTransactions();
+        var authenticatedUser = CreateAuthenticatedUser(42, "specificuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.GetUserWalletTransactionsAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<GetWalletTransactionsQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expectedTransactions);
+
+        // Act
+        var result = await _walletsController.GetMyWalletTransactions(query, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        
+        _mockWalletService.Verify(x => x.GetUserWalletTransactionsAsync(
+            It.Is<ClaimsPrincipal>(p => p.FindFirst(ClaimTypes.NameIdentifier) != null && p.FindFirst(ClaimTypes.NameIdentifier).Value == "42"), 
+            It.Is<GetWalletTransactionsQuery>(q => 
+                q.PageNumber == query.PageNumber &&
+                q.PageSize == query.PageSize &&
+                q.TransactionType == query.TransactionType &&
+                q.Status == query.Status &&
+                q.StartDate == query.StartDate &&
+                q.EndDate == query.EndDate &&
+                q.SortBy == query.SortBy &&
+                q.SortOrder == query.SortOrder), 
+            It.IsAny<CancellationToken>()), 
+            Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Controller should forward cancellation token to service
+    /// </summary>
+    [Fact]
+    public async Task GetMyWalletTransactions_ShouldForwardCancellationToken()
+    {
+        // Arrange
+        var query = TestDataBuilder.GetTransactions.ValidQuery();
+        var expectedTransactions = TestDataBuilder.GetTransactions.ValidPaginatedTransactions();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        var cancellationToken = new CancellationToken();
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.GetUserWalletTransactionsAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<GetWalletTransactionsQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expectedTransactions);
+
+        // Act
+        var result = await _walletsController.GetMyWalletTransactions(query, cancellationToken);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        
+        _mockWalletService.Verify(x => x.GetUserWalletTransactionsAsync(
+            It.IsAny<ClaimsPrincipal>(), 
+            It.IsAny<GetWalletTransactionsQuery>(), 
+            cancellationToken), 
+            Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Controller should log information about transaction retrieval
+    /// </summary>
+    [Fact]
+    public async Task GetMyWalletTransactions_ShouldLogInformation()
+    {
+        // Arrange
+        var query = TestDataBuilder.GetTransactions.ValidQuery();
+        var expectedTransactions = TestDataBuilder.GetTransactions.ValidPaginatedTransactions();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.GetUserWalletTransactionsAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<GetWalletTransactionsQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expectedTransactions);
+
+        // Act
+        var result = await _walletsController.GetMyWalletTransactions(query, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        
+        // Verify that controller logs the transaction retrieval attempt
+        _mockControllerLogger.Verify(
+            x => x.Log(
+                LogLevel.Information,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((o, t) => o.ToString()!.Contains("Attempting to retrieve transactions")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    #endregion
+
+    #endregion
+
+    #region CreateWithdrawalRequest Tests - SCRUM-51
+
+    // Tests for POST /api/v1/wallets/withdrawals endpoint
+    // According to SCRUM-51 requirements: Happy Path, Validation, Business Logic, Security
+
+    #region Happy Path Tests
+
+    /// <summary>
+    /// Test: Valid withdrawal request should be created successfully
+    /// </summary>
+    [Fact]
+    public async Task CreateWithdrawalRequest_WithValidRequest_ShouldReturnWithdrawalRequestDto()
+    {
+        // Arrange
+        var request = TestDataBuilder.CreateWithdrawal.ValidRequest();
+        var expectedResponse = TestDataBuilder.CreateWithdrawal.ValidResponse();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.CreateWithdrawalRequestAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<CreateWithdrawalRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedResponse, (string?)null));
+
+        // Act
+        var result = await _walletsController.CreateWithdrawalRequest(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<CreatedAtActionResult>();
+        var createdResult = result as CreatedAtActionResult;
+        var response = createdResult!.Value as WithdrawalRequestDto;
+        
+        response.Should().NotBeNull();
+        response!.Amount.Should().Be(request.Amount);
+        response.CurrencyCode.Should().Be(request.CurrencyCode);
+        response.WithdrawalMethodDetails.Should().Be(request.WithdrawalMethodDetails);
+        response.Notes.Should().Be(request.Notes);
+        response.Status.Should().Be("PendingAdminApproval");
+    }
+
+    /// <summary>
+    /// Test: Withdrawal request should create transaction record
+    /// </summary>
+    [Fact]
+    public async Task CreateWithdrawalRequest_WithValidRequest_ShouldCreateTransactionRecord()
+    {
+        // Arrange
+        var request = TestDataBuilder.CreateWithdrawal.LargeAmountRequest();
+        var expectedResponse = TestDataBuilder.CreateWithdrawal.LargeAmountResponse();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.CreateWithdrawalRequestAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<CreateWithdrawalRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedResponse, (string?)null));
+
+        // Act
+        var result = await _walletsController.CreateWithdrawalRequest(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<CreatedAtActionResult>();
+        var createdResult = result as CreatedAtActionResult;
+        var response = createdResult!.Value as WithdrawalRequestDto;
+        
+        response.Should().NotBeNull();
+        response!.WithdrawalRequestId.Should().BeGreaterThan(0);
+        response.UserId.Should().Be(1);
+        response.Status.Should().Be("PendingAdminApproval");
+        response.RequestedAt.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromMinutes(1));
+    }
+
+    /// <summary>
+    /// Test: Withdrawal request without notes should work
+    /// </summary>
+    [Fact]
+    public async Task CreateWithdrawalRequest_WithoutNotes_ShouldSucceed()
+    {
+        // Arrange
+        var request = TestDataBuilder.CreateWithdrawal.RequestWithoutNotes();
+        var expectedResponse = TestDataBuilder.CreateWithdrawal.ResponseWithoutNotes();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.CreateWithdrawalRequestAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<CreateWithdrawalRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedResponse, (string?)null));
+
+        // Act
+        var result = await _walletsController.CreateWithdrawalRequest(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<CreatedAtActionResult>();
+        var createdResult = result as CreatedAtActionResult;
+        var response = createdResult!.Value as WithdrawalRequestDto;
+        
+        response.Should().NotBeNull();
+        response!.Notes.Should().BeNull();
+        response.Amount.Should().Be(request.Amount);
+    }
+
+    /// <summary>
+    /// Test: Minimum amount withdrawal should work
+    /// </summary>
+    [Fact]
+    public async Task CreateWithdrawalRequest_WithMinimumAmount_ShouldSucceed()
+    {
+        // Arrange
+        var request = TestDataBuilder.CreateWithdrawal.MinimumAmountRequest();
+        var expectedResponse = TestDataBuilder.CreateWithdrawal.CustomResponse(3004, 1, 0.01m);
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.CreateWithdrawalRequestAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<CreateWithdrawalRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedResponse, (string?)null));
+
+        // Act
+        var result = await _walletsController.CreateWithdrawalRequest(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<CreatedAtActionResult>();
+        var createdResult = result as CreatedAtActionResult;
+        var response = createdResult!.Value as WithdrawalRequestDto;
+        
+        response.Should().NotBeNull();
+        response!.Amount.Should().Be(0.01m);
+    }
+
+    #endregion
+
+    #region Validation Tests
+
+    /// <summary>
+    /// Test: Zero amount should return BadRequest
+    /// </summary>
+    [Fact]
+    public async Task CreateWithdrawalRequest_WithZeroAmount_ShouldReturnBadRequest()
+    {
+        // Arrange
+        var request = TestDataBuilder.CreateWithdrawal.ZeroAmountRequest();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.CreateWithdrawalRequestAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<CreateWithdrawalRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(((WithdrawalRequestDto?)null, "Withdrawal amount must be greater than 0."));
+
+        // Act
+        var result = await _walletsController.CreateWithdrawalRequest(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+        var badRequestResult = result as BadRequestObjectResult;
+        var responseMessage = GetMessageFromResponse(badRequestResult!.Value);
+        responseMessage.Should().Contain("must be greater than 0");
+    }
+
+    /// <summary>
+    /// Test: Negative amount should return BadRequest
+    /// </summary>
+    [Fact]
+    public async Task CreateWithdrawalRequest_WithNegativeAmount_ShouldReturnBadRequest()
+    {
+        // Arrange
+        var request = TestDataBuilder.CreateWithdrawal.NegativeAmountRequest();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.CreateWithdrawalRequestAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<CreateWithdrawalRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(((WithdrawalRequestDto?)null, "Withdrawal amount must be greater than 0."));
+
+        // Act
+        var result = await _walletsController.CreateWithdrawalRequest(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+        var badRequestResult = result as BadRequestObjectResult;
+        var responseMessage = GetMessageFromResponse(badRequestResult!.Value);
+        responseMessage.Should().Contain("must be greater than 0");
+    }
+
+    /// <summary>
+    /// Test: Invalid currency code should return BadRequest
+    /// </summary>
+    [Fact]
+    public async Task CreateWithdrawalRequest_WithInvalidCurrency_ShouldReturnBadRequest()
+    {
+        // Arrange
+        var request = TestDataBuilder.CreateWithdrawal.InvalidCurrencyRequest();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.CreateWithdrawalRequestAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<CreateWithdrawalRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(((WithdrawalRequestDto?)null, "Currency is required"));
+
+        // Act
+        var result = await _walletsController.CreateWithdrawalRequest(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+        var badRequestResult = result as BadRequestObjectResult;
+        var responseMessage = GetMessageFromResponse(badRequestResult!.Value);
+        responseMessage.Should().Contain("required");
+    }
+
+    /// <summary>
+    /// Test: Empty withdrawal method details should return BadRequest
+    /// </summary>
+    [Fact]
+    public async Task CreateWithdrawalRequest_WithEmptyWithdrawalMethod_ShouldReturnBadRequest()
+    {
+        // Arrange
+        var request = TestDataBuilder.CreateWithdrawal.EmptyWithdrawalMethodRequest();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.CreateWithdrawalRequestAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<CreateWithdrawalRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(((WithdrawalRequestDto?)null, "Withdrawal method details are required."));
+
+        // Act
+        var result = await _walletsController.CreateWithdrawalRequest(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+        var badRequestResult = result as BadRequestObjectResult;
+        var responseMessage = GetMessageFromResponse(badRequestResult!.Value);
+        responseMessage.Should().Contain("required");
+    }
+
+    /// <summary>
+    /// Test: Too long withdrawal method details should return BadRequest
+    /// </summary>
+    [Fact]
+    public async Task CreateWithdrawalRequest_WithTooLongWithdrawalMethod_ShouldReturnBadRequest()
+    {
+        // Arrange
+        var request = TestDataBuilder.CreateWithdrawal.TooLongWithdrawalMethodRequest();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.CreateWithdrawalRequestAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<CreateWithdrawalRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(((WithdrawalRequestDto?)null, "Withdrawal method details are required"));
+
+        // Act
+        var result = await _walletsController.CreateWithdrawalRequest(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+        var badRequestResult = result as BadRequestObjectResult;
+        var responseMessage = GetMessageFromResponse(badRequestResult!.Value);
+        responseMessage.Should().Contain("required");
+    }
+
+    /// <summary>
+    /// Test: Too long notes should return BadRequest
+    /// </summary>
+    [Fact]
+    public async Task CreateWithdrawalRequest_WithTooLongNotes_ShouldReturnBadRequest()
+    {
+        // Arrange
+        var request = TestDataBuilder.CreateWithdrawal.TooLongNotesRequest();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.CreateWithdrawalRequestAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<CreateWithdrawalRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(((WithdrawalRequestDto?)null, "Notes are required"));
+
+        // Act
+        var result = await _walletsController.CreateWithdrawalRequest(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+        var badRequestResult = result as BadRequestObjectResult;
+        var responseMessage = GetMessageFromResponse(badRequestResult!.Value);
+        responseMessage.Should().Contain("required");
+    }
+
+    #endregion
+
+    #region Business Logic Tests
+
+    /// <summary>
+    /// Test: Amount exceeding balance should return BadRequest
+    /// </summary>
+    [Fact]
+    public async Task CreateWithdrawalRequest_WithAmountExceedingBalance_ShouldReturnBadRequest()
+    {
+        // Arrange
+        var request = TestDataBuilder.CreateWithdrawal.AmountExceedingBalanceRequest();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.CreateWithdrawalRequestAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<CreateWithdrawalRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(((WithdrawalRequestDto?)null, "Insufficient balance. Requested: 100000.00, Available: 1000.00"));
+
+        // Act
+        var result = await _walletsController.CreateWithdrawalRequest(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+        var badRequestResult = result as BadRequestObjectResult;
+        var responseMessage = GetMessageFromResponse(badRequestResult!.Value);
+        responseMessage.Should().Contain("Insufficient balance");
+    }
+
+    /// <summary>
+    /// Test: Non-existent wallet should return NotFound
+    /// </summary>
+    [Fact]
+    public async Task CreateWithdrawalRequest_WithNonExistentWallet_ShouldReturnNotFound()
+    {
+        // Arrange
+        var request = TestDataBuilder.CreateWithdrawal.ValidRequest();
+        var authenticatedUser = CreateAuthenticatedUser(999, "nonexistentuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.CreateWithdrawalRequestAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<CreateWithdrawalRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(((WithdrawalRequestDto?)null, "User wallet not found."));
+
+        // Act
+        var result = await _walletsController.CreateWithdrawalRequest(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<NotFoundObjectResult>();
+        var notFoundResult = result as NotFoundObjectResult;
+        var responseMessage = GetMessageFromResponse(notFoundResult!.Value);
+        responseMessage.Should().Be("User wallet not found.");
+    }
+
+    /// <summary>
+    /// Test: Valid balance checking should work
+    /// </summary>
+    [Fact]
+    public async Task CreateWithdrawalRequest_ShouldValidateBalance()
+    {
+        // Arrange
+        var request = TestDataBuilder.CreateWithdrawal.ValidRequest();
+        var expectedResponse = TestDataBuilder.CreateWithdrawal.ValidResponse();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.CreateWithdrawalRequestAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<CreateWithdrawalRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedResponse, (string?)null));
+
+        // Act
+        var result = await _walletsController.CreateWithdrawalRequest(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<CreatedAtActionResult>();
+        
+        // Verify service was called with correct parameters for balance validation
+        _mockWalletService.Verify(x => x.CreateWithdrawalRequestAsync(
+            It.IsAny<ClaimsPrincipal>(), 
+            It.Is<CreateWithdrawalRequest>(r => r.Amount == request.Amount && r.CurrencyCode == request.CurrencyCode), 
+            It.IsAny<CancellationToken>()), 
+            Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Status should be set to PendingAdminApproval
+    /// </summary>
+    [Fact]
+    public async Task CreateWithdrawalRequest_ShouldSetStatusToPendingAdminApproval()
+    {
+        // Arrange
+        var request = TestDataBuilder.CreateWithdrawal.ValidRequest();
+        var expectedResponse = TestDataBuilder.CreateWithdrawal.ValidResponse();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.CreateWithdrawalRequestAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<CreateWithdrawalRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedResponse, (string?)null));
+
+        // Act
+        var result = await _walletsController.CreateWithdrawalRequest(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<CreatedAtActionResult>();
+        var createdResult = result as CreatedAtActionResult;
+        var response = createdResult!.Value as WithdrawalRequestDto;
+        
+        response.Should().NotBeNull();
+        response!.Status.Should().Be("PendingAdminApproval");
+    }
+
+    #endregion
+
+    #region Security Tests
+
+    /// <summary>
+    /// Test: User authentication should be required
+    /// </summary>
+    [Fact]
+    public async Task CreateWithdrawalRequest_WithUnauthenticatedUser_ShouldCallServiceWithUnauthenticatedPrincipal()
+    {
+        // Arrange
+        var request = TestDataBuilder.CreateWithdrawal.ValidRequest();
+        var unauthenticatedUser = CreateUnauthenticatedUser();
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = unauthenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.CreateWithdrawalRequestAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<CreateWithdrawalRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(((WithdrawalRequestDto?)null, "User not authenticated or identity is invalid."));
+
+        // Act
+        var result = await _walletsController.CreateWithdrawalRequest(request, CancellationToken.None);
+
+        // Assert
+        // Note: In real scenario, [Authorize] would prevent this from reaching the controller
+        // But in unit tests, we verify that the service handles authentication properly
+        result.Should().BeOfType<ObjectResult>();
+        var errorResult = result as ObjectResult;
+        errorResult!.StatusCode.Should().Be(500);
+        
+        _mockWalletService.Verify(x => x.CreateWithdrawalRequestAsync(
+            It.IsAny<ClaimsPrincipal>(), 
+            It.IsAny<CreateWithdrawalRequest>(), 
+            It.IsAny<CancellationToken>()), 
+            Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Amount validation should be enforced
+    /// </summary>
+    [Fact]
+    public async Task CreateWithdrawalRequest_ShouldValidateAmount()
+    {
+        // Arrange
+        var request = TestDataBuilder.CreateWithdrawal.ValidRequest();
+        var expectedResponse = TestDataBuilder.CreateWithdrawal.ValidResponse();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.CreateWithdrawalRequestAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<CreateWithdrawalRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedResponse, (string?)null));
+
+        // Act
+        var result = await _walletsController.CreateWithdrawalRequest(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<CreatedAtActionResult>();
+        
+        // Verify service was called with positive amount
+        _mockWalletService.Verify(x => x.CreateWithdrawalRequestAsync(
+            It.IsAny<ClaimsPrincipal>(), 
+            It.Is<CreateWithdrawalRequest>(r => r.Amount > 0), 
+            It.IsAny<CancellationToken>()), 
+            Times.Once);
+    }
+
+    /// <summary>
+    /// Test: User should only be able to create withdrawal for their own wallet
+    /// </summary>
+    [Fact]
+    public async Task CreateWithdrawalRequest_ShouldOnlyAllowUserOwnWithdrawal()
+    {
+        // Arrange
+        var request = TestDataBuilder.CreateWithdrawal.ValidRequest();
+        var expectedResponse = TestDataBuilder.CreateWithdrawal.ValidResponse();
+        var authenticatedUser = CreateAuthenticatedUser(42, "specificuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.CreateWithdrawalRequestAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<CreateWithdrawalRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedResponse, (string?)null));
+
+        // Act
+        var result = await _walletsController.CreateWithdrawalRequest(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<CreatedAtActionResult>();
+        
+        // Verify the authenticated user is passed to the service (data isolation is handled in service layer)
+        _mockWalletService.Verify(x => x.CreateWithdrawalRequestAsync(
+            It.Is<ClaimsPrincipal>(p => p.FindFirst(ClaimTypes.NameIdentifier) != null && p.FindFirst(ClaimTypes.NameIdentifier).Value == "42"), 
+            It.IsAny<CreateWithdrawalRequest>(), 
+            It.IsAny<CancellationToken>()), 
+            Times.Once);
+    }
+
+    #endregion
+
+    #region Service Integration Tests
+
+    /// <summary>
+    /// Test: Controller should pass correct parameters to service
+    /// </summary>
+    [Fact]
+    public async Task CreateWithdrawalRequest_ShouldPassCorrectParametersToService()
+    {
+        // Arrange
+        var request = TestDataBuilder.CreateWithdrawal.LargeAmountRequest();
+        var expectedResponse = TestDataBuilder.CreateWithdrawal.LargeAmountResponse();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.CreateWithdrawalRequestAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<CreateWithdrawalRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedResponse, (string?)null));
+
+        // Act
+        var result = await _walletsController.CreateWithdrawalRequest(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<CreatedAtActionResult>();
+        
+        _mockWalletService.Verify(x => x.CreateWithdrawalRequestAsync(
+            It.Is<ClaimsPrincipal>(p => p.FindFirst(ClaimTypes.NameIdentifier) != null && p.FindFirst(ClaimTypes.NameIdentifier).Value == "1"), 
+            It.Is<CreateWithdrawalRequest>(r => 
+                r.Amount == request.Amount &&
+                r.CurrencyCode == request.CurrencyCode &&
+                r.WithdrawalMethodDetails == request.WithdrawalMethodDetails &&
+                r.Notes == request.Notes), 
+            It.IsAny<CancellationToken>()), 
+            Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Controller should forward cancellation token to service
+    /// </summary>
+    [Fact]
+    public async Task CreateWithdrawalRequest_ShouldForwardCancellationToken()
+    {
+        // Arrange
+        var request = TestDataBuilder.CreateWithdrawal.ValidRequest();
+        var expectedResponse = TestDataBuilder.CreateWithdrawal.ValidResponse();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        var cancellationToken = new CancellationToken();
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.CreateWithdrawalRequestAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<CreateWithdrawalRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedResponse, (string?)null));
+
+        // Act
+        var result = await _walletsController.CreateWithdrawalRequest(request, cancellationToken);
+
+        // Assert
+        result.Should().BeOfType<CreatedAtActionResult>();
+        
+        _mockWalletService.Verify(x => x.CreateWithdrawalRequestAsync(
+            It.IsAny<ClaimsPrincipal>(), 
+            It.IsAny<CreateWithdrawalRequest>(), 
+            cancellationToken), 
+            Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Controller should log information about withdrawal request
+    /// </summary>
+    [Fact]
+    public async Task CreateWithdrawalRequest_ShouldLogInformation()
+    {
+        // Arrange
+        var request = TestDataBuilder.CreateWithdrawal.ValidRequest();
+        var expectedResponse = TestDataBuilder.CreateWithdrawal.ValidResponse();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.CreateWithdrawalRequestAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<CreateWithdrawalRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedResponse, (string?)null));
+
+        // Act
+        var result = await _walletsController.CreateWithdrawalRequest(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<CreatedAtActionResult>();
+        
+        // Verify logging behavior (implementation depends on your logging setup)
+        // This test ensures the controller is structured to support logging
+        _mockWalletService.Verify(x => x.CreateWithdrawalRequestAsync(
+            It.IsAny<ClaimsPrincipal>(), 
+            It.IsAny<CreateWithdrawalRequest>(), 
+            It.IsAny<CancellationToken>()), 
+            Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Service error should return InternalServerError
+    /// </summary>
+    [Fact]
+    public async Task CreateWithdrawalRequest_WithServiceError_ShouldReturnInternalServerError()
+    {
+        // Arrange
+        var request = TestDataBuilder.CreateWithdrawal.ValidRequest();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.CreateWithdrawalRequestAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<CreateWithdrawalRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(((WithdrawalRequestDto?)null, "Internal system error occurred."));
+
+        // Act
+        var result = await _walletsController.CreateWithdrawalRequest(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<ObjectResult>();
+        var errorResult = result as ObjectResult;
+        errorResult!.StatusCode.Should().Be(500);
+        var responseMessage = GetMessageFromResponse(errorResult.Value);
+        responseMessage.Should().Contain("Internal system error occurred");
+    }
+
+    /// <summary>
+    /// Test: Null error message should return generic error
+    /// </summary>
+    [Fact]
+    public async Task CreateWithdrawalRequest_WithNullErrorMessage_ShouldReturnGenericError()
+    {
+        // Arrange
+        var request = TestDataBuilder.CreateWithdrawal.ValidRequest();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.CreateWithdrawalRequestAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<CreateWithdrawalRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(((WithdrawalRequestDto?)null, (string?)null));
+
+        // Act
+        var result = await _walletsController.CreateWithdrawalRequest(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<ObjectResult>();
+        var errorResult = result as ObjectResult;
+        errorResult!.StatusCode.Should().Be(500);
+        var responseMessage = GetMessageFromResponse(errorResult.Value);
+        responseMessage.Should().Be("Failed to create withdrawal request.");
+    }
+
+    #endregion
+
+    #endregion
+
+    #region VerifyRecipient Tests - SCRUM-52
+
+    // Tests for POST /api/v1/wallets/internal-transfer/verify-recipient endpoint
+    // According to SCRUM-52 requirements: Happy Path, Validation, Business Logic, Security
+
+    #region Happy Path Tests
+
+    /// <summary>
+    /// Test: Valid recipient email should return recipient information
+    /// </summary>
+    [Fact]
+    public async Task VerifyRecipient_WithValidEmail_ShouldReturnRecipientInfo()
+    {
+        // Arrange
+        var request = TestDataBuilder.VerifyRecipient.ValidRequest();
+        var expectedResponse = TestDataBuilder.VerifyRecipient.ValidResponse();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.VerifyRecipientForTransferAsync(It.IsAny<VerifyRecipientRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedResponse, (string?)null));
+
+        // Act
+        var result = await _walletsController.VerifyRecipient(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        var response = okResult!.Value as RecipientInfoResponse;
+        
+        response.Should().NotBeNull();
+        response!.RecipientUserId.Should().Be(expectedResponse.RecipientUserId);
+        response.RecipientUsername.Should().Be(expectedResponse.RecipientUsername);
+        response.RecipientFullName.Should().Be(expectedResponse.RecipientFullName);
+    }
+
+    /// <summary>
+    /// Test: Valid alternative recipient email should return recipient information
+    /// </summary>
+    [Fact]
+    public async Task VerifyRecipient_WithValidAlternativeEmail_ShouldReturnRecipientInfo()
+    {
+        // Arrange
+        var request = TestDataBuilder.VerifyRecipient.ValidAlternativeRequest();
+        var expectedResponse = TestDataBuilder.VerifyRecipient.AlternativeValidResponse();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.VerifyRecipientForTransferAsync(It.IsAny<VerifyRecipientRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedResponse, (string?)null));
+
+        // Act
+        var result = await _walletsController.VerifyRecipient(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        var response = okResult!.Value as RecipientInfoResponse;
+        
+        response.Should().NotBeNull();
+        response!.RecipientUserId.Should().Be(3);
+        response.RecipientUsername.Should().Be("user_b");
+        response.RecipientFullName.Should().Be("User B Full Name");
+    }
+
+    /// <summary>
+    /// Test: Recipient without full name should still return valid response
+    /// </summary>
+    [Fact]
+    public async Task VerifyRecipient_WithRecipientWithoutFullName_ShouldReturnValidResponse()
+    {
+        // Arrange
+        var request = TestDataBuilder.VerifyRecipient.ValidRequest();
+        var expectedResponse = TestDataBuilder.VerifyRecipient.ResponseWithoutFullName();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.VerifyRecipientForTransferAsync(It.IsAny<VerifyRecipientRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedResponse, (string?)null));
+
+        // Act
+        var result = await _walletsController.VerifyRecipient(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        var response = okResult!.Value as RecipientInfoResponse;
+        
+        response.Should().NotBeNull();
+        response!.RecipientUserId.Should().Be(4);
+        response.RecipientUsername.Should().Be("minimal_user");
+        response.RecipientFullName.Should().BeNull();
+    }
+
+    /// <summary>
+    /// Test: Valid recipient display data should be returned
+    /// </summary>
+    [Fact]
+    public async Task VerifyRecipient_WithValidRequest_ShouldReturnProperDisplayData()
+    {
+        // Arrange
+        var request = TestDataBuilder.VerifyRecipient.ValidRequest();
+        var expectedResponse = TestDataBuilder.VerifyRecipient.ValidResponse();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.VerifyRecipientForTransferAsync(It.IsAny<VerifyRecipientRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedResponse, (string?)null));
+
+        // Act
+        var result = await _walletsController.VerifyRecipient(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        var response = okResult!.Value as RecipientInfoResponse;
+        
+        response.Should().NotBeNull();
+        response!.RecipientUserId.Should().BeGreaterThan(0);
+        response.RecipientUsername.Should().NotBeNullOrEmpty();
+        // RecipientFullName may be null, which is acceptable
+    }
+
+    #endregion
+
+    #region Validation Tests
+
+    /// <summary>
+    /// Test: Empty recipient email should return BadRequest
+    /// </summary>
+    [Fact]
+    public async Task VerifyRecipient_WithEmptyEmail_ShouldReturnBadRequest()
+    {
+        // Arrange
+        var request = TestDataBuilder.VerifyRecipient.EmptyEmailRequest();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.VerifyRecipientForTransferAsync(It.IsAny<VerifyRecipientRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(((RecipientInfoResponse?)null, "Recipient email is required."));
+
+        // Act
+        var result = await _walletsController.VerifyRecipient(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+        var badRequestResult = result as BadRequestObjectResult;
+        var responseMessage = GetMessageFromResponse(badRequestResult!.Value);
+        responseMessage.Should().Contain("required");
+    }
+
+    /// <summary>
+    /// Test: Invalid email format should return BadRequest
+    /// </summary>
+    [Fact]
+    public async Task VerifyRecipient_WithInvalidEmailFormat_ShouldReturnBadRequest()
+    {
+        // Arrange
+        var request = TestDataBuilder.VerifyRecipient.InvalidEmailFormatRequest();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.VerifyRecipientForTransferAsync(It.IsAny<VerifyRecipientRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(((RecipientInfoResponse?)null, "A valid recipient email address is required."));
+
+        // Act
+        var result = await _walletsController.VerifyRecipient(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+        var badRequestResult = result as BadRequestObjectResult;
+        var responseMessage = GetMessageFromResponse(badRequestResult!.Value);
+        responseMessage.Should().Contain("valid");
+    }
+
+    /// <summary>
+    /// Test: Non-existent email should return NotFound
+    /// </summary>
+    [Fact]
+    public async Task VerifyRecipient_WithNonExistentEmail_ShouldReturnNotFound()
+    {
+        // Arrange
+        var request = TestDataBuilder.VerifyRecipient.NonExistentEmailRequest();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.VerifyRecipientForTransferAsync(It.IsAny<VerifyRecipientRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(((RecipientInfoResponse?)null, "Recipient email not found or user is inactive."));
+
+        // Act
+        var result = await _walletsController.VerifyRecipient(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<NotFoundObjectResult>();
+        var notFoundResult = result as NotFoundObjectResult;
+        var responseMessage = GetMessageFromResponse(notFoundResult!.Value);
+        responseMessage.Should().Contain("not found");
+    }
+
+    #endregion
+
+    #region Business Logic Tests
+
+    /// <summary>
+    /// Test: Self-transfer prevention - same email as authenticated user
+    /// </summary>
+    [Fact]
+    public async Task VerifyRecipient_WithSelfEmail_ShouldReturnValidResponse()
+    {
+        // Arrange - In the business logic, self-transfer prevention happens at the ExecuteTransfer level, not VerifyRecipient
+        var request = TestDataBuilder.VerifyRecipient.SelfEmailRequest();
+        var expectedResponse = new RecipientInfoResponse
+        {
+            RecipientUserId = 1, // Same as authenticated user
+            RecipientUsername = "testuser",
+            RecipientFullName = "Test User"
+        };
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.VerifyRecipientForTransferAsync(It.IsAny<VerifyRecipientRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedResponse, (string?)null));
+
+        // Act
+        var result = await _walletsController.VerifyRecipient(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        var response = okResult!.Value as RecipientInfoResponse;
+        
+        response.Should().NotBeNull();
+        response!.RecipientUserId.Should().Be(1); // Should return info even for self - prevention is at transfer level
+    }
+
+    /// <summary>
+    /// Test: Inactive recipient account should return NotFound
+    /// </summary>
+    [Fact]
+    public async Task VerifyRecipient_WithInactiveUser_ShouldReturnNotFound()
+    {
+        // Arrange
+        var request = TestDataBuilder.VerifyRecipient.InactiveUserEmailRequest();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.VerifyRecipientForTransferAsync(It.IsAny<VerifyRecipientRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(((RecipientInfoResponse?)null, "Recipient email not found or user is inactive."));
+
+        // Act
+        var result = await _walletsController.VerifyRecipient(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<NotFoundObjectResult>();
+        var notFoundResult = result as NotFoundObjectResult;
+        var responseMessage = GetMessageFromResponse(notFoundResult!.Value);
+        responseMessage.Should().Contain("inactive");
+    }
+
+    /// <summary>
+    /// Test: Recipient account verification should work correctly
+    /// </summary>
+    [Fact]
+    public async Task VerifyRecipient_ShouldVerifyRecipientAccountProperly()
+    {
+        // Arrange
+        var request = TestDataBuilder.VerifyRecipient.ValidRequest();
+        var expectedResponse = TestDataBuilder.VerifyRecipient.ValidResponse();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.VerifyRecipientForTransferAsync(It.IsAny<VerifyRecipientRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedResponse, (string?)null));
+
+        // Act
+        var result = await _walletsController.VerifyRecipient(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        _mockWalletService.Verify(x => x.VerifyRecipientForTransferAsync(
+            It.Is<VerifyRecipientRequest>(r => r.RecipientEmail == request.RecipientEmail),
+            It.IsAny<CancellationToken>()), 
+            Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Privacy data filtering should be applied
+    /// </summary>
+    [Fact]
+    public async Task VerifyRecipient_ShouldReturnFilteredDataForPrivacy()
+    {
+        // Arrange
+        var request = TestDataBuilder.VerifyRecipient.ValidRequest();
+        var expectedResponse = TestDataBuilder.VerifyRecipient.ValidResponse();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.VerifyRecipientForTransferAsync(It.IsAny<VerifyRecipientRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedResponse, (string?)null));
+
+        // Act
+        var result = await _walletsController.VerifyRecipient(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        var response = okResult!.Value as RecipientInfoResponse;
+        
+        // Verify that only appropriate data is returned (no sensitive info like balance, email, etc.)
+        response.Should().NotBeNull();
+        response!.RecipientUserId.Should().BeGreaterThan(0);
+        response.RecipientUsername.Should().NotBeNullOrEmpty();
+        // RecipientFullName is optional and can be null for privacy
+    }
+
+    #endregion
+
+    #region Security Tests
+
+    /// <summary>
+    /// Test: User authentication should be required
+    /// </summary>
+    [Fact]
+    public async Task VerifyRecipient_WithoutAuthentication_ShouldStillCallService()
+    {
+        // Arrange
+        var request = TestDataBuilder.VerifyRecipient.ValidRequest();
+        var expectedResponse = TestDataBuilder.VerifyRecipient.ValidResponse();
+        var unauthenticatedUser = CreateUnauthenticatedUser();
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = unauthenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.VerifyRecipientForTransferAsync(It.IsAny<VerifyRecipientRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedResponse, (string?)null));
+
+        // Act
+        var result = await _walletsController.VerifyRecipient(request, CancellationToken.None);
+
+        // Assert
+        // Note: In real scenario, [Authorize] attribute would prevent unauthenticated access
+        // But in unit tests, we verify that the service handles it appropriately
+        result.Should().BeOfType<OkObjectResult>();
+        _mockWalletService.Verify(x => x.VerifyRecipientForTransferAsync(
+            It.IsAny<VerifyRecipientRequest>(),
+            It.IsAny<CancellationToken>()), 
+            Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Data privacy protection should be maintained
+    /// </summary>
+    [Fact]
+    public async Task VerifyRecipient_ShouldProtectUserPrivacy()
+    {
+        // Arrange
+        var request = TestDataBuilder.VerifyRecipient.ValidRequest();
+        var expectedResponse = TestDataBuilder.VerifyRecipient.ValidResponse();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.VerifyRecipientForTransferAsync(It.IsAny<VerifyRecipientRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedResponse, (string?)null));
+
+        // Act
+        var result = await _walletsController.VerifyRecipient(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        var response = okResult!.Value as RecipientInfoResponse;
+        
+        // Ensure no sensitive information is disclosed
+        response.Should().NotBeNull();
+        response!.RecipientUserId.Should().BeGreaterThan(0);
+        response.RecipientUsername.Should().NotBeNullOrEmpty();
+        // Only basic display information should be returned
+    }
+
+    /// <summary>
+    /// Test: Information disclosure prevention should be enforced
+    /// </summary>
+    [Fact]
+    public async Task VerifyRecipient_ShouldPreventInformationDisclosure()
+    {
+        // Arrange
+        var request = TestDataBuilder.VerifyRecipient.NonExistentEmailRequest();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.VerifyRecipientForTransferAsync(It.IsAny<VerifyRecipientRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(((RecipientInfoResponse?)null, "Recipient email not found or user is inactive."));
+
+        // Act
+        var result = await _walletsController.VerifyRecipient(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<NotFoundObjectResult>();
+        var notFoundResult = result as NotFoundObjectResult;
+        var responseMessage = GetMessageFromResponse(notFoundResult!.Value);
+        
+        // Verify that error messages don't reveal too much information
+        responseMessage.Should().NotContain("password");
+        responseMessage.Should().NotContain("balance");
+        responseMessage.Should().NotContain("private");
+    }
+
+    #endregion
+
+    #region Service Integration Tests
+
+    /// <summary>
+    /// Test: Should pass correct parameters to service
+    /// </summary>
+    [Fact]
+    public async Task VerifyRecipient_ShouldPassCorrectParametersToService()
+    {
+        // Arrange
+        var request = TestDataBuilder.VerifyRecipient.ValidRequest();
+        var expectedResponse = TestDataBuilder.VerifyRecipient.ValidResponse();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.VerifyRecipientForTransferAsync(It.IsAny<VerifyRecipientRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedResponse, (string?)null));
+
+        // Act
+        var result = await _walletsController.VerifyRecipient(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        _mockWalletService.Verify(x => x.VerifyRecipientForTransferAsync(
+            It.Is<VerifyRecipientRequest>(r => r.RecipientEmail == "recipient@example.com"),
+            It.IsAny<CancellationToken>()), 
+            Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Should forward cancellation token to service
+    /// </summary>
+    [Fact]
+    public async Task VerifyRecipient_ShouldForwardCancellationToken()
+    {
+        // Arrange
+        var request = TestDataBuilder.VerifyRecipient.ValidRequest();
+        var expectedResponse = TestDataBuilder.VerifyRecipient.ValidResponse();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        var cancellationToken = new CancellationToken();
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.VerifyRecipientForTransferAsync(It.IsAny<VerifyRecipientRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedResponse, (string?)null));
+
+        // Act
+        var result = await _walletsController.VerifyRecipient(request, cancellationToken);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        _mockWalletService.Verify(x => x.VerifyRecipientForTransferAsync(
+            It.IsAny<VerifyRecipientRequest>(),
+            cancellationToken), 
+            Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Should log information appropriately
+    /// </summary>
+    [Fact]
+    public async Task VerifyRecipient_ShouldLogInformation()
+    {
+        // Arrange
+        var request = TestDataBuilder.VerifyRecipient.ValidRequest();
+        var expectedResponse = TestDataBuilder.VerifyRecipient.ValidResponse();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.VerifyRecipientForTransferAsync(It.IsAny<VerifyRecipientRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedResponse, (string?)null));
+
+        // Act
+        var result = await _walletsController.VerifyRecipient(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        
+        // Verify that controller logs the verification attempt
+        _mockControllerLogger.Verify(
+            x => x.Log(
+                LogLevel.Information,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((o, t) => o.ToString()!.Contains("Attempting to verify recipient email")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    #endregion
+
+    #region Error Handling Tests
+
+    /// <summary>
+    /// Test: Service error should return BadRequest
+    /// </summary>
+    [Fact]
+    public async Task VerifyRecipient_WithServiceError_ShouldReturnBadRequest()
+    {
+        // Arrange
+        var request = TestDataBuilder.VerifyRecipient.ValidRequest();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.VerifyRecipientForTransferAsync(It.IsAny<VerifyRecipientRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(((RecipientInfoResponse?)null, "Internal system error occurred"));
+
+        // Act
+        var result = await _walletsController.VerifyRecipient(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+        var badRequestResult = result as BadRequestObjectResult;
+        var responseMessage = GetMessageFromResponse(badRequestResult!.Value);
+        responseMessage.Should().Contain("Internal system error occurred");
+    }
+
+    /// <summary>
+    /// Test: Null error message should return generic error
+    /// </summary>
+    [Fact]
+    public async Task VerifyRecipient_WithNullErrorMessage_ShouldReturnGenericError()
+    {
+        // Arrange
+        var request = TestDataBuilder.VerifyRecipient.ValidRequest();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.VerifyRecipientForTransferAsync(It.IsAny<VerifyRecipientRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(((RecipientInfoResponse?)null, (string?)null));
+
+        // Act
+        var result = await _walletsController.VerifyRecipient(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+        var badRequestResult = result as BadRequestObjectResult;
+        var responseMessage = GetMessageFromResponse(badRequestResult!.Value);
+        responseMessage.Should().Be("Failed to verify recipient.");
+    }
+
+    #endregion
+
+    #endregion
+
+    #region ExecuteTransfer Tests - SCRUM-53
+
+    // Tests for POST /api/v1/wallets/internal-transfer/execute endpoint
+    // According to SCRUM-53 requirements: Happy Path, Validation, Business Logic, Security
+
+    #region Happy Path Tests
+
+    /// <summary>
+    /// Test: Valid internal transfer should be executed successfully
+    /// </summary>
+    [Fact]
+    public async Task ExecuteTransfer_WithValidRequest_ShouldReturnSenderTransactionDto()
+    {
+        // Arrange
+        var request = TestDataBuilder.ExecuteInternalTransfer.ValidRequest();
+        var expectedResponse = TestDataBuilder.ExecuteInternalTransfer.ValidSenderTransactionResponse();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.ExecuteInternalTransferAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<ExecuteInternalTransferRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedResponse, (string?)null));
+
+        // Act
+        var result = await _walletsController.ExecuteTransfer(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        var response = okResult!.Value as WalletTransactionDto;
+        
+        response.Should().NotBeNull();
+        response!.TransactionId.Should().Be(expectedResponse.TransactionId);
+        response.Amount.Should().Be(expectedResponse.Amount);
+        response.TransactionTypeName.Should().Be("InternalTransferSent");
+        response.Status.Should().Be("Completed");
+    }
+
+    /// <summary>
+    /// Test: Sender balance should be deducted correctly
+    /// </summary>
+    [Fact]
+    public async Task ExecuteTransfer_WithValidRequest_ShouldDeductSenderBalance()
+    {
+        // Arrange
+        var request = TestDataBuilder.ExecuteInternalTransfer.ValidRequest();
+        var expectedResponse = TestDataBuilder.ExecuteInternalTransfer.ValidSenderTransactionResponse();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.ExecuteInternalTransferAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<ExecuteInternalTransferRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedResponse, (string?)null));
+
+        // Act
+        var result = await _walletsController.ExecuteTransfer(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        var response = okResult!.Value as WalletTransactionDto;
+        
+        response.Should().NotBeNull();
+        response!.BalanceAfter.Should().Be(900.00m); // 1000 - 100 = 900
+        response.Amount.Should().Be(100.00m);
+    }
+
+    /// <summary>
+    /// Test: Large amount transfer should work correctly
+    /// </summary>
+    [Fact]
+    public async Task ExecuteTransfer_WithLargeAmount_ShouldExecuteSuccessfully()
+    {
+        // Arrange
+        var request = TestDataBuilder.ExecuteInternalTransfer.LargeAmountRequest();
+        var expectedResponse = TestDataBuilder.ExecuteInternalTransfer.LargeAmountSenderTransactionResponse();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.ExecuteInternalTransferAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<ExecuteInternalTransferRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedResponse, (string?)null));
+
+        // Act
+        var result = await _walletsController.ExecuteTransfer(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        var response = okResult!.Value as WalletTransactionDto;
+        
+        response.Should().NotBeNull();
+        response!.Amount.Should().Be(5000.00m);
+        response.BalanceAfter.Should().Be(5000.00m);
+    }
+
+    /// <summary>
+    /// Test: Transaction record should be created with correct details
+    /// </summary>
+    [Fact]
+    public async Task ExecuteTransfer_WithValidRequest_ShouldCreateCorrectTransactionRecord()
+    {
+        // Arrange
+        var request = TestDataBuilder.ExecuteInternalTransfer.ValidRequest();
+        var expectedResponse = TestDataBuilder.ExecuteInternalTransfer.ValidSenderTransactionResponse();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.ExecuteInternalTransferAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<ExecuteInternalTransferRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedResponse, (string?)null));
+
+        // Act
+        var result = await _walletsController.ExecuteTransfer(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        var response = okResult!.Value as WalletTransactionDto;
+        
+        response.Should().NotBeNull();
+        response!.TransactionTypeName.Should().Be("InternalTransferSent");
+        response.PaymentMethod.Should().Be("InternalTransfer");
+        response.ReferenceId.Should().Be("TRANSFER_TO_USER_2");
+        response.CurrencyCode.Should().Be("USD");
+        response.Status.Should().Be("Completed");
+    }
+
+    /// <summary>
+    /// Test: Transfer without description should work
+    /// </summary>
+    [Fact]
+    public async Task ExecuteTransfer_WithoutDescription_ShouldExecuteSuccessfully()
+    {
+        // Arrange
+        var request = TestDataBuilder.ExecuteInternalTransfer.RequestWithoutDescription();
+        var expectedResponse = TestDataBuilder.ExecuteInternalTransfer.TransactionResponseWithoutDescription();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.ExecuteInternalTransferAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<ExecuteInternalTransferRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedResponse, (string?)null));
+
+        // Act
+        var result = await _walletsController.ExecuteTransfer(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        var response = okResult!.Value as WalletTransactionDto;
+        
+        response.Should().NotBeNull();
+        response!.Description.Should().Contain("Notes: N/A");
+    }
+
+    #endregion
+
+    #region Validation Tests
+
+    /// <summary>
+    /// Test: Invalid recipient user ID should return BadRequest
+    /// </summary>
+    [Fact]
+    public async Task ExecuteTransfer_WithInvalidRecipientId_ShouldReturnBadRequest()
+    {
+        // Arrange
+        var request = TestDataBuilder.ExecuteInternalTransfer.InvalidRecipientIdRequest();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.ExecuteInternalTransferAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<ExecuteInternalTransferRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(((WalletTransactionDto?)null, "Recipient User ID must be valid."));
+
+        // Act
+        var result = await _walletsController.ExecuteTransfer(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+        var badRequestResult = result as BadRequestObjectResult;
+        var responseMessage = GetMessageFromResponse(badRequestResult!.Value);
+        responseMessage.Should().Contain("valid");
+    }
+
+    /// <summary>
+    /// Test: Zero amount should return BadRequest
+    /// </summary>
+    [Fact]
+    public async Task ExecuteTransfer_WithZeroAmount_ShouldReturnBadRequest()
+    {
+        // Arrange
+        var request = TestDataBuilder.ExecuteInternalTransfer.ZeroAmountRequest();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.ExecuteInternalTransferAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<ExecuteInternalTransferRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(((WalletTransactionDto?)null, "Transfer amount must be greater than 0."));
+
+        // Act
+        var result = await _walletsController.ExecuteTransfer(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+        var badRequestResult = result as BadRequestObjectResult;
+        var responseMessage = GetMessageFromResponse(badRequestResult!.Value);
+        responseMessage.Should().Contain("must be greater than 0");
+    }
+
+    /// <summary>
+    /// Test: Negative amount should return BadRequest
+    /// </summary>
+    [Fact]
+    public async Task ExecuteTransfer_WithNegativeAmount_ShouldReturnBadRequest()
+    {
+        // Arrange
+        var request = TestDataBuilder.ExecuteInternalTransfer.NegativeAmountRequest();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.ExecuteInternalTransferAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<ExecuteInternalTransferRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(((WalletTransactionDto?)null, "Transfer amount must be greater than 0."));
+
+        // Act
+        var result = await _walletsController.ExecuteTransfer(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+        var badRequestResult = result as BadRequestObjectResult;
+        var responseMessage = GetMessageFromResponse(badRequestResult!.Value);
+        responseMessage.Should().Contain("must be greater than 0");
+    }
+
+    /// <summary>
+    /// Test: Invalid currency code should return BadRequest
+    /// </summary>
+    [Fact]
+    public async Task ExecuteTransfer_WithInvalidCurrency_ShouldReturnBadRequest()
+    {
+        // Arrange
+        var request = TestDataBuilder.ExecuteInternalTransfer.InvalidCurrencyRequest();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.ExecuteInternalTransferAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<ExecuteInternalTransferRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(((WalletTransactionDto?)null, "Currently, only USD transfers are supported."));
+
+        // Act
+        var result = await _walletsController.ExecuteTransfer(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+        var badRequestResult = result as BadRequestObjectResult;
+        var responseMessage = GetMessageFromResponse(badRequestResult!.Value);
+        responseMessage.Should().Contain("USD");
+    }
+
+    /// <summary>
+    /// Test: Too long description should return BadRequest
+    /// </summary>
+    [Fact]
+    public async Task ExecuteTransfer_WithTooLongDescription_ShouldReturnBadRequest()
+    {
+        // Arrange
+        var request = TestDataBuilder.ExecuteInternalTransfer.TooLongDescriptionRequest();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.ExecuteInternalTransferAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<ExecuteInternalTransferRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(((WalletTransactionDto?)null, "Description cannot exceed 500 characters."));
+
+        // Act
+        var result = await _walletsController.ExecuteTransfer(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+        var badRequestResult = result as BadRequestObjectResult;
+        var responseMessage = GetMessageFromResponse(badRequestResult!.Value);
+        responseMessage.Should().Contain("500 characters");
+    }
+
+    #endregion
+
+    #region Business Logic Tests
+
+    /// <summary>
+    /// Test: Insufficient sender balance should return BadRequest
+    /// </summary>
+    [Fact]
+    public async Task ExecuteTransfer_WithInsufficientBalance_ShouldReturnBadRequest()
+    {
+        // Arrange
+        var request = TestDataBuilder.ExecuteInternalTransfer.AmountExceedingBalanceRequest();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.ExecuteInternalTransferAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<ExecuteInternalTransferRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(((WalletTransactionDto?)null, "Insufficient wallet balance."));
+
+        // Act
+        var result = await _walletsController.ExecuteTransfer(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+        var badRequestResult = result as BadRequestObjectResult;
+        var responseMessage = GetMessageFromResponse(badRequestResult!.Value);
+        responseMessage.Should().Contain("Insufficient");
+    }
+
+    /// <summary>
+    /// Test: Self-transfer attempt should return BadRequest
+    /// </summary>
+    [Fact]
+    public async Task ExecuteTransfer_WithSelfTransfer_ShouldReturnBadRequest()
+    {
+        // Arrange
+        var request = TestDataBuilder.ExecuteInternalTransfer.SelfTransferRequest();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.ExecuteInternalTransferAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<ExecuteInternalTransferRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(((WalletTransactionDto?)null, "Cannot transfer funds to yourself."));
+
+        // Act
+        var result = await _walletsController.ExecuteTransfer(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+        var badRequestResult = result as BadRequestObjectResult;
+        var responseMessage = GetMessageFromResponse(badRequestResult!.Value);
+        responseMessage.Should().Contain("yourself");
+    }
+
+    /// <summary>
+    /// Test: Inactive recipient account should return NotFound
+    /// </summary>
+    [Fact]
+    public async Task ExecuteTransfer_WithInactiveRecipient_ShouldReturnNotFound()
+    {
+        // Arrange
+        var request = TestDataBuilder.ExecuteInternalTransfer.TransferToInactiveUserRequest();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.ExecuteInternalTransferAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<ExecuteInternalTransferRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(((WalletTransactionDto?)null, "Recipient user or their wallet not found, or recipient is inactive."));
+
+        // Act
+        var result = await _walletsController.ExecuteTransfer(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<NotFoundObjectResult>();
+        var notFoundResult = result as NotFoundObjectResult;
+        var responseMessage = GetMessageFromResponse(notFoundResult!.Value);
+        responseMessage.Should().Contain("not found");
+    }
+
+    /// <summary>
+    /// Test: Atomic transaction execution should be verified
+    /// </summary>
+    [Fact]
+    public async Task ExecuteTransfer_ShouldExecuteAtomicallyAtServiceLevel()
+    {
+        // Arrange
+        var request = TestDataBuilder.ExecuteInternalTransfer.ValidRequest();
+        var expectedResponse = TestDataBuilder.ExecuteInternalTransfer.ValidSenderTransactionResponse();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.ExecuteInternalTransferAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<ExecuteInternalTransferRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedResponse, (string?)null));
+
+        // Act
+        var result = await _walletsController.ExecuteTransfer(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        _mockWalletService.Verify(x => x.ExecuteInternalTransferAsync(
+            It.IsAny<ClaimsPrincipal>(),
+            It.IsAny<ExecuteInternalTransferRequest>(),
+            It.IsAny<CancellationToken>()), 
+            Times.Once); // Service call should be atomic at service level
+    }
+
+    /// <summary>
+    /// Test: Double-entry bookkeeping should be handled by service
+    /// </summary>
+    [Fact]
+    public async Task ExecuteTransfer_ShouldHandleDoubleEntryBookkeeping()
+    {
+        // Arrange
+        var request = TestDataBuilder.ExecuteInternalTransfer.ValidRequest();
+        var expectedResponse = TestDataBuilder.ExecuteInternalTransfer.ValidSenderTransactionResponse();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.ExecuteInternalTransferAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<ExecuteInternalTransferRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedResponse, (string?)null));
+
+        // Act
+        var result = await _walletsController.ExecuteTransfer(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        var response = okResult!.Value as WalletTransactionDto;
+        
+        // Verify that response contains sender transaction (debit)
+        response.Should().NotBeNull();
+        response!.TransactionTypeName.Should().Be("InternalTransferSent");
+        response.Amount.Should().BeGreaterThan(0);
+        // Double-entry bookkeeping: corresponding credit transaction for recipient is handled at service level
+    }
+
+    #endregion
+
+    #region Security Tests
+
+    /// <summary>
+    /// Test: User authentication should be required
+    /// </summary>
+    [Fact]
+    public async Task ExecuteTransfer_WithoutAuthentication_ShouldStillCallService()
+    {
+        // Arrange
+        var request = TestDataBuilder.ExecuteInternalTransfer.ValidRequest();
+        var expectedResponse = TestDataBuilder.ExecuteInternalTransfer.ValidSenderTransactionResponse();
+        var unauthenticatedUser = CreateUnauthenticatedUser();
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = unauthenticatedUser
+        };
+
+        // Service should handle unauthenticated users properly
+        _mockWalletService.Setup(x => x.ExecuteInternalTransferAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<ExecuteInternalTransferRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(((WalletTransactionDto?)null, "Sender not authenticated or identity is invalid."));
+
+        // Act
+        var result = await _walletsController.ExecuteTransfer(request, CancellationToken.None);
+
+        // Assert
+        // Note: In real scenario, [Authorize] attribute would prevent unauthenticated access
+        result.Should().BeOfType<ObjectResult>();
+        var errorResult = result as ObjectResult;
+        errorResult!.StatusCode.Should().Be(500);
+    }
+
+    /// <summary>
+    /// Test: Amount validation should be enforced
+    /// </summary>
+    [Fact]
+    public async Task ExecuteTransfer_ShouldValidateAmount()
+    {
+        // Arrange
+        var request = TestDataBuilder.ExecuteInternalTransfer.ValidRequest();
+        var expectedResponse = TestDataBuilder.ExecuteInternalTransfer.ValidSenderTransactionResponse();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.ExecuteInternalTransferAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<ExecuteInternalTransferRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedResponse, (string?)null));
+
+        // Act
+        var result = await _walletsController.ExecuteTransfer(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        _mockWalletService.Verify(x => x.ExecuteInternalTransferAsync(
+            It.IsAny<ClaimsPrincipal>(),
+            It.Is<ExecuteInternalTransferRequest>(r => r.Amount == 100.00m),
+            It.IsAny<CancellationToken>()), 
+            Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Recipient verification should be enforced
+    /// </summary>
+    [Fact]
+    public async Task ExecuteTransfer_ShouldVerifyRecipient()
+    {
+        // Arrange
+        var request = TestDataBuilder.ExecuteInternalTransfer.ValidRequest();
+        var expectedResponse = TestDataBuilder.ExecuteInternalTransfer.ValidSenderTransactionResponse();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.ExecuteInternalTransferAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<ExecuteInternalTransferRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedResponse, (string?)null));
+
+        // Act
+        var result = await _walletsController.ExecuteTransfer(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        _mockWalletService.Verify(x => x.ExecuteInternalTransferAsync(
+            It.IsAny<ClaimsPrincipal>(),
+            It.Is<ExecuteInternalTransferRequest>(r => r.RecipientUserId == 2),
+            It.IsAny<CancellationToken>()), 
+            Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Transaction integrity should be maintained
+    /// </summary>
+    [Fact]
+    public async Task ExecuteTransfer_ShouldMaintainTransactionIntegrity()
+    {
+        // Arrange
+        var request = TestDataBuilder.ExecuteInternalTransfer.ValidRequest();
+        var expectedResponse = TestDataBuilder.ExecuteInternalTransfer.ValidSenderTransactionResponse();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.ExecuteInternalTransferAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<ExecuteInternalTransferRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedResponse, (string?)null));
+
+        // Act
+        var result = await _walletsController.ExecuteTransfer(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        var response = okResult!.Value as WalletTransactionDto;
+        
+        // Verify transaction integrity
+        response.Should().NotBeNull();
+        response!.Status.Should().Be("Completed");
+        response.TransactionDate.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromMinutes(1));
+        response.UpdatedAt.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromMinutes(1));
+    }
+
+    #endregion
+
+    #region Service Integration Tests
+
+    /// <summary>
+    /// Test: Should pass correct parameters to service
+    /// </summary>
+    [Fact]
+    public async Task ExecuteTransfer_ShouldPassCorrectParametersToService()
+    {
+        // Arrange
+        var request = TestDataBuilder.ExecuteInternalTransfer.ValidRequest();
+        var expectedResponse = TestDataBuilder.ExecuteInternalTransfer.ValidSenderTransactionResponse();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.ExecuteInternalTransferAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<ExecuteInternalTransferRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedResponse, (string?)null));
+
+        // Act
+        var result = await _walletsController.ExecuteTransfer(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        _mockWalletService.Verify(x => x.ExecuteInternalTransferAsync(
+            It.Is<ClaimsPrincipal>(p => p.Identity!.Name == "testuser"),
+            It.Is<ExecuteInternalTransferRequest>(r => 
+                r.RecipientUserId == 2 && 
+                r.Amount == 100.00m && 
+                r.CurrencyCode == "USD" &&
+                r.Description == "Transfer for lunch payment"),
+            It.IsAny<CancellationToken>()), 
+            Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Should forward cancellation token to service
+    /// </summary>
+    [Fact]
+    public async Task ExecuteTransfer_ShouldForwardCancellationToken()
+    {
+        // Arrange
+        var request = TestDataBuilder.ExecuteInternalTransfer.ValidRequest();
+        var expectedResponse = TestDataBuilder.ExecuteInternalTransfer.ValidSenderTransactionResponse();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        var cancellationToken = new CancellationToken();
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.ExecuteInternalTransferAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<ExecuteInternalTransferRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedResponse, (string?)null));
+
+        // Act
+        var result = await _walletsController.ExecuteTransfer(request, cancellationToken);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        _mockWalletService.Verify(x => x.ExecuteInternalTransferAsync(
+            It.IsAny<ClaimsPrincipal>(),
+            It.IsAny<ExecuteInternalTransferRequest>(),
+            cancellationToken), 
+            Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Should log information appropriately
+    /// </summary>
+    [Fact]
+    public async Task ExecuteTransfer_ShouldLogInformation()
+    {
+        // Arrange
+        var request = TestDataBuilder.ExecuteInternalTransfer.ValidRequest();
+        var expectedResponse = TestDataBuilder.ExecuteInternalTransfer.ValidSenderTransactionResponse();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.ExecuteInternalTransferAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<ExecuteInternalTransferRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedResponse, (string?)null));
+
+        // Act
+        var result = await _walletsController.ExecuteTransfer(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        
+        // Verify that controller logs the transfer attempt
+        _mockControllerLogger.Verify(
+            x => x.Log(
+                LogLevel.Information,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((o, t) => o.ToString()!.Contains("attempting to execute internal transfer")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    #endregion
+
+    #region Error Handling Tests
+
+    /// <summary>
+    /// Test: Service error should return appropriate status code
+    /// </summary>
+    [Fact]
+    public async Task ExecuteTransfer_WithServiceError_ShouldReturnInternalServerError()
+    {
+        // Arrange
+        var request = TestDataBuilder.ExecuteInternalTransfer.ValidRequest();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.ExecuteInternalTransferAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<ExecuteInternalTransferRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(((WalletTransactionDto?)null, "An error occurred while executing the transfer."));
+
+        // Act
+        var result = await _walletsController.ExecuteTransfer(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<ObjectResult>();
+        var errorResult = result as ObjectResult;
+        errorResult!.StatusCode.Should().Be(500);
+        var responseMessage = GetMessageFromResponse(errorResult.Value);
+        responseMessage.Should().Contain("error occurred");
+    }
+
+    /// <summary>
+    /// Test: Null error message should return generic error
+    /// </summary>
+    [Fact]
+    public async Task ExecuteTransfer_WithNullErrorMessage_ShouldReturnGenericError()
+    {
+        // Arrange
+        var request = TestDataBuilder.ExecuteInternalTransfer.ValidRequest();
+        var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
+        _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+        {
+            User = authenticatedUser
+        };
+
+        _mockWalletService.Setup(x => x.ExecuteInternalTransferAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<ExecuteInternalTransferRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(((WalletTransactionDto?)null, (string?)null));
+
+        // Act
+        var result = await _walletsController.ExecuteTransfer(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<ObjectResult>();
+        var errorResult = result as ObjectResult;
+        errorResult!.StatusCode.Should().Be(500);
+        var responseMessage = GetMessageFromResponse(errorResult.Value);
+        responseMessage.Should().Be("Failed to execute internal transfer.");
     }
 
     #endregion

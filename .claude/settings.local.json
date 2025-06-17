@@ -17,7 +17,8 @@
       "mcp__atlassian__transitionJiraIssue",
       "Bash(dotnet test:*)",
       "Bash(dotnet build:*)",
-      "Bash(rg:*)"
+      "Bash(rg:*)",
+      "Bash(mv:*)"
     ],
     "deny": []
   }

@@ -174,7 +174,13 @@ public class WalletsController : ControllerBase
             if (errorMessage != null)
             {
                 if (errorMessage.Contains("not found")) return NotFound(new { Message = errorMessage });
-                if (errorMessage.Contains("Insufficient") || errorMessage.Contains("yourself") || errorMessage.Contains("invalid"))
+                if (errorMessage.Contains("Insufficient") || 
+                    errorMessage.Contains("yourself") || 
+                    errorMessage.Contains("must be greater than") ||
+                    errorMessage.Contains("only USD") ||
+                    errorMessage.Contains("cannot exceed") ||
+                    errorMessage.Contains("must be valid") ||
+                    (errorMessage.Contains("invalid") && !errorMessage.Contains("not authenticated")))
                 {
                     return BadRequest(new { Message = errorMessage });
                 }
