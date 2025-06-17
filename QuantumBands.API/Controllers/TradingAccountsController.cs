@@ -5,6 +5,9 @@ using QuantumBands.Application.Features.Admin.TradingAccounts.Dtos; // Using Tra
 using QuantumBands.Application.Features.TradingAccounts.Dtos;
 using QuantumBands.Application.Features.TradingAccounts.Queries; // Using GetPublicTradingAccountsQuery
 using QuantumBands.Application.Interfaces;
+using System.IdentityModel.Tokens.Jwt;
+using System.Linq;
+using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -91,5 +94,47 @@ public class TradingAccountsController : ControllerBase
             return StatusCode(StatusCodes.Status500InternalServerError, new { Message = errorMessage ?? $"An unexpected error occurred while fetching offerings for trading account ID {accountId}." });
         }
         return Ok(offerings);
+    }
+
+    /// <summary>
+    /// Gets account overview with balance info and performance KPIs for a specific trading account.
+    /// Users can only access their own accounts, admins can access any account.
+    /// </summary>
+    [HttpGet("{accountId}/overview")] // Endpoint: /api/v1/trading-accounts/{accountId}/overview
+    [ProducesResponseType(typeof(AccountOverviewDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetAccountOverview(int accountId, CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Request received for account overview for TradingAccountID: {AccountId}", accountId);
+
+        // Get current user info
+        var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier || c.Type == "uid" || c.Type == JwtRegisteredClaimNames.Sub)?.Value;
+        if (!int.TryParse(userIdClaim, out var userId))
+        {
+            return Unauthorized(new { Message = "Invalid user authentication" });
+        }
+
+        var isAdmin = User.IsInRole("Admin");
+
+        var (overview, errorMessage) = await _tradingAccountService.GetAccountOverviewAsync(accountId, userId, isAdmin, cancellationToken);
+
+        if (overview == null)
+        {
+            _logger.LogWarning("Failed to retrieve account overview for TradingAccountID {AccountId}. Error: {ErrorMessage}", accountId, errorMessage);
+            
+            if (errorMessage != null && errorMessage.Contains("Unauthorized"))
+            {
+                return Forbid();
+            }
+            if (errorMessage != null && errorMessage.Contains("not found"))
+            {
+                return NotFound(new { Message = errorMessage });
+            }
+            return StatusCode(StatusCodes.Status500InternalServerError, new { Message = errorMessage ?? $"An unexpected error occurred while fetching overview for trading account ID {accountId}." });
+        }
+
+        return Ok(overview);
     }
 }
