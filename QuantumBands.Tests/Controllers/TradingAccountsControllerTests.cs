@@ -41,19 +41,8 @@ namespace QuantumBands.Tests.Controllers;
 /// 
 /// Total Test Coverage: 44 unit tests ensuring comprehensive validation of TradingAccountsController
 /// </summary>
-public class TradingAccountsControllerTests : TestBase
+public partial class TradingAccountsControllerTests : TestBase
 {
-    private readonly TradingAccountsController _tradingAccountsController;
-    private readonly Mock<ITradingAccountService> _mockTradingAccountService;
-    private readonly Mock<ILogger<TradingAccountsController>> _mockControllerLogger;
-
-    public TradingAccountsControllerTests()
-    {
-        _mockTradingAccountService = new Mock<ITradingAccountService>();
-        _mockControllerLogger = new Mock<ILogger<TradingAccountsController>>();
-        _tradingAccountsController = new TradingAccountsController(_mockTradingAccountService.Object, _mockControllerLogger.Object);
-    }
-
     #region Happy Path Tests
     // Tests that verify the endpoint works correctly under normal, expected conditions
 
