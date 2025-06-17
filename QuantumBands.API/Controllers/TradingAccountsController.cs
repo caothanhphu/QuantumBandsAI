@@ -137,4 +137,55 @@ public class TradingAccountsController : ControllerBase
 
         return Ok(overview);
     }
+
+    /// <summary>
+    /// Gets chart data for trading account performance visualization.
+    /// Supports multiple chart types (balance, equity, growth, drawdown) and time periods.
+    /// Users can only access their own accounts, admins can access any account.
+    /// </summary>
+    /// <param name="accountId">Trading account identifier</param>
+    /// <param name="query">Chart data query parameters</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Chart data with data points and summary statistics</returns>
+    [HttpGet("{accountId}/charts")] // Endpoint: /api/v1/trading-accounts/{accountId}/charts
+    [ProducesResponseType(typeof(ChartDataDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetChartsData(
+        int accountId, 
+        [FromQuery] GetChartDataQuery query, 
+        CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Request received for chart data for TradingAccountID: {AccountId} with query: {@Query}", accountId, query);
+
+        // Get current user info
+        var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier || c.Type == "uid" || c.Type == JwtRegisteredClaimNames.Sub)?.Value;
+        if (!int.TryParse(userIdClaim, out var userId))
+        {
+            return Unauthorized(new { Message = "Invalid user authentication" });
+        }
+
+        var isAdmin = User.IsInRole("Admin");
+
+        var (chartData, errorMessage) = await _tradingAccountService.GetChartDataAsync(accountId, query, userId, isAdmin, cancellationToken);
+
+        if (chartData == null)
+        {
+            _logger.LogWarning("Failed to retrieve chart data for TradingAccountID {AccountId}. Error: {ErrorMessage}", accountId, errorMessage);
+            
+            if (errorMessage != null && errorMessage.Contains("Unauthorized"))
+            {
+                return Forbid();
+            }
+            if (errorMessage != null && errorMessage.Contains("not found"))
+            {
+                return NotFound(new { Message = errorMessage });
+            }
+            return StatusCode(StatusCodes.Status500InternalServerError, new { Message = errorMessage ?? $"An unexpected error occurred while fetching chart data for trading account ID {accountId}." });
+        }
+
+        return Ok(chartData);
+    }
 }
