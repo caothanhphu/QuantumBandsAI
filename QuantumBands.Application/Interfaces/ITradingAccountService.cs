@@ -20,5 +20,5 @@ public interface ITradingAccountService
     Task<(PaginatedList<InitialShareOfferingDto>? Offerings, string? ErrorMessage)> GetInitialShareOfferingsAsync(int tradingAccountId, GetInitialOfferingsQuery query, CancellationToken cancellationToken = default);
     Task<(InitialShareOfferingDto? Offering, string? ErrorMessage)> UpdateInitialShareOfferingAsync(int tradingAccountId, int offeringId, UpdateInitialShareOfferingRequest request, ClaimsPrincipal adminUser, CancellationToken cancellationToken = default);
     Task<(InitialShareOfferingDto? Offering, string? ErrorMessage)> CancelInitialShareOfferingAsync(int tradingAccountId, int offeringId, CancelInitialShareOfferingRequest request, ClaimsPrincipal adminUser, CancellationToken cancellationToken = default);
-
+    Task<(AccountOverviewDto? Overview, string? ErrorMessage)> GetAccountOverviewAsync(int accountId, int userId, bool isAdmin, CancellationToken cancellationToken = default);
 }

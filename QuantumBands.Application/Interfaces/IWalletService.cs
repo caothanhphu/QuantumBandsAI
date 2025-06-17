@@ -36,5 +36,7 @@ public interface IWalletService
     string reason,
     CancellationToken cancellationToken = default);
 
+    Task<(decimal TotalDeposits, decimal TotalWithdrawals, decimal InitialDeposit)> GetFinancialSummaryAsync(int tradingAccountId, CancellationToken cancellationToken = default);
+
     // Các phương thức khác liên quan đến wallet sẽ được thêm vào đây sau
 }

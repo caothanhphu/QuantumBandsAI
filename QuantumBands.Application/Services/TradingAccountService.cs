@@ -8,6 +8,7 @@ using QuantumBands.Application.Features.TradingAccounts.Dtos;
 using QuantumBands.Application.Features.TradingAccounts.Queries;
 using QuantumBands.Application.Interfaces;
 using QuantumBands.Application.Interfaces.Repositories; // Assuming specific repositories if needed
+using QuantumBands.Application.Services;
 using QuantumBands.Domain.Entities;
 using QuantumBands.Domain.Entities.Enums;
 using System;
@@ -23,14 +24,22 @@ public class TradingAccountService : ITradingAccountService
 {
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<TradingAccountService> _logger;
+    private readonly IClosedTradeService _closedTradeService;
+    private readonly IWalletService _walletService;
     // private readonly IGenericRepository<TradingAccount> _tradingAccountRepository; // Can get from UnitOfWork
     // private readonly IGenericRepository<InitialShareOffering> _offeringRepository; // Can get from UnitOfWork
     // private readonly IGenericRepository<User> _userRepository; // Can get from UnitOfWork
 
-    public TradingAccountService(IUnitOfWork unitOfWork, ILogger<TradingAccountService> logger)
+    public TradingAccountService(
+        IUnitOfWork unitOfWork, 
+        ILogger<TradingAccountService> logger,
+        IClosedTradeService closedTradeService,
+        IWalletService walletService)
     {
         _unitOfWork = unitOfWork;
         _logger = logger;
+        _closedTradeService = closedTradeService;
+        _walletService = walletService;
         // _tradingAccountRepository = unitOfWork.GetRepository<TradingAccount>(); // Example if UoW has generic GetRepository
         // _offeringRepository = unitOfWork.GetRepository<InitialShareOffering>();
         // _userRepository = unitOfWork.GetRepository<User>();
@@ -794,5 +803,112 @@ public class TradingAccountService : ITradingAccountService
             UpdatedAt = offering.UpdatedAt
         };
         return (dto, null);
+    }
+
+    public async Task<(AccountOverviewDto? Overview, string? ErrorMessage)> GetAccountOverviewAsync(int accountId, int userId, bool isAdmin, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            _logger.LogInformation("Getting account overview for account {AccountId}, user {UserId}, isAdmin: {IsAdmin}", accountId, userId, isAdmin);
+
+            // Authorization check
+            if (!isAdmin)
+            {
+                // Check if user owns this account
+                var accountOwner = await _unitOfWork.TradingAccounts.Query()
+                    .Where(ta => ta.TradingAccountId == accountId)
+                    .Select(ta => ta.CreatedByUserId)
+                    .FirstOrDefaultAsync(cancellationToken);
+
+                if (accountOwner != userId)
+                {
+                    return (null, "Unauthorized access to this trading account");
+                }
+            }
+
+            // Get account info
+            var account = await _unitOfWork.TradingAccounts.Query()
+                .FirstOrDefaultAsync(ta => ta.TradingAccountId == accountId, cancellationToken);
+
+            if (account == null)
+            {
+                return (null, $"Trading account with ID {accountId} not found");
+            }
+
+            // Get performance KPIs from ClosedTradeService
+            var (totalTrades, winRate, profitFactor, totalProfit) = await _closedTradeService.GetPerformanceKPIsAsync(accountId, cancellationToken);
+
+            // Get financial summary from WalletService
+            var (totalDeposits, totalWithdrawals, initialDeposit) = await _walletService.GetFinancialSummaryAsync(accountId, cancellationToken);
+
+            // Calculate current balance and equity from open positions
+            var openPositions = await _unitOfWork.EAOpenPositions.Query()
+                .Where(op => op.TradingAccountId == accountId)
+                .ToListAsync(cancellationToken);
+
+            var currentBalance = account.CurrentNetAssetValue;
+            var floatingPnL = openPositions.Sum(op => op.FloatingPandL);
+            var currentEquity = currentBalance + floatingPnL;
+
+            // Calculate margin info (simplified - in real implementation this would be more complex)
+            var marginUsed = openPositions.Sum(op => op.VolumeLots * op.OpenPrice * 100); // Simplified calculation
+            var freeMargin = currentEquity - marginUsed;
+            var marginLevel = marginUsed > 0 ? (currentEquity / marginUsed) * 100 : 0m;
+
+            // Calculate additional KPIs
+            var activeDays = (DateTime.UtcNow - account.CreatedAt).Days;
+            var growthPercent = initialDeposit > 0 ? ((currentBalance - initialDeposit) / initialDeposit) * 100 : 0m;
+
+            // Calculate max drawdown (simplified - in real implementation this would use daily snapshots)
+            var maxDrawdown = 0m; // This would need historical data analysis
+            var maxDrawdownAmount = 0m;
+
+            var overview = new AccountOverviewDto
+            {
+                AccountInfo = new AccountInfoDto
+                {
+                    AccountId = account.TradingAccountId.ToString(),
+                    AccountName = account.AccountName,
+                    Login = account.BrokerPlatformIdentifier ?? "",
+                    Server = "MT5-Server", // This could be from configuration
+                    AccountType = "Real", // This could be from account settings
+                    TradingPlatform = "MT5",
+                    HedgingAllowed = true, // This could be from account settings
+                    Leverage = 100, // This could be from account settings
+                    RegistrationDate = account.CreatedAt,
+                    LastActivity = account.UpdatedAt,
+                    Status = account.IsActive ? "Active" : "Inactive"
+                },
+                BalanceInfo = new BalanceInfoDto
+                {
+                    CurrentBalance = currentBalance,
+                    CurrentEquity = currentEquity,
+                    FreeMargin = freeMargin,
+                    MarginLevel = marginLevel,
+                    TotalDeposits = totalDeposits,
+                    TotalWithdrawals = totalWithdrawals,
+                    TotalProfit = totalProfit,
+                    InitialDeposit = initialDeposit
+                },
+                PerformanceKPIs = new PerformanceKPIsDto
+                {
+                    TotalTrades = totalTrades,
+                    WinRate = winRate,
+                    ProfitFactor = profitFactor,
+                    MaxDrawdown = maxDrawdown,
+                    MaxDrawdownAmount = maxDrawdownAmount,
+                    GrowthPercent = growthPercent,
+                    ActiveDays = activeDays
+                }
+            };
+
+            _logger.LogInformation("Account overview generated successfully for account {AccountId}", accountId);
+            return (overview, null);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting account overview for account {AccountId}", accountId);
+            return (null, "An error occurred while retrieving account overview");
+        }
     }
 }
