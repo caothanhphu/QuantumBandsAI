@@ -3688,6 +3688,114 @@ public static class TestDataBuilder
             CreatedByUserId = 1,
             CreatorUsername = "admin",
             CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow        };
+    }
+
+    // SCRUM-71: Test data for PUT /admin/trading-accounts/{accountId} endpoint testing
+    public static class UpdateTradingAccounts
+    {
+        /// <summary>
+        /// Valid request for updating trading account with all optional fields
+        /// </summary>
+        public static UpdateTradingAccountRequest ValidCompleteRequest() => new()
+        {
+            Description = "Updated trading account description",
+            EaName = "UpdatedEA_v2.0",
+            ManagementFeeRate = 0.025m, // 2.5%
+            IsActive = true
+        };
+
+        /// <summary>
+        /// Valid request for updating only description
+        /// </summary>
+        public static UpdateTradingAccountRequest ValidDescriptionOnlyRequest() => new()
+        {
+            Description = "Only description updated"
+        };
+
+        /// <summary>
+        /// Valid request for updating only EA name
+        /// </summary>
+        public static UpdateTradingAccountRequest ValidEaNameOnlyRequest() => new()
+        {
+            EaName = "NewEA_v3.0"
+        };
+
+        /// <summary>
+        /// Valid request for updating only management fee rate
+        /// </summary>
+        public static UpdateTradingAccountRequest ValidManagementFeeOnlyRequest() => new()
+        {
+            ManagementFeeRate = 0.03m // 3%
+        };
+
+        /// <summary>
+        /// Valid request for updating only active status
+        /// </summary>
+        public static UpdateTradingAccountRequest ValidActiveStatusOnlyRequest() => new()
+        {
+            IsActive = false
+        };
+
+        /// <summary>
+        /// Request with description that is too long (> 1000 chars)
+        /// </summary>
+        public static UpdateTradingAccountRequest DescriptionTooLongRequest() => new()
+        {
+            Description = new string('D', 1001) // 1001 characters
+        };
+
+        /// <summary>
+        /// Request with EA name that is too long (> 100 chars)
+        /// </summary>
+        public static UpdateTradingAccountRequest EaNameTooLongRequest() => new()
+        {
+            EaName = new string('E', 101) // 101 characters
+        };
+
+        /// <summary>
+        /// Request with management fee rate that is too high (> 0.9999)
+        /// </summary>
+        public static UpdateTradingAccountRequest ExcessiveManagementFeeRequest() => new()
+        {
+            ManagementFeeRate = 1.0m // 100% - exceeds maximum of 99.99%
+        };
+
+        /// <summary>
+        /// Request with negative management fee rate
+        /// </summary>
+        public static UpdateTradingAccountRequest NegativeManagementFeeRequest() => new()
+        {
+            ManagementFeeRate = -0.01m
+        };
+
+        /// <summary>
+        /// Empty request (all fields null)
+        /// </summary>
+        public static UpdateTradingAccountRequest EmptyRequest() => new()
+        {
+            // All fields are null
+        };
+
+        /// <summary>
+        /// Successful response DTO
+        /// </summary>
+        public static TradingAccountDto SuccessfulResponse() => new()
+        {
+            TradingAccountId = 1,
+            AccountName = "Updated Trading Account",
+            Description = "Updated trading account description",
+            EaName = "UpdatedEA_v2.0",
+            BrokerPlatformIdentifier = "MetaTrader5_Demo",
+            InitialCapital = 100000.00m,
+            TotalSharesIssued = 10000,
+            CurrentNetAssetValue = 105000.00m,
+            CurrentSharePrice = 10.50m,
+            ManagementFeeRate = 0.025m,
+            IsActive = true,
+            CreatedByUserId = 1,
+            CreatorUsername = "admin",
+            CreatedAt = DateTime.UtcNow.AddDays(-7),
             UpdatedAt = DateTime.UtcNow
         };
     }

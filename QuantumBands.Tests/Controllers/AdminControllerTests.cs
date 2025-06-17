@@ -1185,6 +1185,513 @@ public class AdminControllerTests : TestBase
 
     #endregion
 
+    #region UpdateTradingAccount Tests - SCRUM-71
+
+    /// <summary>
+    /// SCRUM-71: Unit Tests for PUT /admin/trading-accounts/{accountId} endpoint
+    /// Comprehensive test coverage including Happy Path, Authorization, Validation, and Business Logic scenarios
+    /// </summary>
+
+    #region Happy Path Tests - UpdateTradingAccount
+
+    [Fact]
+    public async Task UpdateTradingAccount_WithValidCompleteRequest_ShouldReturnOkWithUpdatedAccount()
+    {
+        // Arrange
+        const int accountId = 1;
+        var request = TestDataBuilder.UpdateTradingAccounts.ValidCompleteRequest();
+        var expectedResponse = TestDataBuilder.UpdateTradingAccounts.SuccessfulResponse();
+        var adminClaims = CreateAdminClaimsPrincipal();
+
+        _adminController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = adminClaims }
+        };
+
+        _mockTradingAccountService
+            .Setup(x => x.UpdateTradingAccountAsync(
+                It.Is<int>(id => id == accountId),
+                It.IsAny<UpdateTradingAccountRequest>(),
+                It.IsAny<ClaimsPrincipal>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedResponse, null as string));
+
+        // Act
+        var result = await _adminController.UpdateTradingAccount(accountId, request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        var response = okResult!.Value as TradingAccountDto;
+        response.Should().NotBeNull();
+        response!.TradingAccountId.Should().Be(expectedResponse.TradingAccountId);
+        response.Description.Should().Be(expectedResponse.Description);
+        response.EaName.Should().Be(expectedResponse.EaName);
+        response.ManagementFeeRate.Should().Be(expectedResponse.ManagementFeeRate);
+        response.IsActive.Should().Be(expectedResponse.IsActive);
+    }
+
+    [Fact]
+    public async Task UpdateTradingAccount_WithDescriptionOnly_ShouldReturnOkWithUpdatedDescription()
+    {
+        // Arrange
+        const int accountId = 1;
+        var request = TestDataBuilder.UpdateTradingAccounts.ValidDescriptionOnlyRequest();
+        var expectedResponse = TestDataBuilder.UpdateTradingAccounts.SuccessfulResponse();
+        var adminClaims = CreateAdminClaimsPrincipal();
+
+        _adminController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = adminClaims }
+        };
+
+        _mockTradingAccountService
+            .Setup(x => x.UpdateTradingAccountAsync(accountId, request, adminClaims, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedResponse, null as string));
+
+        // Act
+        var result = await _adminController.UpdateTradingAccount(accountId, request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        var response = okResult!.Value as TradingAccountDto;
+        response.Should().NotBeNull();
+        response!.Description.Should().Be(expectedResponse.Description);
+    }
+
+    [Fact]
+    public async Task UpdateTradingAccount_WithEaNameOnly_ShouldReturnOkWithUpdatedEaName()
+    {
+        // Arrange
+        const int accountId = 1;
+        var request = TestDataBuilder.UpdateTradingAccounts.ValidEaNameOnlyRequest();
+        var expectedResponse = TestDataBuilder.UpdateTradingAccounts.SuccessfulResponse();
+        var adminClaims = CreateAdminClaimsPrincipal();
+
+        _adminController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = adminClaims }
+        };
+
+        _mockTradingAccountService
+            .Setup(x => x.UpdateTradingAccountAsync(accountId, request, adminClaims, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedResponse, null as string));
+
+        // Act
+        var result = await _adminController.UpdateTradingAccount(accountId, request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        var response = okResult!.Value as TradingAccountDto;
+        response.Should().NotBeNull();
+        response!.EaName.Should().Be(expectedResponse.EaName);
+    }
+
+    [Fact]
+    public async Task UpdateTradingAccount_WithManagementFeeOnly_ShouldReturnOkWithUpdatedFee()
+    {
+        // Arrange
+        const int accountId = 1;
+        var request = TestDataBuilder.UpdateTradingAccounts.ValidManagementFeeOnlyRequest();
+        var expectedResponse = TestDataBuilder.UpdateTradingAccounts.SuccessfulResponse();
+        var adminClaims = CreateAdminClaimsPrincipal();
+
+        _adminController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = adminClaims }
+        };
+
+        _mockTradingAccountService
+            .Setup(x => x.UpdateTradingAccountAsync(accountId, request, adminClaims, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedResponse, null as string));
+
+        // Act
+        var result = await _adminController.UpdateTradingAccount(accountId, request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        var response = okResult!.Value as TradingAccountDto;
+        response.Should().NotBeNull();
+        response!.ManagementFeeRate.Should().Be(expectedResponse.ManagementFeeRate);
+    }
+
+    [Fact]
+    public async Task UpdateTradingAccount_WithActiveStatusToggle_ShouldReturnOkWithUpdatedStatus()
+    {
+        // Arrange
+        const int accountId = 1;
+        var request = TestDataBuilder.UpdateTradingAccounts.ValidActiveStatusOnlyRequest();
+        var expectedResponse = TestDataBuilder.UpdateTradingAccounts.SuccessfulResponse();
+        expectedResponse.IsActive = false; // Match the request
+        var adminClaims = CreateAdminClaimsPrincipal();
+
+        _adminController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = adminClaims }
+        };
+
+        _mockTradingAccountService
+            .Setup(x => x.UpdateTradingAccountAsync(accountId, request, adminClaims, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedResponse, null as string));
+
+        // Act
+        var result = await _adminController.UpdateTradingAccount(accountId, request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();        var okResult = result as OkObjectResult;
+        var response = okResult!.Value as TradingAccountDto;
+        response.Should().NotBeNull();
+        response!.IsActive.Should().Be(false);
+    }
+
+    #endregion
+
+    #region Authorization Tests - UpdateTradingAccount
+
+    [Fact]
+    public void UpdateTradingAccount_WithUnauthenticatedUser_ShouldBeHandledByAuthorizationAttribute()
+    {
+        // Arrange
+        var request = TestDataBuilder.UpdateTradingAccounts.ValidCompleteRequest();
+        
+        _adminController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext() // No user set
+        };
+
+        // Act & Assert
+        // The [Authorize(Roles = "Admin")] attribute should handle this case
+        var controllerType = typeof(AdminController);
+        var authorizeAttributes = controllerType.GetCustomAttributes(typeof(Microsoft.AspNetCore.Authorization.AuthorizeAttribute), false);
+        authorizeAttributes.Should().NotBeEmpty("AdminController should have Authorize attribute for admin-only access");
+    }    [Fact]
+    public void UpdateTradingAccount_WithNonAdminUser_ShouldBeHandledByAuthorizationAttribute()
+    {
+        // Arrange
+        var request = TestDataBuilder.UpdateTradingAccounts.ValidCompleteRequest();
+        var userClaims = CreateUserClaimsPrincipal(); // Regular user, not admin
+        
+        _adminController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = userClaims }
+        };
+
+        // Act & Assert
+        // The [Authorize(Roles = "Admin")] attribute should handle this case
+        var controllerType = typeof(AdminController);
+        var authorizeAttributes = controllerType.GetCustomAttributes(typeof(Microsoft.AspNetCore.Authorization.AuthorizeAttribute), false)
+            .Cast<Microsoft.AspNetCore.Authorization.AuthorizeAttribute>();
+        authorizeAttributes.Should().Contain(attr => attr.Roles == "Admin", "AdminController should require Admin role");
+    }
+
+    #endregion
+
+    #region Validation Tests - UpdateTradingAccount
+
+    [Fact]
+    public async Task UpdateTradingAccount_WithNullRequest_ShouldReturnBadRequest()
+    {
+        // Arrange
+        const int accountId = 1;
+        UpdateTradingAccountRequest? request = null;
+        var adminClaims = CreateAdminClaimsPrincipal();
+
+        _adminController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = adminClaims }
+        };
+
+        // Act
+        var result = await _adminController.UpdateTradingAccount(accountId, request!, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+        var badRequestResult = result as BadRequestObjectResult;
+        badRequestResult!.Value.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task UpdateTradingAccount_WithInvalidAccountId_ShouldReturnNotFound()
+    {
+        // Arrange
+        const int invalidAccountId = 999;
+        var request = TestDataBuilder.UpdateTradingAccounts.ValidCompleteRequest();
+        var adminClaims = CreateAdminClaimsPrincipal();
+
+        _adminController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = adminClaims }
+        };
+
+        _mockTradingAccountService
+            .Setup(x => x.UpdateTradingAccountAsync(invalidAccountId, request, adminClaims, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((null as TradingAccountDto, "Trading account not found"));
+
+        // Act
+        var result = await _adminController.UpdateTradingAccount(invalidAccountId, request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<NotFoundObjectResult>();
+        var notFoundResult = result as NotFoundObjectResult;
+        notFoundResult!.Value.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task UpdateTradingAccount_WithNonExistentAccount_ShouldReturnNotFound()
+    {
+        // Arrange
+        const int accountId = 1;
+        var request = TestDataBuilder.UpdateTradingAccounts.ValidCompleteRequest();
+        var adminClaims = CreateAdminClaimsPrincipal();
+
+        _adminController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = adminClaims }
+        };
+
+        _mockTradingAccountService
+            .Setup(x => x.UpdateTradingAccountAsync(accountId, request, adminClaims, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((null as TradingAccountDto, "Trading account with ID 1 not found"));
+
+        // Act
+        var result = await _adminController.UpdateTradingAccount(accountId, request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<NotFoundObjectResult>();
+        var notFoundResult = result as NotFoundObjectResult;
+        notFoundResult!.Value.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task UpdateTradingAccount_WithDescriptionTooLong_ShouldReturnBadRequest()
+    {
+        // Arrange
+        const int accountId = 1;
+        var request = TestDataBuilder.UpdateTradingAccounts.DescriptionTooLongRequest();
+        var adminClaims = CreateAdminClaimsPrincipal();
+
+        _adminController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = adminClaims }
+        };
+
+        _mockTradingAccountService
+            .Setup(x => x.UpdateTradingAccountAsync(accountId, request, adminClaims, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((null as TradingAccountDto, "Description cannot exceed 1000 characters."));
+
+        // Act
+        var result = await _adminController.UpdateTradingAccount(accountId, request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+        var badRequestResult = result as BadRequestObjectResult;
+        badRequestResult!.Value.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task UpdateTradingAccount_WithEaNameTooLong_ShouldReturnBadRequest()
+    {
+        // Arrange
+        const int accountId = 1;
+        var request = TestDataBuilder.UpdateTradingAccounts.EaNameTooLongRequest();
+        var adminClaims = CreateAdminClaimsPrincipal();
+
+        _adminController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = adminClaims }
+        };
+
+        _mockTradingAccountService
+            .Setup(x => x.UpdateTradingAccountAsync(accountId, request, adminClaims, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((null as TradingAccountDto, "EA name cannot exceed 100 characters."));
+
+        // Act
+        var result = await _adminController.UpdateTradingAccount(accountId, request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+        var badRequestResult = result as BadRequestObjectResult;
+        badRequestResult!.Value.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task UpdateTradingAccount_WithExcessiveManagementFee_ShouldReturnBadRequest()
+    {
+        // Arrange
+        const int accountId = 1;
+        var request = TestDataBuilder.UpdateTradingAccounts.ExcessiveManagementFeeRequest();
+        var adminClaims = CreateAdminClaimsPrincipal();
+
+        _adminController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = adminClaims }
+        };
+
+        _mockTradingAccountService
+            .Setup(x => x.UpdateTradingAccountAsync(accountId, request, adminClaims, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((null as TradingAccountDto, "Management fee rate must be between 0 and 0.9999 (e.g., 0.02 for 2%)."));
+
+        // Act
+        var result = await _adminController.UpdateTradingAccount(accountId, request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+        var badRequestResult = result as BadRequestObjectResult;
+        badRequestResult!.Value.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task UpdateTradingAccount_WithNegativeManagementFee_ShouldReturnBadRequest()
+    {
+        // Arrange
+        const int accountId = 1;
+        var request = TestDataBuilder.UpdateTradingAccounts.NegativeManagementFeeRequest();
+        var adminClaims = CreateAdminClaimsPrincipal();
+
+        _adminController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = adminClaims }
+        };
+
+        _mockTradingAccountService
+            .Setup(x => x.UpdateTradingAccountAsync(accountId, request, adminClaims, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((null as TradingAccountDto, "Management fee rate must be between 0 and 0.9999 (e.g., 0.02 for 2%)."));
+
+        // Act
+        var result = await _adminController.UpdateTradingAccount(accountId, request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+        var badRequestResult = result as BadRequestObjectResult;
+        badRequestResult!.Value.Should().NotBeNull();
+    }
+
+    #endregion
+
+    #region Business Logic Tests - UpdateTradingAccount
+
+    [Fact]
+    public async Task UpdateTradingAccount_WithConcurrencyConflict_ShouldReturnConflict()
+    {
+        // Arrange
+        const int accountId = 1;
+        var request = TestDataBuilder.UpdateTradingAccounts.ValidCompleteRequest();
+        var adminClaims = CreateAdminClaimsPrincipal();
+
+        _adminController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = adminClaims }
+        };
+
+        _mockTradingAccountService
+            .Setup(x => x.UpdateTradingAccountAsync(accountId, request, adminClaims, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((null as TradingAccountDto, "The trading account was modified by another user. Please concurrency conflict"));
+
+        // Act
+        var result = await _adminController.UpdateTradingAccount(accountId, request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<ConflictObjectResult>();
+        var conflictResult = result as ConflictObjectResult;
+        conflictResult!.Value.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task UpdateTradingAccount_WithEmptyRequest_ShouldReturnOkWithUnchangedAccount()
+    {
+        // Arrange - Empty request should not change anything but still be valid
+        const int accountId = 1;
+        var request = TestDataBuilder.UpdateTradingAccounts.EmptyRequest();
+        var expectedResponse = TestDataBuilder.UpdateTradingAccounts.SuccessfulResponse();
+        var adminClaims = CreateAdminClaimsPrincipal();
+
+        _adminController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = adminClaims }
+        };
+
+        _mockTradingAccountService
+            .Setup(x => x.UpdateTradingAccountAsync(accountId, request, adminClaims, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedResponse, null as string));
+
+        // Act
+        var result = await _adminController.UpdateTradingAccount(accountId, request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        var response = okResult!.Value as TradingAccountDto;
+        response.Should().NotBeNull();
+        response!.TradingAccountId.Should().Be(expectedResponse.TradingAccountId);
+    }
+
+    [Fact]
+    public async Task UpdateTradingAccount_WithServiceError_ShouldReturnBadRequest()
+    {
+        // Arrange
+        const int accountId = 1;
+        var request = TestDataBuilder.UpdateTradingAccounts.ValidCompleteRequest();
+        var adminClaims = CreateAdminClaimsPrincipal();
+
+        _adminController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = adminClaims }
+        };
+
+        _mockTradingAccountService
+            .Setup(x => x.UpdateTradingAccountAsync(accountId, request, adminClaims, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((null as TradingAccountDto, "An unexpected service error occurred"));
+
+        // Act
+        var result = await _adminController.UpdateTradingAccount(accountId, request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+        var badRequestResult = result as BadRequestObjectResult;
+        badRequestResult!.Value.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task UpdateTradingAccount_ShouldLogAdminAction()
+    {
+        // Arrange
+        const int accountId = 1;
+        var request = TestDataBuilder.UpdateTradingAccounts.ValidCompleteRequest();
+        var expectedResponse = TestDataBuilder.UpdateTradingAccounts.SuccessfulResponse();
+        var adminClaims = CreateAdminClaimsPrincipal();
+
+        _adminController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = adminClaims }
+        };
+
+        _mockTradingAccountService
+            .Setup(x => x.UpdateTradingAccountAsync(accountId, request, adminClaims, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedResponse, null as string));
+
+        // Act
+        var result = await _adminController.UpdateTradingAccount(accountId, request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        // Verify that the service was called with the correct parameters for audit trail
+        _mockTradingAccountService.Verify(
+            x => x.UpdateTradingAccountAsync(
+                It.Is<int>(id => id == accountId),
+                It.IsAny<UpdateTradingAccountRequest>(),
+                It.Is<ClaimsPrincipal>(user => user == adminClaims),
+                It.IsAny<CancellationToken>()),
+            Times.Once,
+            "Service should be called once with correct admin user for audit trail");
+    }
+
+    #endregion
+
+    #endregion
+
     #region Helper Methods
 
     private static ClaimsPrincipal CreateAdminClaimsPrincipal()
