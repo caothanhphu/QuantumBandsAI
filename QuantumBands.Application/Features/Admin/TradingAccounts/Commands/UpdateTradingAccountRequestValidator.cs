@@ -4,10 +4,14 @@ using FluentValidation;
 namespace QuantumBands.Application.Features.Admin.TradingAccounts.Commands;
 
 public class UpdateTradingAccountRequestValidator : AbstractValidator<UpdateTradingAccountRequest>
-{
-    public UpdateTradingAccountRequestValidator()
+{    public UpdateTradingAccountRequestValidator()
     {
         // Các trường đều là optional, chỉ validate nếu được cung cấp giá trị
+        RuleFor(x => x.AccountName)
+            .NotEmpty().WithMessage("Account name cannot be empty.")
+            .MaximumLength(100).WithMessage("Account name cannot exceed 100 characters.")
+            .When(x => x.AccountName != null); // Validate khi AccountName được cung cấp (không phải là null)
+
         RuleFor(x => x.Description)
             .MaximumLength(1000).WithMessage("Description cannot exceed 1000 characters.")
             .When(x => x.Description != null); // Validate khi Description được cung cấp (không phải là null)

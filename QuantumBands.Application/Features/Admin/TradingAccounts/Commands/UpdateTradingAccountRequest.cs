@@ -3,6 +3,7 @@ namespace QuantumBands.Application.Features.Admin.TradingAccounts.Commands;
 
 public class UpdateTradingAccountRequest
 {
+    public string? AccountName { get; set; }
     public string? Description { get; set; }
     public string? EaName { get; set; }
     public decimal? ManagementFeeRate { get; set; }

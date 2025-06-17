@@ -3767,14 +3767,36 @@ public static class TestDataBuilder
         public static UpdateTradingAccountRequest NegativeManagementFeeRequest() => new()
         {
             ManagementFeeRate = -0.01m
-        };
-
-        /// <summary>
+        };        /// <summary>
         /// Empty request (all fields null)
         /// </summary>
         public static UpdateTradingAccountRequest EmptyRequest() => new()
         {
             // All fields are null
+        };
+
+        /// <summary>
+        /// Valid request for updating only account name
+        /// </summary>
+        public static UpdateTradingAccountRequest ValidAccountNameRequest() => new()
+        {
+            AccountName = "New Account Name"
+        };
+
+        /// <summary>
+        /// Request with account name that is too long (> 100 chars)
+        /// </summary>
+        public static UpdateTradingAccountRequest AccountNameTooLongRequest() => new()
+        {
+            AccountName = new string('A', 101) // 101 characters
+        };
+
+        /// <summary>
+        /// Request with empty account name (validation should fail)
+        /// </summary>
+        public static UpdateTradingAccountRequest EmptyAccountNameRequest() => new()
+        {
+            AccountName = ""
         };
 
         /// <summary>
