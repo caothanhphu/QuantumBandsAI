@@ -3540,8 +3540,156 @@ public static class TestDataBuilder
             new List<InitialShareOfferingDto>(),
             count: 0,
             pageNumber: 1,
-            pageSize: 10
-        );
+            pageSize: 10        );
+    }
+
+    // SCRUM-70: Test data for POST /admin/trading-accounts endpoint testing
+    public static class CreateTradingAccounts
+    {
+        /// <summary>
+        /// Valid request for creating trading account with all required fields
+        /// </summary>
+        public static CreateTradingAccountRequest ValidRequest() => new()
+        {
+            AccountName = "Test Trading Account",
+            Description = "A test trading account for unit tests",
+            EaName = "TestEA_v1.0",
+            BrokerPlatformIdentifier = "MetaTrader5_Demo",
+            InitialCapital = 100000.00m,
+            TotalSharesIssued = 10000,
+            ManagementFeeRate = 0.02m // 2%
+        };
+
+        /// <summary>
+        /// Valid minimal request with only required fields
+        /// </summary>
+        public static CreateTradingAccountRequest ValidMinimalRequest() => new()
+        {
+            AccountName = "Minimal Trading Account",
+            InitialCapital = 50000.00m,
+            TotalSharesIssued = 5000,
+            ManagementFeeRate = 0.01m // 1%
+        };
+
+        /// <summary>
+        /// Request with account name that is too long (> 100 chars)
+        /// </summary>
+        public static CreateTradingAccountRequest AccountNameTooLongRequest() => new()
+        {
+            AccountName = new string('A', 101), // 101 characters
+            InitialCapital = 100000.00m,
+            TotalSharesIssued = 10000,
+            ManagementFeeRate = 0.02m
+        };
+
+        /// <summary>
+        /// Request with description that is too long (> 1000 chars)
+        /// </summary>
+        public static CreateTradingAccountRequest DescriptionTooLongRequest() => new()
+        {
+            AccountName = "Test Account",
+            Description = new string('D', 1001), // 1001 characters
+            InitialCapital = 100000.00m,
+            TotalSharesIssued = 10000,
+            ManagementFeeRate = 0.02m
+        };
+
+        /// <summary>
+        /// Request with zero initial capital
+        /// </summary>
+        public static CreateTradingAccountRequest ZeroInitialCapitalRequest() => new()
+        {
+            AccountName = "Test Account",
+            InitialCapital = 0m,
+            TotalSharesIssued = 10000,
+            ManagementFeeRate = 0.02m
+        };
+
+        /// <summary>
+        /// Request with negative initial capital
+        /// </summary>
+        public static CreateTradingAccountRequest NegativeInitialCapitalRequest() => new()
+        {
+            AccountName = "Test Account",
+            InitialCapital = -1000.00m,
+            TotalSharesIssued = 10000,
+            ManagementFeeRate = 0.02m
+        };
+
+        /// <summary>
+        /// Request with zero shares issued
+        /// </summary>
+        public static CreateTradingAccountRequest ZeroSharesIssuedRequest() => new()
+        {
+            AccountName = "Test Account",
+            InitialCapital = 100000.00m,
+            TotalSharesIssued = 0,
+            ManagementFeeRate = 0.02m
+        };
+
+        /// <summary>
+        /// Request with negative shares issued
+        /// </summary>
+        public static CreateTradingAccountRequest NegativeSharesIssuedRequest() => new()
+        {
+            AccountName = "Test Account",
+            InitialCapital = 100000.00m,
+            TotalSharesIssued = -1000,
+            ManagementFeeRate = 0.02m
+        };
+
+        /// <summary>
+        /// Request with management fee rate that is too high (> 0.9999)
+        /// </summary>
+        public static CreateTradingAccountRequest ExcessiveManagementFeeRequest() => new()
+        {
+            AccountName = "Test Account",
+            InitialCapital = 100000.00m,
+            TotalSharesIssued = 10000,
+            ManagementFeeRate = 1.0m // 100% - exceeds maximum of 99.99%
+        };
+
+        /// <summary>
+        /// Request with negative management fee rate
+        /// </summary>
+        public static CreateTradingAccountRequest NegativeManagementFeeRequest() => new()
+        {
+            AccountName = "Test Account",
+            InitialCapital = 100000.00m,
+            TotalSharesIssued = 10000,
+            ManagementFeeRate = -0.01m
+        };
+
+        /// <summary>
+        /// Request with duplicate account name
+        /// </summary>
+        public static CreateTradingAccountRequest DuplicateAccountNameRequest() => new()
+        {
+            AccountName = "Existing Account Name",
+            InitialCapital = 100000.00m,
+            TotalSharesIssued = 10000,
+            ManagementFeeRate = 0.02m
+        };        /// <summary>
+        /// Successful response DTO
+        /// </summary>
+        public static TradingAccountDto SuccessfulResponse() => new()
+        {
+            TradingAccountId = 1,
+            AccountName = "Test Trading Account",
+            Description = "A test trading account for unit tests",
+            EaName = "TestEA_v1.0",
+            BrokerPlatformIdentifier = "MetaTrader5_Demo",
+            InitialCapital = 100000.00m,
+            TotalSharesIssued = 10000,
+            CurrentNetAssetValue = 100000.00m,
+            CurrentSharePrice = 10.00m, // InitialCapital / TotalShares
+            ManagementFeeRate = 0.02m,
+            IsActive = true,
+            CreatedByUserId = 1,
+            CreatorUsername = "admin",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
     }
 
     // SCRUM-73: Test data for POST /admin/trading-accounts/{accountId}/initial-offerings endpoint testing

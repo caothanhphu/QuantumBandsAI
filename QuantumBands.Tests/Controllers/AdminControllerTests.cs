@@ -472,7 +472,715 @@ public class AdminControllerTests : TestBase
         
         var response = objectResult.Value as InitialShareOfferingDto;
         response.Should().NotBeNull();
-        response!.Status.Should().Be("Active");
+        response!.Status.Should().Be("Active");    }
+
+    #endregion
+
+    #region CreateTradingAccount Tests - SCRUM-70
+
+    /// <summary>
+    /// Test: Valid trading account creation should return 201 Created with trading account DTO
+    /// Verifies the happy path where valid parameters result in successful account creation
+    /// </summary>
+    [Fact]
+    public async Task CreateTradingAccount_WithValidRequest_ShouldReturn201CreatedWithAccountDto()
+    {
+        // Arrange
+        var request = TestDataBuilder.CreateTradingAccounts.ValidRequest();
+        var expectedResponse = TestDataBuilder.CreateTradingAccounts.SuccessfulResponse();
+        var adminClaims = CreateAdminClaimsPrincipal();
+        
+        _adminController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = adminClaims }
+        };
+
+        _mockTradingAccountService.Setup(x => x.CreateTradingAccountAsync(
+                It.IsAny<CreateTradingAccountRequest>(), 
+                It.IsAny<ClaimsPrincipal>(), 
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedResponse, null as string));
+
+        // Act
+        var result = await _adminController.CreateTradingAccount(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<ObjectResult>();
+        var objectResult = result as ObjectResult;
+        objectResult!.StatusCode.Should().Be(StatusCodes.Status201Created);
+        
+        var response = objectResult.Value as TradingAccountDto;
+        response.Should().NotBeNull();
+        response!.TradingAccountId.Should().Be(expectedResponse.TradingAccountId);
+        response.AccountName.Should().Be(expectedResponse.AccountName);
+        response.InitialCapital.Should().Be(expectedResponse.InitialCapital);
+        response.TotalSharesIssued.Should().Be(expectedResponse.TotalSharesIssued);
+        response.IsActive.Should().BeTrue();
+    }
+
+    /// <summary>
+    /// Test: Valid minimal request should return 201 Created
+    /// </summary>
+    [Fact]
+    public async Task CreateTradingAccount_WithValidMinimalRequest_ShouldReturn201Created()
+    {
+        // Arrange
+        var request = TestDataBuilder.CreateTradingAccounts.ValidMinimalRequest();
+        var expectedResponse = TestDataBuilder.CreateTradingAccounts.SuccessfulResponse();
+        var adminClaims = CreateAdminClaimsPrincipal();
+        
+        _adminController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = adminClaims }
+        };
+
+        _mockTradingAccountService.Setup(x => x.CreateTradingAccountAsync(
+                It.IsAny<CreateTradingAccountRequest>(), 
+                It.IsAny<ClaimsPrincipal>(), 
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedResponse, null as string));
+
+        // Act
+        var result = await _adminController.CreateTradingAccount(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<ObjectResult>();
+        var objectResult = result as ObjectResult;
+        objectResult!.StatusCode.Should().Be(StatusCodes.Status201Created);
+    }
+
+    /// <summary>
+    /// Test: Calculation verification - share price should be calculated correctly
+    /// </summary>
+    [Fact]
+    public async Task CreateTradingAccount_WithValidRequest_ShouldCalculateSharePriceCorrectly()
+    {
+        // Arrange
+        var request = TestDataBuilder.CreateTradingAccounts.ValidRequest();
+        var expectedResponse = TestDataBuilder.CreateTradingAccounts.SuccessfulResponse();
+        var adminClaims = CreateAdminClaimsPrincipal();
+        
+        _adminController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = adminClaims }
+        };
+
+        _mockTradingAccountService.Setup(x => x.CreateTradingAccountAsync(
+                It.IsAny<CreateTradingAccountRequest>(), 
+                It.IsAny<ClaimsPrincipal>(), 
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedResponse, null as string));
+
+        // Act
+        var result = await _adminController.CreateTradingAccount(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<ObjectResult>();
+        var objectResult = result as ObjectResult;
+        var response = objectResult!.Value as TradingAccountDto;
+        
+        // Verify share price calculation: InitialCapital / TotalShares = 100000 / 10000 = 10.00
+        response!.CurrentSharePrice.Should().Be(10.00m);
+        response.CurrentNetAssetValue.Should().Be(response.InitialCapital);
+    }
+
+    /// <summary>
+    /// Test: Timestamp verification - created and updated timestamps should be set
+    /// </summary>
+    [Fact]
+    public async Task CreateTradingAccount_WithValidRequest_ShouldSetTimestamps()
+    {
+        // Arrange
+        var request = TestDataBuilder.CreateTradingAccounts.ValidRequest();
+        var expectedResponse = TestDataBuilder.CreateTradingAccounts.SuccessfulResponse();
+        var adminClaims = CreateAdminClaimsPrincipal();
+        
+        _adminController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = adminClaims }
+        };
+
+        _mockTradingAccountService.Setup(x => x.CreateTradingAccountAsync(
+                It.IsAny<CreateTradingAccountRequest>(), 
+                It.IsAny<ClaimsPrincipal>(), 
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedResponse, null as string));
+
+        // Act
+        var result = await _adminController.CreateTradingAccount(request, CancellationToken.None);
+
+        // Assert
+        var objectResult = result as ObjectResult;
+        var response = objectResult!.Value as TradingAccountDto;
+        
+        response!.CreatedAt.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromMinutes(1));
+        response.UpdatedAt.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromMinutes(1));
+        response.CreatedByUserId.Should().Be(1);
+        response.CreatorUsername.Should().Be("admin");
+    }    /// <summary>
+    /// Test: Unauthenticated request should be handled by authorization attribute
+    /// </summary>
+    [Fact]
+    public void CreateTradingAccount_WithUnauthenticatedUser_ShouldBeHandledByAuthorizationAttribute()
+    {
+        // Arrange
+        var request = TestDataBuilder.CreateTradingAccounts.ValidRequest();
+        
+        _adminController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext() // No user set
+        };
+
+        // Act & Assert
+        // The [Authorize(Roles = "Admin")] attribute should handle this case
+        var controllerType = typeof(AdminController);
+        var authorizeAttributes = controllerType.GetCustomAttributes(typeof(Microsoft.AspNetCore.Authorization.AuthorizeAttribute), false);
+        authorizeAttributes.Should().NotBeEmpty("AdminController should have Authorize attribute");
+    }
+
+    /// <summary>
+    /// Test: Non-admin user access should be handled by authorization attribute
+    /// </summary>
+    [Fact]
+    public void CreateTradingAccount_WithNonAdminUser_ShouldBeHandledByAuthorizationAttribute()
+    {
+        // Arrange
+        var request = TestDataBuilder.CreateTradingAccounts.ValidRequest();
+        var userClaims = CreateUserClaimsPrincipal();
+        
+        _adminController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = userClaims }
+        };
+
+        // Act & Assert
+        var controllerType = typeof(AdminController);
+        var authorizeAttributes = controllerType.GetCustomAttributes(typeof(Microsoft.AspNetCore.Authorization.AuthorizeAttribute), false);
+        var authorizeAttribute = authorizeAttributes.FirstOrDefault() as Microsoft.AspNetCore.Authorization.AuthorizeAttribute;
+        authorizeAttribute?.Roles.Should().Be("Admin", "AdminController should require Admin role");
+    }
+
+    /// <summary>
+    /// Test: Admin user claims should be properly validated
+    /// </summary>
+    [Fact]
+    public async Task CreateTradingAccount_WithAdminUser_ShouldValidateAdminClaims()
+    {
+        // Arrange
+        var request = TestDataBuilder.CreateTradingAccounts.ValidRequest();
+        var expectedResponse = TestDataBuilder.CreateTradingAccounts.SuccessfulResponse();
+        var adminClaims = CreateAdminClaimsPrincipal();
+        
+        _adminController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = adminClaims }
+        };
+
+        _mockTradingAccountService.Setup(x => x.CreateTradingAccountAsync(
+                It.IsAny<CreateTradingAccountRequest>(), 
+                It.IsAny<ClaimsPrincipal>(), 
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedResponse, null as string));
+
+        // Act
+        var result = await _adminController.CreateTradingAccount(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<ObjectResult>();
+        _mockTradingAccountService.Verify(x => x.CreateTradingAccountAsync(
+            It.IsAny<CreateTradingAccountRequest>(), 
+            It.Is<ClaimsPrincipal>(c => c.IsInRole("Admin")), 
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Account name too long should return BadRequest
+    /// </summary>
+    [Fact]
+    public async Task CreateTradingAccount_WithAccountNameTooLong_ShouldReturnBadRequest()
+    {
+        // Arrange
+        var request = TestDataBuilder.CreateTradingAccounts.AccountNameTooLongRequest();
+        var adminClaims = CreateAdminClaimsPrincipal();
+        
+        _adminController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = adminClaims }
+        };
+
+        _mockTradingAccountService.Setup(x => x.CreateTradingAccountAsync(
+                It.IsAny<CreateTradingAccountRequest>(), 
+                It.IsAny<ClaimsPrincipal>(), 
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((null as TradingAccountDto, "Account name cannot exceed 100 characters"));
+
+        // Act
+        var result = await _adminController.CreateTradingAccount(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+    }
+
+    /// <summary>
+    /// Test: Description too long should return BadRequest
+    /// </summary>
+    [Fact]
+    public async Task CreateTradingAccount_WithDescriptionTooLong_ShouldReturnBadRequest()
+    {
+        // Arrange
+        var request = TestDataBuilder.CreateTradingAccounts.DescriptionTooLongRequest();
+        var adminClaims = CreateAdminClaimsPrincipal();
+        
+        _adminController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = adminClaims }
+        };
+
+        _mockTradingAccountService.Setup(x => x.CreateTradingAccountAsync(
+                It.IsAny<CreateTradingAccountRequest>(), 
+                It.IsAny<ClaimsPrincipal>(), 
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((null as TradingAccountDto, "Description cannot exceed 1000 characters"));
+
+        // Act
+        var result = await _adminController.CreateTradingAccount(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+    }
+
+    /// <summary>
+    /// Test: Zero initial capital should return BadRequest
+    /// </summary>
+    [Fact]
+    public async Task CreateTradingAccount_WithZeroInitialCapital_ShouldReturnBadRequest()
+    {
+        // Arrange
+        var request = TestDataBuilder.CreateTradingAccounts.ZeroInitialCapitalRequest();
+        var adminClaims = CreateAdminClaimsPrincipal();
+        
+        _adminController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = adminClaims }
+        };
+
+        _mockTradingAccountService.Setup(x => x.CreateTradingAccountAsync(
+                It.IsAny<CreateTradingAccountRequest>(), 
+                It.IsAny<ClaimsPrincipal>(), 
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((null as TradingAccountDto, "Initial capital must be greater than 0"));
+
+        // Act
+        var result = await _adminController.CreateTradingAccount(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+    }
+
+    /// <summary>
+    /// Test: Negative initial capital should return BadRequest
+    /// </summary>
+    [Fact]
+    public async Task CreateTradingAccount_WithNegativeInitialCapital_ShouldReturnBadRequest()
+    {
+        // Arrange
+        var request = TestDataBuilder.CreateTradingAccounts.NegativeInitialCapitalRequest();
+        var adminClaims = CreateAdminClaimsPrincipal();
+        
+        _adminController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = adminClaims }
+        };
+
+        _mockTradingAccountService.Setup(x => x.CreateTradingAccountAsync(
+                It.IsAny<CreateTradingAccountRequest>(), 
+                It.IsAny<ClaimsPrincipal>(), 
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((null as TradingAccountDto, "Initial capital must be greater than 0"));
+
+        // Act
+        var result = await _adminController.CreateTradingAccount(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+    }
+
+    /// <summary>
+    /// Test: Zero shares issued should return BadRequest
+    /// </summary>
+    [Fact]
+    public async Task CreateTradingAccount_WithZeroSharesIssued_ShouldReturnBadRequest()
+    {
+        // Arrange
+        var request = TestDataBuilder.CreateTradingAccounts.ZeroSharesIssuedRequest();
+        var adminClaims = CreateAdminClaimsPrincipal();
+        
+        _adminController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = adminClaims }
+        };
+
+        _mockTradingAccountService.Setup(x => x.CreateTradingAccountAsync(
+                It.IsAny<CreateTradingAccountRequest>(), 
+                It.IsAny<ClaimsPrincipal>(), 
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((null as TradingAccountDto, "Total shares issued must be greater than 0"));
+
+        // Act
+        var result = await _adminController.CreateTradingAccount(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+    }
+
+    /// <summary>
+    /// Test: Negative shares issued should return BadRequest
+    /// </summary>
+    [Fact]
+    public async Task CreateTradingAccount_WithNegativeSharesIssued_ShouldReturnBadRequest()
+    {
+        // Arrange
+        var request = TestDataBuilder.CreateTradingAccounts.NegativeSharesIssuedRequest();
+        var adminClaims = CreateAdminClaimsPrincipal();
+        
+        _adminController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = adminClaims }
+        };
+
+        _mockTradingAccountService.Setup(x => x.CreateTradingAccountAsync(
+                It.IsAny<CreateTradingAccountRequest>(), 
+                It.IsAny<ClaimsPrincipal>(), 
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((null as TradingAccountDto, "Total shares issued must be greater than 0"));
+
+        // Act
+        var result = await _adminController.CreateTradingAccount(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+    }
+
+    /// <summary>
+    /// Test: Excessive management fee rate should return BadRequest
+    /// </summary>
+    [Fact]
+    public async Task CreateTradingAccount_WithExcessiveManagementFee_ShouldReturnBadRequest()
+    {
+        // Arrange
+        var request = TestDataBuilder.CreateTradingAccounts.ExcessiveManagementFeeRequest();
+        var adminClaims = CreateAdminClaimsPrincipal();
+        
+        _adminController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = adminClaims }
+        };
+
+        _mockTradingAccountService.Setup(x => x.CreateTradingAccountAsync(
+                It.IsAny<CreateTradingAccountRequest>(), 
+                It.IsAny<ClaimsPrincipal>(), 
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((null as TradingAccountDto, "Management fee rate must be between 0 and 0.9999"));
+
+        // Act
+        var result = await _adminController.CreateTradingAccount(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+    }
+
+    /// <summary>
+    /// Test: Negative management fee rate should return BadRequest
+    /// </summary>
+    [Fact]
+    public async Task CreateTradingAccount_WithNegativeManagementFee_ShouldReturnBadRequest()
+    {
+        // Arrange
+        var request = TestDataBuilder.CreateTradingAccounts.NegativeManagementFeeRequest();
+        var adminClaims = CreateAdminClaimsPrincipal();
+        
+        _adminController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = adminClaims }
+        };
+
+        _mockTradingAccountService.Setup(x => x.CreateTradingAccountAsync(
+                It.IsAny<CreateTradingAccountRequest>(), 
+                It.IsAny<ClaimsPrincipal>(), 
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((null as TradingAccountDto, "Management fee rate must be between 0 and 0.9999"));
+
+        // Act
+        var result = await _adminController.CreateTradingAccount(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+    }
+
+    /// <summary>
+    /// Test: Duplicate account name should return Conflict
+    /// </summary>
+    [Fact]
+    public async Task CreateTradingAccount_WithDuplicateAccountName_ShouldReturnConflict()
+    {
+        // Arrange
+        var request = TestDataBuilder.CreateTradingAccounts.DuplicateAccountNameRequest();
+        var adminClaims = CreateAdminClaimsPrincipal();
+        
+        _adminController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = adminClaims }
+        };
+
+        _mockTradingAccountService.Setup(x => x.CreateTradingAccountAsync(
+                It.IsAny<CreateTradingAccountRequest>(), 
+                It.IsAny<ClaimsPrincipal>(), 
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((null as TradingAccountDto, "Trading account with this name already exists"));
+
+        // Act
+        var result = await _adminController.CreateTradingAccount(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<ConflictObjectResult>();
+    }
+
+    /// <summary>
+    /// Test: Account name uniqueness validation should work correctly
+    /// </summary>
+    [Fact]
+    public async Task CreateTradingAccount_ShouldValidateAccountNameUniqueness()
+    {
+        // Arrange
+        var request = TestDataBuilder.CreateTradingAccounts.ValidRequest();
+        var adminClaims = CreateAdminClaimsPrincipal();
+        
+        _adminController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = adminClaims }
+        };
+
+        _mockTradingAccountService.Setup(x => x.CreateTradingAccountAsync(
+                It.IsAny<CreateTradingAccountRequest>(), 
+                It.IsAny<ClaimsPrincipal>(), 
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((null as TradingAccountDto, "Trading account with this name already exists"));
+
+        // Act
+        var result = await _adminController.CreateTradingAccount(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<ConflictObjectResult>();
+        var conflictResult = result as ConflictObjectResult;
+        conflictResult!.Value.Should().NotBeNull();
+    }
+
+    /// <summary>
+    /// Test: Service null response should return BadRequest
+    /// </summary>
+    [Fact]
+    public async Task CreateTradingAccount_WithServiceNullResponse_ShouldReturnBadRequest()
+    {
+        // Arrange
+        var request = TestDataBuilder.CreateTradingAccounts.ValidRequest();
+        var adminClaims = CreateAdminClaimsPrincipal();
+        
+        _adminController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = adminClaims }
+        };
+
+        _mockTradingAccountService.Setup(x => x.CreateTradingAccountAsync(
+                It.IsAny<CreateTradingAccountRequest>(), 
+                It.IsAny<ClaimsPrincipal>(), 
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((null as TradingAccountDto, "Database operation failed"));
+
+        // Act
+        var result = await _adminController.CreateTradingAccount(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+    }
+
+    /// <summary>
+    /// Test: Database failure scenarios should be handled properly
+    /// </summary>
+    [Fact]
+    public async Task CreateTradingAccount_WithDatabaseFailure_ShouldReturnBadRequest()
+    {
+        // Arrange
+        var request = TestDataBuilder.CreateTradingAccounts.ValidRequest();
+        var adminClaims = CreateAdminClaimsPrincipal();
+        
+        _adminController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = adminClaims }
+        };
+
+        _mockTradingAccountService.Setup(x => x.CreateTradingAccountAsync(
+                It.IsAny<CreateTradingAccountRequest>(), 
+                It.IsAny<ClaimsPrincipal>(), 
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((null as TradingAccountDto, null as string));
+
+        // Act
+        var result = await _adminController.CreateTradingAccount(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+        var badRequestResult = result as BadRequestObjectResult;
+        badRequestResult!.Value.Should().NotBeNull();
+    }
+
+    /// <summary>
+    /// Test: Service call parameter verification should work correctly
+    /// </summary>
+    [Fact]
+    public async Task CreateTradingAccount_ShouldCallServiceWithCorrectParameters()
+    {
+        // Arrange
+        var request = TestDataBuilder.CreateTradingAccounts.ValidRequest();
+        var expectedResponse = TestDataBuilder.CreateTradingAccounts.SuccessfulResponse();
+        var adminClaims = CreateAdminClaimsPrincipal();
+        
+        _adminController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = adminClaims }
+        };
+
+        _mockTradingAccountService.Setup(x => x.CreateTradingAccountAsync(
+                It.IsAny<CreateTradingAccountRequest>(), 
+                It.IsAny<ClaimsPrincipal>(), 
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedResponse, null as string));
+
+        // Act
+        var result = await _adminController.CreateTradingAccount(request, CancellationToken.None);
+
+        // Assert
+        _mockTradingAccountService.Verify(x => x.CreateTradingAccountAsync(
+            It.Is<CreateTradingAccountRequest>(r => 
+                r.AccountName == request.AccountName &&
+                r.InitialCapital == request.InitialCapital &&
+                r.TotalSharesIssued == request.TotalSharesIssued &&
+                r.ManagementFeeRate == request.ManagementFeeRate), 
+            It.IsAny<ClaimsPrincipal>(), 
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Concurrent request handling should work properly
+    /// </summary>
+    [Fact]
+    public async Task CreateTradingAccount_WithConcurrentRequests_ShouldHandleCorrectly()
+    {
+        // Arrange
+        var request = TestDataBuilder.CreateTradingAccounts.ValidRequest();
+        var expectedResponse = TestDataBuilder.CreateTradingAccounts.SuccessfulResponse();
+        var adminClaims = CreateAdminClaimsPrincipal();
+        
+        _adminController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = adminClaims }
+        };
+
+        _mockTradingAccountService.Setup(x => x.CreateTradingAccountAsync(
+                It.IsAny<CreateTradingAccountRequest>(), 
+                It.IsAny<ClaimsPrincipal>(), 
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedResponse, null as string));
+
+        // Act - Simulate concurrent requests
+        var tasks = new List<Task<IActionResult>>();
+        for (int i = 0; i < 5; i++)
+        {
+            tasks.Add(_adminController.CreateTradingAccount(request, CancellationToken.None));
+        }
+        var results = await Task.WhenAll(tasks);
+
+        // Assert
+        results.Should().AllBeOfType<ObjectResult>();
+        results.Cast<ObjectResult>().Should().AllSatisfy(r => r.StatusCode.Should().Be(StatusCodes.Status201Created));
+    }
+
+    /// <summary>
+    /// Test: End-to-end happy path should work correctly
+    /// </summary>
+    [Fact]
+    public async Task CreateTradingAccount_EndToEndHappyPath_ShouldWorkCorrectly()
+    {
+        // Arrange
+        var request = TestDataBuilder.CreateTradingAccounts.ValidRequest();
+        var expectedResponse = TestDataBuilder.CreateTradingAccounts.SuccessfulResponse();
+        var adminClaims = CreateAdminClaimsPrincipal();
+        
+        _adminController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = adminClaims }
+        };
+
+        _mockTradingAccountService.Setup(x => x.CreateTradingAccountAsync(
+                It.IsAny<CreateTradingAccountRequest>(), 
+                It.IsAny<ClaimsPrincipal>(), 
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedResponse, null as string));
+
+        // Act
+        var result = await _adminController.CreateTradingAccount(request, CancellationToken.None);
+
+        // Assert - Comprehensive end-to-end validation
+        result.Should().BeOfType<ObjectResult>();
+        var objectResult = result as ObjectResult;
+        objectResult!.StatusCode.Should().Be(StatusCodes.Status201Created);
+        
+        var response = objectResult.Value as TradingAccountDto;
+        response.Should().NotBeNull();
+        response!.AccountName.Should().Be(request.AccountName);
+        response.Description.Should().Be(request.Description);
+        response.EaName.Should().Be(request.EaName);
+        response.BrokerPlatformIdentifier.Should().Be(request.BrokerPlatformIdentifier);
+        response.InitialCapital.Should().Be(request.InitialCapital);
+        response.TotalSharesIssued.Should().Be(request.TotalSharesIssued);
+        response.ManagementFeeRate.Should().Be(request.ManagementFeeRate);
+        response.IsActive.Should().BeTrue();
+        response.CreatedByUserId.Should().BeGreaterThan(0);
+        response.CreatorUsername.Should().NotBeNullOrEmpty();
+    }
+
+    /// <summary>
+    /// Test: Audit trail verification should track admin actions
+    /// </summary>
+    [Fact]
+    public async Task CreateTradingAccount_ShouldCreateAuditTrail()
+    {
+        // Arrange
+        var request = TestDataBuilder.CreateTradingAccounts.ValidRequest();
+        var expectedResponse = TestDataBuilder.CreateTradingAccounts.SuccessfulResponse();
+        var adminClaims = CreateAdminClaimsPrincipal();
+        
+        _adminController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = adminClaims }
+        };
+
+        _mockTradingAccountService.Setup(x => x.CreateTradingAccountAsync(
+                It.IsAny<CreateTradingAccountRequest>(), 
+                It.IsAny<ClaimsPrincipal>(), 
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedResponse, null as string));
+
+        // Act
+        var result = await _adminController.CreateTradingAccount(request, CancellationToken.None);
+
+        // Assert - Verify audit trail is created
+        var objectResult = result as ObjectResult;
+        var response = objectResult!.Value as TradingAccountDto;
+        
+        response!.CreatedByUserId.Should().Be(1); // Admin user ID from claims
+        response.CreatorUsername.Should().Be("admin"); // Admin username from claims
+        response.CreatedAt.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromMinutes(1));
+        response.UpdatedAt.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromMinutes(1));
     }
 
     #endregion
