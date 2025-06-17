@@ -18,7 +18,10 @@
       "Bash(dotnet test:*)",
       "Bash(dotnet build:*)",
       "Bash(rg:*)",
-      "Bash(mv:*)"
+      "Bash(mv:*)",
+      "mcp__ide__getDiagnostics",
+      "Bash(sed:*)",
+      "Bash(awk:*)"
     ],
     "deny": []
   }
