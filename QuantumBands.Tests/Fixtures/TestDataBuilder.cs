@@ -21,6 +21,7 @@ using QuantumBands.Application.Features.Users.Commands.Disable2FA;
 using QuantumBands.Application.Features.Wallets.Queries.GetTransactions;
 using QuantumBands.Application.Features.TradingAccounts.Queries;
 using QuantumBands.Application.Features.Admin.TradingAccounts.Dtos;
+using QuantumBands.Application.Features.Admin.TradingAccounts.Commands;
 using QuantumBands.Application.Features.TradingAccounts.Dtos;
 using QuantumBands.Application.Features.Portfolio.Dtos;
 using QuantumBands.Application.Common.Models;
@@ -3532,9 +3533,7 @@ public static class TestDataBuilder
             count: 3,
             pageNumber: 1,
             pageSize: 10
-        );
-
-        /// <summary>
+        );        /// <summary>
         /// Empty offerings response
         /// </summary>
         public static PaginatedList<InitialShareOfferingDto> EmptyOfferingsResponse() => new(
@@ -3543,6 +3542,130 @@ public static class TestDataBuilder
             pageNumber: 1,
             pageSize: 10
         );
+    }
+
+    // SCRUM-73: Test data for POST /admin/trading-accounts/{accountId}/initial-offerings endpoint testing
+    public static class InitialShareOfferings
+    {
+        /// <summary>
+        /// Valid request for creating initial share offering
+        /// </summary>
+        public static CreateInitialShareOfferingRequest ValidRequest() => new(
+            SharesOffered: 10000,
+            OfferingPricePerShare: 12.50m,
+            FloorPricePerShare: 10.00m,
+            CeilingPricePerShare: 15.00m,
+            OfferingEndDate: DateTime.UtcNow.AddDays(30)
+        );
+
+        /// <summary>
+        /// Valid request without optional fields
+        /// </summary>
+        public static CreateInitialShareOfferingRequest ValidMinimalRequest() => new(
+            SharesOffered: 5000,
+            OfferingPricePerShare: 10.00m,
+            FloorPricePerShare: null,
+            CeilingPricePerShare: null,
+            OfferingEndDate: null
+        );
+
+        /// <summary>
+        /// Request with invalid shares offered (zero)
+        /// </summary>
+        public static CreateInitialShareOfferingRequest InvalidSharesZeroRequest() => new(
+            SharesOffered: 0,
+            OfferingPricePerShare: 12.50m,
+            FloorPricePerShare: 10.00m,
+            CeilingPricePerShare: 15.00m,
+            OfferingEndDate: DateTime.UtcNow.AddDays(30)
+        );
+
+        /// <summary>
+        /// Request with invalid shares offered (negative)
+        /// </summary>
+        public static CreateInitialShareOfferingRequest InvalidSharesNegativeRequest() => new(
+            SharesOffered: -1000,
+            OfferingPricePerShare: 12.50m,
+            FloorPricePerShare: 10.00m,
+            CeilingPricePerShare: 15.00m,
+            OfferingEndDate: DateTime.UtcNow.AddDays(30)
+        );
+
+        /// <summary>
+        /// Request with invalid offering price (zero)
+        /// </summary>
+        public static CreateInitialShareOfferingRequest InvalidOfferingPriceZeroRequest() => new(
+            SharesOffered: 10000,
+            OfferingPricePerShare: 0,
+            FloorPricePerShare: 10.00m,
+            CeilingPricePerShare: 15.00m,
+            OfferingEndDate: DateTime.UtcNow.AddDays(30)
+        );
+
+        /// <summary>
+        /// Request with invalid offering price (negative)
+        /// </summary>
+        public static CreateInitialShareOfferingRequest InvalidOfferingPriceNegativeRequest() => new(
+            SharesOffered: 10000,
+            OfferingPricePerShare: -5.00m,
+            FloorPricePerShare: 10.00m,
+            CeilingPricePerShare: 15.00m,
+            OfferingEndDate: DateTime.UtcNow.AddDays(30)
+        );
+
+        /// <summary>
+        /// Request with floor price greater than offering price
+        /// </summary>
+        public static CreateInitialShareOfferingRequest InvalidFloorPriceRequest() => new(
+            SharesOffered: 10000,
+            OfferingPricePerShare: 12.50m,
+            FloorPricePerShare: 15.00m, // Floor > Offering
+            CeilingPricePerShare: 20.00m,
+            OfferingEndDate: DateTime.UtcNow.AddDays(30)
+        );
+
+        /// <summary>
+        /// Request with ceiling price less than offering price
+        /// </summary>
+        public static CreateInitialShareOfferingRequest InvalidCeilingPriceRequest() => new(
+            SharesOffered: 10000,
+            OfferingPricePerShare: 12.50m,
+            FloorPricePerShare: 10.00m,
+            CeilingPricePerShare: 11.00m, // Ceiling < Offering
+            OfferingEndDate: DateTime.UtcNow.AddDays(30)
+        );
+
+        /// <summary>
+        /// Request with end date in the past
+        /// </summary>
+        public static CreateInitialShareOfferingRequest InvalidEndDateRequest() => new(
+            SharesOffered: 10000,
+            OfferingPricePerShare: 12.50m,
+            FloorPricePerShare: 10.00m,
+            CeilingPricePerShare: 15.00m,
+            OfferingEndDate: DateTime.UtcNow.AddDays(-5) // Past date
+        );
+
+        /// <summary>
+        /// Successful response DTO
+        /// </summary>
+        public static InitialShareOfferingDto SuccessfulResponse() => new()
+        {
+            OfferingId = 1,
+            TradingAccountId = 1,
+            AdminUserId = 1,
+            AdminUsername = "admin",
+            SharesOffered = 10000,
+            SharesSold = 0,
+            OfferingPricePerShare = 12.50m,
+            FloorPricePerShare = 10.00m,
+            CeilingPricePerShare = 15.00m,
+            OfferingStartDate = DateTime.UtcNow,
+            OfferingEndDate = DateTime.UtcNow.AddDays(30),
+            Status = "Active",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
     }
 
     // SCRUM-57: Test data for GET /exchange/orders/my endpoint testing
