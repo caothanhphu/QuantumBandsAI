@@ -425,12 +425,27 @@ public class TradingAccountService : ITradingAccountService
         {
             _logger.LogWarning("UpdateTradingAccountAsync: TradingAccountID {TradingAccountId} not found.", accountId);
             return (null, $"Trading account with ID {accountId} not found.");
-        }
-
-        // Kiểm tra xem admin hiện tại có phải là người tạo quỹ không, hoặc có quyền admin cao hơn không
+        }        // Kiểm tra xem admin hiện tại có phải là người tạo quỹ không, hoặc có quyền admin cao hơn không
         // (Tùy theo yêu cầu nghiệp vụ, ở đây giả sử Admin nào cũng có thể sửa)
 
         bool hasChanges = false;
+
+        // Check for AccountName change with duplicate validation
+        if (request.AccountName != null && tradingAccount.AccountName != request.AccountName)
+        {
+            // Check if new account name is already taken
+            var existingAccount = await _unitOfWork.TradingAccounts.Query()
+                .FirstOrDefaultAsync(ta => ta.AccountName == request.AccountName && ta.TradingAccountId != accountId, cancellationToken);
+            
+            if (existingAccount != null)
+            {
+                _logger.LogWarning("Cannot update TradingAccountID {TradingAccountId} - Account name '{AccountName}' is already taken.", accountId, request.AccountName);
+                return (null, $"Account name '{request.AccountName}' is already in use.");
+            }
+            
+            tradingAccount.AccountName = request.AccountName;
+            hasChanges = true;
+        }
 
         if (request.Description != null && tradingAccount.Description != request.Description)
         {
@@ -492,7 +507,7 @@ public class TradingAccountService : ITradingAccountService
         var dto = new TradingAccountDto
         {
             TradingAccountId = tradingAccount.TradingAccountId,
-            AccountName = tradingAccount.AccountName, // Tên không đổi qua endpoint này
+            AccountName = tradingAccount.AccountName, // Now supports AccountName updates
             Description = tradingAccount.Description,
             EaName = tradingAccount.Eaname,
             BrokerPlatformIdentifier = tradingAccount.BrokerPlatformIdentifier,
