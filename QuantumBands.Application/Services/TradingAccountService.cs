@@ -26,6 +26,7 @@ public class TradingAccountService : ITradingAccountService
     private readonly ILogger<TradingAccountService> _logger;
     private readonly IClosedTradeService _closedTradeService;
     private readonly IWalletService _walletService;
+    private readonly ChartDataService _chartDataService;
     // private readonly IGenericRepository<TradingAccount> _tradingAccountRepository; // Can get from UnitOfWork
     // private readonly IGenericRepository<InitialShareOffering> _offeringRepository; // Can get from UnitOfWork
     // private readonly IGenericRepository<User> _userRepository; // Can get from UnitOfWork
@@ -34,12 +35,14 @@ public class TradingAccountService : ITradingAccountService
         IUnitOfWork unitOfWork, 
         ILogger<TradingAccountService> logger,
         IClosedTradeService closedTradeService,
-        IWalletService walletService)
+        IWalletService walletService,
+        ChartDataService chartDataService)
     {
         _unitOfWork = unitOfWork;
         _logger = logger;
         _closedTradeService = closedTradeService;
         _walletService = walletService;
+        _chartDataService = chartDataService;
         // _tradingAccountRepository = unitOfWork.GetRepository<TradingAccount>(); // Example if UoW has generic GetRepository
         // _offeringRepository = unitOfWork.GetRepository<InitialShareOffering>();
         // _userRepository = unitOfWork.GetRepository<User>();
@@ -924,6 +927,60 @@ public class TradingAccountService : ITradingAccountService
         {
             _logger.LogError(ex, "Error getting account overview for account {AccountId}", accountId);
             return (null, "An error occurred while retrieving account overview");
+        }
+    }
+
+    /// <summary>
+    /// Gets chart data for trading account performance visualization
+    /// </summary>
+    public async Task<(ChartDataDto? ChartData, string? ErrorMessage)> GetChartDataAsync(
+        int accountId, 
+        GetChartDataQuery query, 
+        int userId, 
+        bool isAdmin, 
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            _logger.LogInformation("Getting chart data for account {AccountId}, user {UserId}, type {ChartType}, period {Period}, interval {Interval}", 
+                accountId, userId, query.Type, query.Period, query.Interval);
+
+            // Authorization check - same as account overview
+            if (!isAdmin)
+            {
+                var accountOwner = await _unitOfWork.TradingAccounts.Query()
+                    .Where(ta => ta.TradingAccountId == accountId)
+                    .Select(ta => ta.CreatedByUserId)
+                    .FirstOrDefaultAsync(cancellationToken);
+
+                if (accountOwner != userId)
+                {
+                    return (null, "Unauthorized access to this trading account");
+                }
+            }
+
+            // Check if account exists
+            var accountExists = await _unitOfWork.TradingAccounts.Query()
+                .AnyAsync(ta => ta.TradingAccountId == accountId, cancellationToken);
+
+            if (!accountExists)
+            {
+                return (null, $"Trading account with ID {accountId} not found");
+            }
+
+            // Generate chart data
+            var chartData = await _chartDataService.GenerateChartDataAsync(accountId, query, cancellationToken);
+
+            _logger.LogInformation("Chart data generated successfully for account {AccountId}, {DataPointsCount} data points", 
+                accountId, chartData.DataPoints.Count);
+            
+            return (chartData, null);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting chart data for account {AccountId}, type {ChartType}", 
+                accountId, query.Type);
+            return (null, "An error occurred while retrieving chart data");
         }
     }
 }
