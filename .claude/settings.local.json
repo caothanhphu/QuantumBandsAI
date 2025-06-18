@@ -21,7 +21,14 @@
       "Bash(mv:*)",
       "mcp__ide__getDiagnostics",
       "Bash(sed:*)",
-      "Bash(awk:*)"
+      "Bash(awk:*)",
+      "Bash(git checkout:*)",
+      "Bash(git pull:*)",
+      "Bash(pkill:*)",
+      "Bash(git add:*)",
+      "Bash(git push:*)",
+      "Bash(gh pr create:*)",
+      "Bash(dotnet clean:*)"
     ],
     "deny": []
   }

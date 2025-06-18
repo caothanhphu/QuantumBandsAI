@@ -1193,4 +1193,51 @@ public class WalletService : IWalletService
 
         return (true, "Funds successfully marked for release.", dto);
     }
+
+    public async Task<(decimal TotalDeposits, decimal TotalWithdrawals, decimal InitialDeposit)> GetFinancialSummaryAsync(int tradingAccountId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            _logger.LogInformation("Getting financial summary for trading account {TradingAccountId}", tradingAccountId);
+
+            // Get deposit and withdrawal transaction types
+            var depositType = await _transactionTypeRepository.GetByNameAsync("DEPOSIT");
+            var withdrawalType = await _transactionTypeRepository.GetByNameAsync("WITHDRAWAL");
+
+            if (depositType == null || withdrawalType == null)
+            {
+                _logger.LogWarning("Could not find DEPOSIT or WITHDRAWAL transaction types");
+                return (0m, 0m, 0m);
+            }
+
+            // Get all wallet transactions related to this trading account
+            var transactions = await _unitOfWork.WalletTransactions.Query()
+                .Where(wt => wt.ReferenceId == tradingAccountId.ToString())
+                .ToListAsync(cancellationToken);
+
+            var totalDeposits = transactions
+                .Where(t => t.TransactionTypeId == depositType.TransactionTypeId)
+                .Sum(t => t.Amount);
+
+            var totalWithdrawals = Math.Abs(transactions
+                .Where(t => t.TransactionTypeId == withdrawalType.TransactionTypeId)
+                .Sum(t => t.Amount));
+
+            // Get initial deposit (first deposit transaction)
+            var initialDeposit = transactions
+                .Where(t => t.TransactionTypeId == depositType.TransactionTypeId)
+                .OrderBy(t => t.TransactionDate)
+                .FirstOrDefault()?.Amount ?? 0m;
+
+            _logger.LogInformation("Financial summary for account {TradingAccountId}: Deposits={TotalDeposits}, Withdrawals={TotalWithdrawals}, Initial={InitialDeposit}", 
+                tradingAccountId, totalDeposits, totalWithdrawals, initialDeposit);
+
+            return (totalDeposits, totalWithdrawals, initialDeposit);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting financial summary for trading account {TradingAccountId}", tradingAccountId);
+            throw;
+        }
+    }
 }

@@ -11,6 +11,7 @@ using QuantumBands.Application.Features.TradingAccounts.Queries;
 using QuantumBands.Application.Interfaces;
 using QuantumBands.Tests.Common;
 using QuantumBands.Tests.Fixtures;
+using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
@@ -41,19 +42,8 @@ namespace QuantumBands.Tests.Controllers;
 /// 
 /// Total Test Coverage: 44 unit tests ensuring comprehensive validation of TradingAccountsController
 /// </summary>
-public class TradingAccountsControllerTests : TestBase
+public partial class TradingAccountsControllerTests : TestBase
 {
-    private readonly TradingAccountsController _tradingAccountsController;
-    private readonly Mock<ITradingAccountService> _mockTradingAccountService;
-    private readonly Mock<ILogger<TradingAccountsController>> _mockControllerLogger;
-
-    public TradingAccountsControllerTests()
-    {
-        _mockTradingAccountService = new Mock<ITradingAccountService>();
-        _mockControllerLogger = new Mock<ILogger<TradingAccountsController>>();
-        _tradingAccountsController = new TradingAccountsController(_mockTradingAccountService.Object, _mockControllerLogger.Object);
-    }
-
     #region Happy Path Tests
     // Tests that verify the endpoint works correctly under normal, expected conditions
 
@@ -1371,6 +1361,283 @@ public class TradingAccountsControllerTests : TestBase
                 q.SortBy == query.SortBy &&
                 q.SortOrder == query.SortOrder &&
                 q.Status == query.Status),
+            It.Is<CancellationToken>(ct => ct == cancellationToken)), Times.Once);
+    }
+
+    #endregion
+
+    #region SCRUM-98 Open Positions Real-time API Tests
+
+    /// <summary>
+    /// Test: Valid request should return real-time open positions with comprehensive data
+    /// SCRUM-98: Validates the new GetOpenPositions endpoint returns proper structure
+    /// </summary>
+    [Fact]
+    public async Task GetOpenPositions_ValidRequest_ShouldReturnOpenPositionsRealtimeData()
+    {
+        // Arrange
+        var accountId = 1;
+        var includeMetrics = true;
+        var symbols = "EURUSD,GBPUSD";
+        var refresh = true;
+        var cancellationToken = CancellationToken.None;
+
+        var mockPositionsData = new OpenPositionsRealtimeDto
+        {
+            Positions = new List<OpenPositionDetailDto>
+            {
+                new OpenPositionDetailDto
+                {
+                    OpenPositionId = 1,
+                    EaTicketId = "12345",
+                    Symbol = "EURUSD",
+                    TradeType = "BUY",
+                    VolumeLots = 0.1m,
+                    OpenPrice = 1.0800m,
+                    OpenTime = DateTime.UtcNow.AddHours(-2),
+                    CurrentMarketPrice = 1.0820m,
+                    UnrealizedPnL = 20.0m,
+                    Swap = 0.5m,
+                    Commission = 2.0m,
+                    MarginRequired = 108.0m,
+                    PercentageReturn = 18.52m,
+                    DaysOpen = 0,
+                    LastUpdateTime = DateTime.UtcNow
+                }
+            },
+            Summary = new PositionsSummaryDto
+            {
+                TotalPositions = 1,
+                TotalUnrealizedPnL = 20.0m,
+                TotalMarginUsed = 108.0m,
+                FreeMargin = 892.0m,
+                MarginLevel = 925.93m,
+                TotalVolume = 0.1m,
+                LongPositions = 1,
+                ShortPositions = 0,
+                LongVolume = 0.1m,
+                ShortVolume = 0,
+                DailyPnL = 15.0m,
+                WeeklyPnL = 35.0m,
+                MonthlyPnL = 120.0m
+            },
+            MarketData = new MarketDataDto
+            {
+                LastPriceUpdate = DateTime.UtcNow,
+                Quotes = new List<SymbolQuoteDto>
+                {
+                    new SymbolQuoteDto
+                    {
+                        Symbol = "EURUSD",
+                        Bid = 1.0819m,
+                        Ask = 1.0821m,
+                        Spread = 0.0002m,
+                        DailyChange = 0.0010m,
+                        DailyChangePercent = 0.09m,
+                        LastUpdate = DateTime.UtcNow
+                    }
+                },
+                AccountEquity = 1000.0m,
+                AccountBalance = 1000.0m,
+                DrawdownPercent = 0.0m
+            },
+            LastUpdated = DateTime.UtcNow
+        };
+
+        _mockTradingAccountService
+            .Setup(x => x.GetOpenPositionsRealtimeAsync(
+                It.IsAny<int>(),
+                It.IsAny<bool>(),
+                It.IsAny<string>(),
+                It.IsAny<bool>(),
+                It.IsAny<int>(),
+                It.IsAny<bool>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((mockPositionsData, (string?)null));
+
+        // Set up valid authenticated user for controller
+        var claims = new[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, "1"),
+            new Claim(ClaimTypes.Role, "User")
+        };
+        var identity = new ClaimsIdentity(claims, "Test");
+        var principal = new ClaimsPrincipal(identity);
+        
+        _tradingAccountsController.ControllerContext.HttpContext = new DefaultHttpContext
+        {
+            User = principal
+        };
+
+        // Act
+        var result = await _tradingAccountsController.GetOpenPositions(accountId, includeMetrics, symbols, refresh, cancellationToken);
+
+        // Assert
+        result.Should().NotBeNull();
+        var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
+        okResult.StatusCode.Should().Be(StatusCodes.Status200OK);
+
+        var returnedData = okResult.Value.Should().BeOfType<OpenPositionsRealtimeDto>().Subject;
+        returnedData.Should().NotBeNull();
+        returnedData.Positions.Should().HaveCount(1);
+        returnedData.Summary.TotalPositions.Should().Be(1);
+        returnedData.MarketData.Quotes.Should().HaveCount(1);
+        returnedData.LastUpdated.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromMinutes(1));
+
+        // Verify position details
+        var position = returnedData.Positions.First();
+        position.Symbol.Should().Be("EURUSD");
+        position.TradeType.Should().Be("BUY");
+        position.UnrealizedPnL.Should().Be(20.0m);
+        position.MarginRequired.Should().Be(108.0m);
+    }
+
+    /// <summary>
+    /// Test: Unauthorized user should receive 401 Unauthorized
+    /// SCRUM-98: Validates authentication requirement for the endpoint
+    /// </summary>
+    [Fact]
+    public async Task GetOpenPositions_UnauthenticatedUser_ShouldReturn401()
+    {
+        // Arrange
+        var accountId = 1;
+        var cancellationToken = CancellationToken.None;
+
+        // Set up empty HttpContext with no authenticated user
+        _tradingAccountsController.ControllerContext.HttpContext = new DefaultHttpContext();
+
+        // Act
+        var result = await _tradingAccountsController.GetOpenPositions(accountId, false, null, false, cancellationToken);
+
+        // Assert
+        result.Should().NotBeNull();
+        var unauthorizedResult = result.Should().BeOfType<UnauthorizedObjectResult>().Subject;
+        unauthorizedResult.StatusCode.Should().Be(StatusCodes.Status401Unauthorized);
+    }
+
+    /// <summary>
+    /// Test: Service error should return 500 Internal Server Error
+    /// SCRUM-98: Validates error handling for service failures
+    /// </summary>
+    [Fact]
+    public async Task GetOpenPositions_ServiceError_ShouldReturn500()
+    {
+        // Arrange
+        var accountId = 1;
+        var cancellationToken = CancellationToken.None;
+
+        _mockTradingAccountService
+            .Setup(x => x.GetOpenPositionsRealtimeAsync(
+                It.IsAny<int>(),
+                It.IsAny<bool>(),
+                It.IsAny<string>(),
+                It.IsAny<bool>(),
+                It.IsAny<int>(),
+                It.IsAny<bool>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(((OpenPositionsRealtimeDto?)null, "Internal service error"));
+
+        var claims = new[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, "1"),
+            new Claim(ClaimTypes.Role, "User")
+        };
+        var identity = new ClaimsIdentity(claims, "Test");
+        var principal = new ClaimsPrincipal(identity);
+        
+        _tradingAccountsController.ControllerContext.HttpContext = new DefaultHttpContext
+        {
+            User = principal
+        };
+
+        // Act
+        var result = await _tradingAccountsController.GetOpenPositions(accountId, false, null, false, cancellationToken);
+
+        // Assert
+        result.Should().NotBeNull();
+        var errorResult = result.Should().BeOfType<ObjectResult>().Subject;
+        errorResult.StatusCode.Should().Be(StatusCodes.Status500InternalServerError);
+    }
+
+    /// <summary>
+    /// Test: Proper service method invocation with correct parameters
+    /// SCRUM-98: Validates that controller correctly passes parameters to service
+    /// </summary>
+    [Fact]
+    public async Task GetOpenPositions_ShouldCallServiceWithCorrectParameters()
+    {
+        // Arrange
+        var accountId = 42;
+        var includeMetrics = true;
+        var symbols = "EURUSD,GBPUSD,USDJPY";
+        var refresh = true;
+        var cancellationToken = CancellationToken.None;
+
+        var mockData = new OpenPositionsRealtimeDto
+        {
+            Positions = new List<OpenPositionDetailDto>(),
+            Summary = new PositionsSummaryDto
+            {
+                TotalPositions = 0,
+                TotalUnrealizedPnL = 0,
+                TotalMarginUsed = 0,
+                FreeMargin = 1000,
+                MarginLevel = 0,
+                TotalVolume = 0,
+                LongPositions = 0,
+                ShortPositions = 0,
+                LongVolume = 0,
+                ShortVolume = 0,
+                DailyPnL = 0,
+                WeeklyPnL = 0,
+                MonthlyPnL = 0
+            },
+            MarketData = new MarketDataDto
+            {
+                LastPriceUpdate = DateTime.UtcNow,
+                Quotes = new List<SymbolQuoteDto>(),
+                AccountEquity = 1000,
+                AccountBalance = 1000,
+                DrawdownPercent = 0
+            },
+            LastUpdated = DateTime.UtcNow
+        };
+
+        _mockTradingAccountService
+            .Setup(x => x.GetOpenPositionsRealtimeAsync(
+                It.IsAny<int>(),
+                It.IsAny<bool>(),
+                It.IsAny<string>(),
+                It.IsAny<bool>(),
+                It.IsAny<int>(),
+                It.IsAny<bool>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((mockData, (string?)null));
+
+        var claims = new[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, "1"),
+            new Claim(ClaimTypes.Role, "User")
+        };
+        var identity = new ClaimsIdentity(claims, "Test");
+        var principal = new ClaimsPrincipal(identity);
+        
+        _tradingAccountsController.ControllerContext.HttpContext = new DefaultHttpContext
+        {
+            User = principal
+        };
+
+        // Act
+        var result = await _tradingAccountsController.GetOpenPositions(accountId, includeMetrics, symbols, refresh, cancellationToken);
+
+        // Assert
+        _mockTradingAccountService.Verify(x => x.GetOpenPositionsRealtimeAsync(
+            It.Is<int>(id => id == accountId),
+            It.Is<bool>(im => im == includeMetrics),
+            It.Is<string>(s => s == symbols),
+            It.Is<bool>(r => r == refresh),
+            It.IsAny<int>(), // userId from auth
+            It.IsAny<bool>(), // isAdmin from auth
             It.Is<CancellationToken>(ct => ct == cancellationToken)), Times.Once);
     }
 

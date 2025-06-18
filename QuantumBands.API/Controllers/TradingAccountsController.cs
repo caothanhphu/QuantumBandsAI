@@ -5,6 +5,9 @@ using QuantumBands.Application.Features.Admin.TradingAccounts.Dtos; // Using Tra
 using QuantumBands.Application.Features.TradingAccounts.Dtos;
 using QuantumBands.Application.Features.TradingAccounts.Queries; // Using GetPublicTradingAccountsQuery
 using QuantumBands.Application.Interfaces;
+using System.IdentityModel.Tokens.Jwt;
+using System.Linq;
+using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -91,5 +94,207 @@ public class TradingAccountsController : ControllerBase
             return StatusCode(StatusCodes.Status500InternalServerError, new { Message = errorMessage ?? $"An unexpected error occurred while fetching offerings for trading account ID {accountId}." });
         }
         return Ok(offerings);
+    }
+
+    /// <summary>
+    /// Gets account overview with balance info and performance KPIs for a specific trading account.
+    /// Users can only access their own accounts, admins can access any account.
+    /// </summary>
+    [HttpGet("{accountId}/overview")] // Endpoint: /api/v1/trading-accounts/{accountId}/overview
+    [ProducesResponseType(typeof(AccountOverviewDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetAccountOverview(int accountId, CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Request received for account overview for TradingAccountID: {AccountId}", accountId);
+
+        // Get current user info
+        var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier || c.Type == "uid" || c.Type == JwtRegisteredClaimNames.Sub)?.Value;
+        if (!int.TryParse(userIdClaim, out var userId))
+        {
+            return Unauthorized(new { Message = "Invalid user authentication" });
+        }
+
+        var isAdmin = User.IsInRole("Admin");
+
+        var (overview, errorMessage) = await _tradingAccountService.GetAccountOverviewAsync(accountId, userId, isAdmin, cancellationToken);
+
+        if (overview == null)
+        {
+            _logger.LogWarning("Failed to retrieve account overview for TradingAccountID {AccountId}. Error: {ErrorMessage}", accountId, errorMessage);
+            
+            if (errorMessage != null && errorMessage.Contains("Unauthorized"))
+            {
+                return Forbid();
+            }
+            if (errorMessage != null && errorMessage.Contains("not found"))
+            {
+                return NotFound(new { Message = errorMessage });
+            }
+            return StatusCode(StatusCodes.Status500InternalServerError, new { Message = errorMessage ?? $"An unexpected error occurred while fetching overview for trading account ID {accountId}." });
+        }
+
+        return Ok(overview);
+    }
+
+    /// <summary>
+    /// Gets chart data for trading account performance visualization.
+    /// Supports multiple chart types (balance, equity, growth, drawdown) and time periods.
+    /// Users can only access their own accounts, admins can access any account.
+    /// </summary>
+    /// <param name="accountId">Trading account identifier</param>
+    /// <param name="query">Chart data query parameters</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Chart data with data points and summary statistics</returns>
+    [HttpGet("{accountId}/charts")] // Endpoint: /api/v1/trading-accounts/{accountId}/charts
+    [ProducesResponseType(typeof(ChartDataDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetChartsData(
+        int accountId, 
+        [FromQuery] GetChartDataQuery query, 
+        CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Request received for chart data for TradingAccountID: {AccountId} with query: {@Query}", accountId, query);
+
+        // Get current user info
+        var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier || c.Type == "uid" || c.Type == JwtRegisteredClaimNames.Sub)?.Value;
+        if (!int.TryParse(userIdClaim, out var userId))
+        {
+            return Unauthorized(new { Message = "Invalid user authentication" });
+        }
+
+        var isAdmin = User.IsInRole("Admin");
+
+        var (chartData, errorMessage) = await _tradingAccountService.GetChartDataAsync(accountId, query, userId, isAdmin, cancellationToken);
+
+        if (chartData == null)
+        {
+            _logger.LogWarning("Failed to retrieve chart data for TradingAccountID {AccountId}. Error: {ErrorMessage}", accountId, errorMessage);
+            
+            if (errorMessage != null && errorMessage.Contains("Unauthorized"))
+            {
+                return Forbid();
+            }
+            if (errorMessage != null && errorMessage.Contains("not found"))
+            {
+                return NotFound(new { Message = errorMessage });
+            }
+            return StatusCode(StatusCodes.Status500InternalServerError, new { Message = errorMessage ?? $"An unexpected error occurred while fetching chart data for trading account ID {accountId}." });
+        }
+
+        return Ok(chartData);
+    }
+
+    /// <summary>
+    /// Gets paginated trading history for a specific trading account with advanced filtering and sorting.
+    /// Supports filtering by symbol, trade type, date ranges, profit ranges, and volume ranges.
+    /// Users can only access their own accounts, admins can access any account.
+    /// </summary>
+    /// <param name="accountId">Trading account identifier</param>
+    /// <param name="query">Trading history query parameters with filters and pagination</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Paginated trading history with summary statistics and applied filters</returns>
+    [HttpGet("{accountId}/trading-history")] // Endpoint: /api/v1/trading-accounts/{accountId}/trading-history
+    [ProducesResponseType(typeof(PaginatedTradingHistoryDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetTradingHistory(
+        int accountId, 
+        [FromQuery] GetTradingHistoryQuery query, 
+        CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Request received for trading history for TradingAccountID: {AccountId} with query: {@Query}", accountId, query);
+
+        // Get current user info
+        var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier || c.Type == "uid" || c.Type == JwtRegisteredClaimNames.Sub)?.Value;
+        if (!int.TryParse(userIdClaim, out var userId))
+        {
+            return Unauthorized(new { Message = "Invalid user authentication" });
+        }
+
+        var isAdmin = User.IsInRole("Admin");
+
+        var (tradingHistory, errorMessage) = await _tradingAccountService.GetTradingHistoryAsync(accountId, query, userId, isAdmin, cancellationToken);
+
+        if (tradingHistory == null)
+        {
+            _logger.LogWarning("Failed to retrieve trading history for TradingAccountID {AccountId}. Error: {ErrorMessage}", accountId, errorMessage);
+            
+            if (errorMessage != null && errorMessage.Contains("Unauthorized"))
+            {
+                return Forbid();
+            }
+            if (errorMessage != null && errorMessage.Contains("not found"))
+            {
+                return NotFound(new { Message = errorMessage });
+            }
+            return StatusCode(StatusCodes.Status500InternalServerError, new { Message = errorMessage ?? $"An unexpected error occurred while fetching trading history for trading account ID {accountId}." });
+        }
+
+        return Ok(tradingHistory);
+    }
+
+    /// <summary>
+    /// Gets real-time open positions for a specific trading account with comprehensive metrics and market data.
+    /// Includes unrealized P&L calculations, margin information, and position summary statistics.
+    /// Supports optional symbol filtering and real-time refresh capabilities.
+    /// Users can only access their own accounts, admins can access any account.
+    /// </summary>
+    /// <param name="accountId">Trading account identifier</param>
+    /// <param name="includeMetrics">Include advanced performance metrics in response</param>
+    /// <param name="symbols">Comma-separated list of symbols to filter positions (optional)</param>
+    /// <param name="refresh">Force refresh of real-time data before response</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Real-time open positions with summary metrics and market data</returns>
+    [HttpGet("{accountId}/open-positions")] // Endpoint: /api/v1/trading-accounts/{accountId}/open-positions
+    [ProducesResponseType(typeof(OpenPositionsRealtimeDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetOpenPositions(
+        int accountId,
+        [FromQuery] bool includeMetrics = false,
+        [FromQuery] string? symbols = null,
+        [FromQuery] bool refresh = false,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Request received for real-time open positions for TradingAccountID: {AccountId}, includeMetrics: {IncludeMetrics}, symbols: {Symbols}, refresh: {Refresh}", 
+            accountId, includeMetrics, symbols, refresh);
+
+        // Get current user info
+        var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier || c.Type == "uid" || c.Type == JwtRegisteredClaimNames.Sub)?.Value;
+        if (!int.TryParse(userIdClaim, out var userId))
+        {
+            return Unauthorized(new { Message = "Invalid user authentication" });
+        }
+
+        var isAdmin = User.IsInRole("Admin");
+
+        var (openPositions, errorMessage) = await _tradingAccountService.GetOpenPositionsRealtimeAsync(
+            accountId, includeMetrics, symbols, refresh, userId, isAdmin, cancellationToken);
+
+        if (openPositions == null)
+        {
+            _logger.LogWarning("Failed to retrieve real-time open positions for TradingAccountID {AccountId}. Error: {ErrorMessage}", accountId, errorMessage);
+            
+            if (errorMessage != null && errorMessage.Contains("Unauthorized"))
+            {
+                return Forbid();
+            }
+            if (errorMessage != null && errorMessage.Contains("not found"))
+            {
+                return NotFound(new { Message = errorMessage });
+            }
+            return StatusCode(StatusCodes.Status500InternalServerError, new { Message = errorMessage ?? $"An unexpected error occurred while fetching open positions for trading account ID {accountId}." });
+        }
+
+        return Ok(openPositions);
     }
 }

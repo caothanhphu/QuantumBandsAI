@@ -3533,16 +3533,307 @@ public static class TestDataBuilder
             count: 3,
             pageNumber: 1,
             pageSize: 10
-        );
-
-        /// <summary>
+        );        /// <summary>
         /// Empty offerings response
         /// </summary>
         public static PaginatedList<InitialShareOfferingDto> EmptyOfferingsResponse() => new(
             new List<InitialShareOfferingDto>(),
             count: 0,
             pageNumber: 1,
-            pageSize: 10
+            pageSize: 10        );
+    }
+
+    // SCRUM-70: Test data for POST /admin/trading-accounts endpoint testing
+    public static class CreateTradingAccounts
+    {
+        /// <summary>
+        /// Valid request for creating trading account with all required fields
+        /// </summary>
+        public static CreateTradingAccountRequest ValidRequest() => new()
+        {
+            AccountName = "Test Trading Account",
+            Description = "A test trading account for unit tests",
+            EaName = "TestEA_v1.0",
+            BrokerPlatformIdentifier = "MetaTrader5_Demo",
+            InitialCapital = 100000.00m,
+            TotalSharesIssued = 10000,
+            ManagementFeeRate = 0.02m // 2%
+        };
+
+        /// <summary>
+        /// Valid minimal request with only required fields
+        /// </summary>
+        public static CreateTradingAccountRequest ValidMinimalRequest() => new()
+        {
+            AccountName = "Minimal Trading Account",
+            InitialCapital = 50000.00m,
+            TotalSharesIssued = 5000,
+            ManagementFeeRate = 0.01m // 1%
+        };
+
+        /// <summary>
+        /// Request with account name that is too long (> 100 chars)
+        /// </summary>
+        public static CreateTradingAccountRequest AccountNameTooLongRequest() => new()
+        {
+            AccountName = new string('A', 101), // 101 characters
+            InitialCapital = 100000.00m,
+            TotalSharesIssued = 10000,
+            ManagementFeeRate = 0.02m
+        };
+
+        /// <summary>
+        /// Request with description that is too long (> 1000 chars)
+        /// </summary>
+        public static CreateTradingAccountRequest DescriptionTooLongRequest() => new()
+        {
+            AccountName = "Test Account",
+            Description = new string('D', 1001), // 1001 characters
+            InitialCapital = 100000.00m,
+            TotalSharesIssued = 10000,
+            ManagementFeeRate = 0.02m
+        };
+
+        /// <summary>
+        /// Request with zero initial capital
+        /// </summary>
+        public static CreateTradingAccountRequest ZeroInitialCapitalRequest() => new()
+        {
+            AccountName = "Test Account",
+            InitialCapital = 0m,
+            TotalSharesIssued = 10000,
+            ManagementFeeRate = 0.02m
+        };
+
+        /// <summary>
+        /// Request with negative initial capital
+        /// </summary>
+        public static CreateTradingAccountRequest NegativeInitialCapitalRequest() => new()
+        {
+            AccountName = "Test Account",
+            InitialCapital = -1000.00m,
+            TotalSharesIssued = 10000,
+            ManagementFeeRate = 0.02m
+        };
+
+        /// <summary>
+        /// Request with zero shares issued
+        /// </summary>
+        public static CreateTradingAccountRequest ZeroSharesIssuedRequest() => new()
+        {
+            AccountName = "Test Account",
+            InitialCapital = 100000.00m,
+            TotalSharesIssued = 0,
+            ManagementFeeRate = 0.02m
+        };
+
+        /// <summary>
+        /// Request with negative shares issued
+        /// </summary>
+        public static CreateTradingAccountRequest NegativeSharesIssuedRequest() => new()
+        {
+            AccountName = "Test Account",
+            InitialCapital = 100000.00m,
+            TotalSharesIssued = -1000,
+            ManagementFeeRate = 0.02m
+        };
+
+        /// <summary>
+        /// Request with management fee rate that is too high (> 0.9999)
+        /// </summary>
+        public static CreateTradingAccountRequest ExcessiveManagementFeeRequest() => new()
+        {
+            AccountName = "Test Account",
+            InitialCapital = 100000.00m,
+            TotalSharesIssued = 10000,
+            ManagementFeeRate = 1.0m // 100% - exceeds maximum of 99.99%
+        };
+
+        /// <summary>
+        /// Request with negative management fee rate
+        /// </summary>
+        public static CreateTradingAccountRequest NegativeManagementFeeRequest() => new()
+        {
+            AccountName = "Test Account",
+            InitialCapital = 100000.00m,
+            TotalSharesIssued = 10000,
+            ManagementFeeRate = -0.01m
+        };
+
+        /// <summary>
+        /// Request with duplicate account name
+        /// </summary>
+        public static CreateTradingAccountRequest DuplicateAccountNameRequest() => new()
+        {
+            AccountName = "Existing Account Name",
+            InitialCapital = 100000.00m,
+            TotalSharesIssued = 10000,
+            ManagementFeeRate = 0.02m
+        };        /// <summary>
+        /// Successful response DTO
+        /// </summary>
+        public static TradingAccountDto SuccessfulResponse() => new()
+        {
+            TradingAccountId = 1,
+            AccountName = "Test Trading Account",
+            Description = "A test trading account for unit tests",
+            EaName = "TestEA_v1.0",
+            BrokerPlatformIdentifier = "MetaTrader5_Demo",
+            InitialCapital = 100000.00m,
+            TotalSharesIssued = 10000,
+            CurrentNetAssetValue = 100000.00m,
+            CurrentSharePrice = 10.00m, // InitialCapital / TotalShares
+            ManagementFeeRate = 0.02m,
+            IsActive = true,
+            CreatedByUserId = 1,
+            CreatorUsername = "admin",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow        };
+    }
+
+    // SCRUM-71: Test data for PUT /admin/trading-accounts/{accountId} endpoint testing
+    public static class UpdateTradingAccounts
+    {
+        /// <summary>
+        /// Valid request for updating trading account with all optional fields
+        /// </summary>
+        public static UpdateTradingAccountRequest ValidCompleteRequest() => new()
+        {
+            Description = "Updated trading account description",
+            EaName = "UpdatedEA_v2.0",
+            ManagementFeeRate = 0.025m, // 2.5%
+            IsActive = true
+        };
+
+        /// <summary>
+        /// Valid request for updating only description
+        /// </summary>
+        public static UpdateTradingAccountRequest ValidDescriptionOnlyRequest() => new()
+        {
+            Description = "Only description updated"
+        };
+
+        /// <summary>
+        /// Valid request for updating only EA name
+        /// </summary>
+        public static UpdateTradingAccountRequest ValidEaNameOnlyRequest() => new()
+        {
+            EaName = "NewEA_v3.0"
+        };
+
+        /// <summary>
+        /// Valid request for updating only management fee rate
+        /// </summary>
+        public static UpdateTradingAccountRequest ValidManagementFeeOnlyRequest() => new()
+        {
+            ManagementFeeRate = 0.03m // 3%
+        };
+
+        /// <summary>
+        /// Valid request for updating only active status
+        /// </summary>
+        public static UpdateTradingAccountRequest ValidActiveStatusOnlyRequest() => new()
+        {
+            IsActive = false
+        };
+
+        /// <summary>
+        /// Request with description that is too long (> 1000 chars)
+        /// </summary>
+        public static UpdateTradingAccountRequest DescriptionTooLongRequest() => new()
+        {
+            Description = new string('D', 1001) // 1001 characters
+        };
+
+        /// <summary>
+        /// Request with EA name that is too long (> 100 chars)
+        /// </summary>
+        public static UpdateTradingAccountRequest EaNameTooLongRequest() => new()
+        {
+            EaName = new string('E', 101) // 101 characters
+        };
+
+        /// <summary>
+        /// Request with management fee rate that is too high (> 0.9999)
+        /// </summary>
+        public static UpdateTradingAccountRequest ExcessiveManagementFeeRequest() => new()
+        {
+            ManagementFeeRate = 1.0m // 100% - exceeds maximum of 99.99%
+        };
+
+        /// <summary>
+        /// Request with negative management fee rate
+        /// </summary>
+        public static UpdateTradingAccountRequest NegativeManagementFeeRequest() => new()
+        {
+            ManagementFeeRate = -0.01m
+        };        /// <summary>
+        /// Empty request (all fields null)
+        /// </summary>
+        public static UpdateTradingAccountRequest EmptyRequest() => new()
+        {
+            // All fields are null
+        };
+
+        /// <summary>
+        /// Valid request for updating only account name
+        /// </summary>
+        public static UpdateTradingAccountRequest ValidAccountNameRequest() => new()
+        {
+            AccountName = "New Account Name"
+        };
+
+        /// <summary>
+        /// Request with account name that is too long (> 100 chars)
+        /// </summary>
+        public static UpdateTradingAccountRequest AccountNameTooLongRequest() => new()
+        {
+            AccountName = new string('A', 101) // 101 characters
+        };
+
+        /// <summary>
+        /// Request with empty account name (validation should fail)
+        /// </summary>
+        public static UpdateTradingAccountRequest EmptyAccountNameRequest() => new()
+        {
+            AccountName = ""
+        };
+
+        /// <summary>
+        /// Successful response DTO
+        /// </summary>
+        public static TradingAccountDto SuccessfulResponse() => new()
+        {
+            TradingAccountId = 1,
+            AccountName = "Updated Trading Account",
+            Description = "Updated trading account description",
+            EaName = "UpdatedEA_v2.0",
+            BrokerPlatformIdentifier = "MetaTrader5_Demo",
+            InitialCapital = 100000.00m,
+            TotalSharesIssued = 10000,
+            CurrentNetAssetValue = 105000.00m,
+            CurrentSharePrice = 10.50m,
+            ManagementFeeRate = 0.025m,
+            IsActive = true,
+            CreatedByUserId = 1,
+            CreatorUsername = "admin",
+            CreatedAt = DateTime.UtcNow.AddDays(-7),
+            UpdatedAt = DateTime.UtcNow
+        };
+    }
+
+    // SCRUM-73: Test data for POST /admin/trading-accounts/{accountId}/initial-offerings endpoint testing
+    public static class InitialShareOfferings
+    {
+        /// <summary>
+        /// Valid request for creating initial share offering
+        /// </summary>
+        public static CreateInitialShareOfferingRequest ValidRequest() => new(
+            SharesOffered: 10000,
+            OfferingPricePerShare: 12.50m,
+            FloorPricePerShare: 10.00m,
+            CeilingPricePerShare: 15.00m,
+            OfferingEndDate: DateTime.UtcNow.AddDays(30)
         );
 
         /// <summary>
@@ -3576,6 +3867,115 @@ public static class TestDataBuilder
             OfferingEndDate = DateTime.UtcNow.AddDays(30),
             Status = "Active",
             CreatedAt = DateTime.UtcNow.AddDays(-1),
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        /// <summary>
+        /// Valid request without optional fields
+        /// </summary>
+        public static CreateInitialShareOfferingRequest ValidMinimalRequest() => new(
+            SharesOffered: 5000,
+            OfferingPricePerShare: 10.00m,
+            FloorPricePerShare: null,
+            CeilingPricePerShare: null,
+            OfferingEndDate: null
+        );
+
+        /// <summary>
+        /// Request with invalid shares offered (zero)
+        /// </summary>
+        public static CreateInitialShareOfferingRequest InvalidSharesZeroRequest() => new(
+            SharesOffered: 0,
+            OfferingPricePerShare: 12.50m,
+            FloorPricePerShare: 10.00m,
+            CeilingPricePerShare: 15.00m,
+            OfferingEndDate: DateTime.UtcNow.AddDays(30)
+        );
+
+        /// <summary>
+        /// Request with invalid shares offered (negative)
+        /// </summary>
+        public static CreateInitialShareOfferingRequest InvalidSharesNegativeRequest() => new(
+            SharesOffered: -1000,
+            OfferingPricePerShare: 12.50m,
+            FloorPricePerShare: 10.00m,
+            CeilingPricePerShare: 15.00m,
+            OfferingEndDate: DateTime.UtcNow.AddDays(30)
+        );
+
+        /// <summary>
+        /// Request with invalid offering price (zero)
+        /// </summary>
+        public static CreateInitialShareOfferingRequest InvalidOfferingPriceZeroRequest() => new(
+            SharesOffered: 10000,
+            OfferingPricePerShare: 0,
+            FloorPricePerShare: 10.00m,
+            CeilingPricePerShare: 15.00m,
+            OfferingEndDate: DateTime.UtcNow.AddDays(30)
+        );
+
+        /// <summary>
+        /// Request with invalid offering price (negative)
+        /// </summary>
+        public static CreateInitialShareOfferingRequest InvalidOfferingPriceNegativeRequest() => new(
+            SharesOffered: 10000,
+            OfferingPricePerShare: -5.00m,
+            FloorPricePerShare: 10.00m,
+            CeilingPricePerShare: 15.00m,
+            OfferingEndDate: DateTime.UtcNow.AddDays(30)
+        );
+
+        /// <summary>
+        /// Request with floor price greater than offering price
+        /// </summary>
+        public static CreateInitialShareOfferingRequest InvalidFloorPriceRequest() => new(
+            SharesOffered: 10000,
+            OfferingPricePerShare: 12.50m,
+            FloorPricePerShare: 15.00m, // Floor > Offering
+            CeilingPricePerShare: 20.00m,
+            OfferingEndDate: DateTime.UtcNow.AddDays(30)
+        );
+
+        /// <summary>
+        /// Request with ceiling price less than offering price
+        /// </summary>
+        public static CreateInitialShareOfferingRequest InvalidCeilingPriceRequest() => new(
+            SharesOffered: 10000,
+            OfferingPricePerShare: 12.50m,
+            FloorPricePerShare: 10.00m,
+            CeilingPricePerShare: 11.00m, // Ceiling < Offering
+            OfferingEndDate: DateTime.UtcNow.AddDays(30)
+        );
+
+        /// <summary>
+        /// Request with end date in the past
+        /// </summary>
+        public static CreateInitialShareOfferingRequest InvalidEndDateRequest() => new(
+            SharesOffered: 10000,
+            OfferingPricePerShare: 12.50m,
+            FloorPricePerShare: 10.00m,
+            CeilingPricePerShare: 15.00m,
+            OfferingEndDate: DateTime.UtcNow.AddDays(-5) // Past date
+        );
+
+        /// <summary>
+        /// Successful response DTO
+        /// </summary>
+        public static InitialShareOfferingDto SuccessfulResponse() => new()
+        {
+            OfferingId = 1,
+            TradingAccountId = 1,
+            AdminUserId = 1,
+            AdminUsername = "admin",
+            SharesOffered = 10000,
+            SharesSold = 0,
+            OfferingPricePerShare = 12.50m,
+            FloorPricePerShare = 10.00m,
+            CeilingPricePerShare = 15.00m,
+            OfferingStartDate = DateTime.UtcNow,
+            OfferingEndDate = DateTime.UtcNow.AddDays(30),
+            Status = "Active",
+            CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
     }

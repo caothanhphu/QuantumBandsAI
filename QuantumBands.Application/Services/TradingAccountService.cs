@@ -8,10 +8,12 @@ using QuantumBands.Application.Features.TradingAccounts.Dtos;
 using QuantumBands.Application.Features.TradingAccounts.Queries;
 using QuantumBands.Application.Interfaces;
 using QuantumBands.Application.Interfaces.Repositories; // Assuming specific repositories if needed
+using QuantumBands.Application.Services;
 using QuantumBands.Domain.Entities;
 using QuantumBands.Domain.Entities.Enums;
 using System;
 using System.IdentityModel.Tokens.Jwt; // For FirstOrDefaultAsync, SumAsync
+using System.Linq;
 using System.Linq.Expressions;
 using System.Security.Claims;
 using System.Threading;
@@ -23,14 +25,25 @@ public class TradingAccountService : ITradingAccountService
 {
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<TradingAccountService> _logger;
+    private readonly IClosedTradeService _closedTradeService;
+    private readonly IWalletService _walletService;
+    private readonly ChartDataService _chartDataService;
     // private readonly IGenericRepository<TradingAccount> _tradingAccountRepository; // Can get from UnitOfWork
     // private readonly IGenericRepository<InitialShareOffering> _offeringRepository; // Can get from UnitOfWork
     // private readonly IGenericRepository<User> _userRepository; // Can get from UnitOfWork
 
-    public TradingAccountService(IUnitOfWork unitOfWork, ILogger<TradingAccountService> logger)
+    public TradingAccountService(
+        IUnitOfWork unitOfWork, 
+        ILogger<TradingAccountService> logger,
+        IClosedTradeService closedTradeService,
+        IWalletService walletService,
+        ChartDataService chartDataService)
     {
         _unitOfWork = unitOfWork;
         _logger = logger;
+        _closedTradeService = closedTradeService;
+        _walletService = walletService;
+        _chartDataService = chartDataService;
         // _tradingAccountRepository = unitOfWork.GetRepository<TradingAccount>(); // Example if UoW has generic GetRepository
         // _offeringRepository = unitOfWork.GetRepository<InitialShareOffering>();
         // _userRepository = unitOfWork.GetRepository<User>();
@@ -416,12 +429,27 @@ public class TradingAccountService : ITradingAccountService
         {
             _logger.LogWarning("UpdateTradingAccountAsync: TradingAccountID {TradingAccountId} not found.", accountId);
             return (null, $"Trading account with ID {accountId} not found.");
-        }
-
-        // Kiểm tra xem admin hiện tại có phải là người tạo quỹ không, hoặc có quyền admin cao hơn không
+        }        // Kiểm tra xem admin hiện tại có phải là người tạo quỹ không, hoặc có quyền admin cao hơn không
         // (Tùy theo yêu cầu nghiệp vụ, ở đây giả sử Admin nào cũng có thể sửa)
 
         bool hasChanges = false;
+
+        // Check for AccountName change with duplicate validation
+        if (request.AccountName != null && tradingAccount.AccountName != request.AccountName)
+        {
+            // Check if new account name is already taken
+            var existingAccount = await _unitOfWork.TradingAccounts.Query()
+                .FirstOrDefaultAsync(ta => ta.AccountName == request.AccountName && ta.TradingAccountId != accountId, cancellationToken);
+            
+            if (existingAccount != null)
+            {
+                _logger.LogWarning("Cannot update TradingAccountID {TradingAccountId} - Account name '{AccountName}' is already taken.", accountId, request.AccountName);
+                return (null, $"Account name '{request.AccountName}' is already in use.");
+            }
+            
+            tradingAccount.AccountName = request.AccountName;
+            hasChanges = true;
+        }
 
         if (request.Description != null && tradingAccount.Description != request.Description)
         {
@@ -483,7 +511,7 @@ public class TradingAccountService : ITradingAccountService
         var dto = new TradingAccountDto
         {
             TradingAccountId = tradingAccount.TradingAccountId,
-            AccountName = tradingAccount.AccountName, // Tên không đổi qua endpoint này
+            AccountName = tradingAccount.AccountName, // Now supports AccountName updates
             Description = tradingAccount.Description,
             EaName = tradingAccount.Eaname,
             BrokerPlatformIdentifier = tradingAccount.BrokerPlatformIdentifier,
@@ -819,5 +847,626 @@ public class TradingAccountService : ITradingAccountService
             UpdatedAt = offering.UpdatedAt
         };
         return (dto, null);
+    }
+
+    public async Task<(AccountOverviewDto? Overview, string? ErrorMessage)> GetAccountOverviewAsync(int accountId, int userId, bool isAdmin, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            _logger.LogInformation("Getting account overview for account {AccountId}, user {UserId}, isAdmin: {IsAdmin}", accountId, userId, isAdmin);
+
+            // Authorization check
+            if (!isAdmin)
+            {
+                // Check if user owns this account
+                var accountOwner = await _unitOfWork.TradingAccounts.Query()
+                    .Where(ta => ta.TradingAccountId == accountId)
+                    .Select(ta => ta.CreatedByUserId)
+                    .FirstOrDefaultAsync(cancellationToken);
+
+                if (accountOwner != userId)
+                {
+                    return (null, "Unauthorized access to this trading account");
+                }
+            }
+
+            // Get account info
+            var account = await _unitOfWork.TradingAccounts.Query()
+                .FirstOrDefaultAsync(ta => ta.TradingAccountId == accountId, cancellationToken);
+
+            if (account == null)
+            {
+                return (null, $"Trading account with ID {accountId} not found");
+            }
+
+            // Get performance KPIs from ClosedTradeService
+            var (totalTrades, winRate, profitFactor, totalProfit) = await _closedTradeService.GetPerformanceKPIsAsync(accountId, cancellationToken);
+
+            // Get financial summary from WalletService
+            var (totalDeposits, totalWithdrawals, initialDeposit) = await _walletService.GetFinancialSummaryAsync(accountId, cancellationToken);
+
+            // Calculate current balance and equity from open positions
+            var openPositions = await _unitOfWork.EAOpenPositions.Query()
+                .Where(op => op.TradingAccountId == accountId)
+                .ToListAsync(cancellationToken);
+
+            var currentBalance = account.CurrentNetAssetValue;
+            var floatingPnL = openPositions.Sum(op => op.FloatingPandL);
+            var currentEquity = currentBalance + floatingPnL;
+
+            // Calculate margin info (simplified - in real implementation this would be more complex)
+            var marginUsed = openPositions.Sum(op => op.VolumeLots * op.OpenPrice * 100); // Simplified calculation
+            var freeMargin = currentEquity - marginUsed;
+            var marginLevel = marginUsed > 0 ? (currentEquity / marginUsed) * 100 : 0m;
+
+            // Calculate additional KPIs
+            var activeDays = (DateTime.UtcNow - account.CreatedAt).Days;
+            var growthPercent = initialDeposit > 0 ? ((currentBalance - initialDeposit) / initialDeposit) * 100 : 0m;
+
+            // Calculate max drawdown (simplified - in real implementation this would use daily snapshots)
+            var maxDrawdown = 0m; // This would need historical data analysis
+            var maxDrawdownAmount = 0m;
+
+            var overview = new AccountOverviewDto
+            {
+                AccountInfo = new AccountInfoDto
+                {
+                    AccountId = account.TradingAccountId.ToString(),
+                    AccountName = account.AccountName,
+                    Login = account.BrokerPlatformIdentifier ?? "",
+                    Server = "MT5-Server", // This could be from configuration
+                    AccountType = "Real", // This could be from account settings
+                    TradingPlatform = "MT5",
+                    HedgingAllowed = true, // This could be from account settings
+                    Leverage = 100, // This could be from account settings
+                    RegistrationDate = account.CreatedAt,
+                    LastActivity = account.UpdatedAt,
+                    Status = account.IsActive ? "Active" : "Inactive"
+                },
+                BalanceInfo = new BalanceInfoDto
+                {
+                    CurrentBalance = currentBalance,
+                    CurrentEquity = currentEquity,
+                    FreeMargin = freeMargin,
+                    MarginLevel = marginLevel,
+                    TotalDeposits = totalDeposits,
+                    TotalWithdrawals = totalWithdrawals,
+                    TotalProfit = totalProfit,
+                    InitialDeposit = initialDeposit
+                },
+                PerformanceKPIs = new PerformanceKPIsDto
+                {
+                    TotalTrades = totalTrades,
+                    WinRate = winRate,
+                    ProfitFactor = profitFactor,
+                    MaxDrawdown = maxDrawdown,
+                    MaxDrawdownAmount = maxDrawdownAmount,
+                    GrowthPercent = growthPercent,
+                    ActiveDays = activeDays
+                }
+            };
+
+            _logger.LogInformation("Account overview generated successfully for account {AccountId}", accountId);
+            return (overview, null);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting account overview for account {AccountId}", accountId);
+            return (null, "An error occurred while retrieving account overview");
+        }
+    }
+
+    /// <summary>
+    /// Gets chart data for trading account performance visualization
+    /// </summary>
+    public async Task<(ChartDataDto? ChartData, string? ErrorMessage)> GetChartDataAsync(
+        int accountId, 
+        GetChartDataQuery query, 
+        int userId, 
+        bool isAdmin, 
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            _logger.LogInformation("Getting chart data for account {AccountId}, user {UserId}, type {ChartType}, period {Period}, interval {Interval}", 
+                accountId, userId, query.Type, query.Period, query.Interval);
+
+            // Authorization check - same as account overview
+            if (!isAdmin)
+            {
+                var accountOwner = await _unitOfWork.TradingAccounts.Query()
+                    .Where(ta => ta.TradingAccountId == accountId)
+                    .Select(ta => ta.CreatedByUserId)
+                    .FirstOrDefaultAsync(cancellationToken);
+
+                if (accountOwner != userId)
+                {
+                    return (null, "Unauthorized access to this trading account");
+                }
+            }
+
+            // Check if account exists
+            var accountExists = await _unitOfWork.TradingAccounts.Query()
+                .AnyAsync(ta => ta.TradingAccountId == accountId, cancellationToken);
+
+            if (!accountExists)
+            {
+                return (null, $"Trading account with ID {accountId} not found");
+            }
+
+            // Generate chart data
+            var chartData = await _chartDataService.GenerateChartDataAsync(accountId, query, cancellationToken);
+
+            _logger.LogInformation("Chart data generated successfully for account {AccountId}, {DataPointsCount} data points", 
+                accountId, chartData.DataPoints.Count);
+            
+            return (chartData, null);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting chart data for account {AccountId}, type {ChartType}", 
+                accountId, query.Type);
+            return (null, "An error occurred while retrieving chart data");
+        }
+    }
+
+    public async Task<(PaginatedTradingHistoryDto? History, string? ErrorMessage)> GetTradingHistoryAsync(
+        int accountId, 
+        GetTradingHistoryQuery query, 
+        int userId, 
+        bool isAdmin, 
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            _logger.LogInformation("Getting trading history for account {AccountId}, user {UserId}, page {Page}, pageSize {PageSize}", 
+                accountId, userId, query.ValidatedPage, query.ValidatedPageSize);
+
+            // Authorization check - same as other methods
+            if (!isAdmin)
+            {
+                var accountOwner = await _unitOfWork.TradingAccounts.Query()
+                    .Where(ta => ta.TradingAccountId == accountId)
+                    .Select(ta => ta.CreatedByUserId)
+                    .FirstOrDefaultAsync(cancellationToken);
+
+                if (accountOwner != userId)
+                {
+                    return (null, "Unauthorized access to this trading account");
+                }
+            }
+
+            // Check if account exists
+            var accountExists = await _unitOfWork.TradingAccounts.Query()
+                .AnyAsync(ta => ta.TradingAccountId == accountId, cancellationToken);
+
+            if (!accountExists)
+            {
+                return (null, $"Trading account with ID {accountId} not found");
+            }
+
+            // Build base query
+            var tradesQuery = _unitOfWork.EAClosedTrades.Query()
+                .Where(ct => ct.TradingAccountId == accountId);
+
+            // Apply filters
+            if (!string.IsNullOrWhiteSpace(query.Symbol))
+            {
+                tradesQuery = tradesQuery.Where(ct => ct.Symbol.Contains(query.Symbol));
+            }
+
+            if (!string.IsNullOrWhiteSpace(query.Type))
+            {
+                tradesQuery = tradesQuery.Where(ct => ct.TradeType.ToLower() == query.Type.ToLower());
+            }
+
+            if (query.StartDate.HasValue)
+            {
+                var startDate = query.StartDate.Value;
+                tradesQuery = tradesQuery.Where(ct => ct.CloseTime >= startDate);
+            }
+
+            if (query.EndDate.HasValue)
+            {
+                var endDate = query.EndDate.Value.AddDays(1); // Include the entire end date
+                tradesQuery = tradesQuery.Where(ct => ct.CloseTime < endDate);
+            }
+
+            if (query.MinProfit.HasValue)
+            {
+                tradesQuery = tradesQuery.Where(ct => ct.RealizedPandL >= query.MinProfit.Value);
+            }
+
+            if (query.MaxProfit.HasValue)
+            {
+                tradesQuery = tradesQuery.Where(ct => ct.RealizedPandL <= query.MaxProfit.Value);
+            }
+
+            if (query.MinVolume.HasValue)
+            {
+                tradesQuery = tradesQuery.Where(ct => ct.VolumeLots >= query.MinVolume.Value);
+            }
+
+            if (query.MaxVolume.HasValue)
+            {
+                tradesQuery = tradesQuery.Where(ct => ct.VolumeLots <= query.MaxVolume.Value);
+            }
+
+            // Apply sorting
+            tradesQuery = query.ValidatedSortBy.ToLowerInvariant() switch
+            {
+                "opentime" => query.ValidatedSortOrder == "desc" 
+                    ? tradesQuery.OrderByDescending(ct => ct.OpenTime)
+                    : tradesQuery.OrderBy(ct => ct.OpenTime),
+                "closetime" => query.ValidatedSortOrder == "desc" 
+                    ? tradesQuery.OrderByDescending(ct => ct.CloseTime)
+                    : tradesQuery.OrderBy(ct => ct.CloseTime),
+                "symbol" => query.ValidatedSortOrder == "desc" 
+                    ? tradesQuery.OrderByDescending(ct => ct.Symbol)
+                    : tradesQuery.OrderBy(ct => ct.Symbol),
+                "profit" => query.ValidatedSortOrder == "desc" 
+                    ? tradesQuery.OrderByDescending(ct => ct.RealizedPandL)
+                    : tradesQuery.OrderBy(ct => ct.RealizedPandL),
+                "volume" => query.ValidatedSortOrder == "desc" 
+                    ? tradesQuery.OrderByDescending(ct => ct.VolumeLots)
+                    : tradesQuery.OrderBy(ct => ct.VolumeLots),
+                _ => tradesQuery.OrderByDescending(ct => ct.CloseTime)
+            };
+
+            // Calculate summary statistics for filtered data
+            var summary = await CalculateTradingHistorySummaryAsync(tradesQuery, cancellationToken);
+
+            // Get total count for pagination
+            var totalItems = await tradesQuery.CountAsync(cancellationToken);
+            
+            // Calculate pagination metadata
+            var totalPages = (int)Math.Ceiling(totalItems / (double)query.ValidatedPageSize);
+            var firstItemIndex = totalItems > 0 ? ((query.ValidatedPage - 1) * query.ValidatedPageSize) + 1 : 0;
+            var lastItemIndex = Math.Min(firstItemIndex + query.ValidatedPageSize - 1, totalItems);
+
+            // Apply pagination and get results
+            var trades = await tradesQuery
+                .Skip((query.ValidatedPage - 1) * query.ValidatedPageSize)
+                .Take(query.ValidatedPageSize)
+                .Select(ct => new TradingHistoryDto
+                {
+                    ClosedTradeId = (int)ct.ClosedTradeId,
+                    EaTicketId = string.IsNullOrEmpty(ct.EaticketId) ? 0 : long.Parse(ct.EaticketId),
+                    Symbol = ct.Symbol,
+                    TradeType = ct.TradeType,
+                    VolumeLots = ct.VolumeLots,
+                    OpenPrice = ct.OpenPrice,
+                    OpenTime = ct.OpenTime,
+                    ClosePrice = ct.ClosePrice,
+                    CloseTime = ct.CloseTime,
+                    Swap = ct.Swap ?? 0,
+                    Commission = ct.Commission ?? 0,
+                    RealizedPandL = ct.RealizedPandL,
+                    RecordedAt = ct.RecordedAt,
+                    Duration = CalculateTradeDuration(ct.OpenTime, ct.CloseTime),
+                    Pips = CalculatePips(ct.Symbol, ct.OpenPrice, ct.ClosePrice, ct.TradeType),
+                    VolumeInUnits = ct.VolumeLots * 100000, // Standard lot size
+                    Comment = string.Empty, // Not available in EaclosedTrade
+                    MagicNumber = 0, // Not available in EaclosedTrade  
+                    StopLoss = null, // Not available in EaclosedTrade
+                    TakeProfit = null // Not available in EaclosedTrade
+                })
+                .ToListAsync(cancellationToken);
+
+            var result = new PaginatedTradingHistoryDto
+            {
+                Pagination = new PaginationMetadata
+                {
+                    CurrentPage = query.ValidatedPage,
+                    PageSize = query.ValidatedPageSize,
+                    TotalPages = totalPages,
+                    TotalItems = totalItems,
+                    HasNextPage = query.ValidatedPage < totalPages,
+                    HasPreviousPage = query.ValidatedPage > 1,
+                    FirstItemIndex = firstItemIndex,
+                    LastItemIndex = lastItemIndex
+                },
+                Filters = new AppliedFilters
+                {
+                    Symbol = query.Symbol,
+                    Type = query.Type,
+                    DateRange = (query.StartDate.HasValue || query.EndDate.HasValue) 
+                        ? new DateRange { StartDate = query.StartDate, EndDate = query.EndDate }
+                        : null,
+                    ProfitRange = (query.MinProfit.HasValue || query.MaxProfit.HasValue)
+                        ? new ProfitRange { MinProfit = query.MinProfit, MaxProfit = query.MaxProfit }
+                        : null,
+                    VolumeRange = (query.MinVolume.HasValue || query.MaxVolume.HasValue)
+                        ? new VolumeRange { MinVolume = query.MinVolume, MaxVolume = query.MaxVolume }
+                        : null,
+                    SortBy = query.ValidatedSortBy,
+                    SortOrder = query.ValidatedSortOrder
+                },
+                Trades = trades,
+                Summary = summary
+            };
+
+            _logger.LogInformation("Trading history retrieved successfully for account {AccountId}, {TotalItems} total items, {PageItems} items on page {Page}", 
+                accountId, totalItems, trades.Count, query.ValidatedPage);
+
+            return (result, null);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting trading history for account {AccountId}", accountId);
+            return (null, "An error occurred while retrieving trading history");
+        }
+    }
+
+    private async Task<TradingHistorySummary> CalculateTradingHistorySummaryAsync(
+        IQueryable<EaclosedTrade> query, 
+        CancellationToken cancellationToken)
+    {
+        if (!await query.AnyAsync(cancellationToken))
+        {
+            return new TradingHistorySummary();
+        }
+
+        var trades = await query.ToListAsync(cancellationToken);
+        
+        var profitableTrades = trades.Where(t => t.RealizedPandL > 0).ToList();
+        var losingTrades = trades.Where(t => t.RealizedPandL <= 0).ToList();
+
+        return new TradingHistorySummary
+        {
+            FilteredTotalProfit = trades.Sum(t => t.RealizedPandL),
+            FilteredTotalTrades = trades.Count,
+            FilteredProfitableTrades = profitableTrades.Count,
+            FilteredLosingTrades = losingTrades.Count,
+            FilteredWinRate = trades.Count > 0 ? (decimal)profitableTrades.Count / trades.Count * 100 : 0,
+            FilteredGrossProfit = profitableTrades.Sum(t => t.RealizedPandL),
+            FilteredGrossLoss = losingTrades.Sum(t => t.RealizedPandL),
+            FilteredTotalCommission = trades.Sum(t => t.Commission ?? 0),
+            FilteredTotalSwap = trades.Sum(t => t.Swap ?? 0)
+        };
+    }
+
+    private static string CalculateTradeDuration(DateTime openTime, DateTime closeTime)
+    {
+        var duration = closeTime - openTime;
+        
+        if (duration.TotalDays >= 1)
+        {
+            return $"{(int)duration.TotalDays}d {duration.Hours}h {duration.Minutes}m";
+        }
+        else if (duration.TotalHours >= 1)
+        {
+            return $"{duration.Hours}h {duration.Minutes}m";
+        }
+        else
+        {
+            return $"{duration.Minutes}m {duration.Seconds}s";
+        }
+    }
+
+    private static decimal CalculatePips(string symbol, decimal openPrice, decimal closePrice, string tradeType)
+    {
+        // Basic pip calculation - this is simplified and should be enhanced based on actual broker specs
+        var priceDifference = tradeType.ToUpper() == "BUY" 
+            ? closePrice - openPrice 
+            : openPrice - closePrice;
+
+        // For JPY pairs, pip is typically 0.01, for others 0.0001
+        var pipSize = symbol.Contains("JPY") ? 0.01m : 0.0001m;
+        
+        return Math.Round(priceDifference / pipSize, 2);
+    }
+
+    public async Task<(OpenPositionsRealtimeDto? Positions, string? ErrorMessage)> GetOpenPositionsRealtimeAsync(
+        int accountId, 
+        bool includeMetrics, 
+        string? symbols, 
+        bool refresh, 
+        int userId, 
+        bool isAdmin, 
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            _logger.LogInformation("Getting real-time open positions for account {AccountId}, user {UserId}, includeMetrics {IncludeMetrics}, symbols {Symbols}, refresh {Refresh}", 
+                accountId, userId, includeMetrics, symbols, refresh);
+
+            // Authorization check - same as other methods
+            if (!isAdmin)
+            {
+                var accountOwner = await _unitOfWork.TradingAccounts.Query()
+                    .Where(ta => ta.TradingAccountId == accountId)
+                    .Select(ta => ta.CreatedByUserId)
+                    .FirstOrDefaultAsync(cancellationToken);
+
+                if (accountOwner != userId)
+                {
+                    return (null, "Unauthorized access to this trading account");
+                }
+            }
+
+            // Get trading account with current data
+            var tradingAccount = await _unitOfWork.TradingAccounts.Query()
+                .FirstOrDefaultAsync(ta => ta.TradingAccountId == accountId, cancellationToken);
+
+            if (tradingAccount == null)
+            {
+                return (null, $"Trading account with ID {accountId} not found");
+            }
+
+            // Build query for open positions
+            var positionsQuery = _unitOfWork.EAOpenPositions.Query()
+                .Where(op => op.TradingAccountId == accountId);
+
+            // Apply symbol filter if provided
+            if (!string.IsNullOrWhiteSpace(symbols))
+            {
+                var symbolList = symbols.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                                       .Select(s => s.Trim().ToUpper())
+                                       .ToList();
+                positionsQuery = positionsQuery.Where(op => symbolList.Contains(op.Symbol.ToUpper()));
+            }
+
+            // Get open positions
+            var openPositions = await positionsQuery
+                .OrderByDescending(op => op.OpenTime)
+                .ToListAsync(cancellationToken);
+
+            // Map to detailed DTOs with calculations
+            var positionDetails = openPositions.Select(op => MapToOpenPositionDetailDto(op)).ToList();
+
+            // Calculate summary metrics
+            var summary = CalculatePositionsSummary(positionDetails, tradingAccount, includeMetrics);
+
+            // Calculate market data
+            var marketData = CalculateMarketData(openPositions, tradingAccount);
+
+            var result = new OpenPositionsRealtimeDto
+            {
+                Positions = positionDetails,
+                Summary = summary,
+                MarketData = marketData,
+                LastUpdated = DateTime.UtcNow
+            };
+
+            _logger.LogInformation("Real-time open positions retrieved successfully for account {AccountId}, {PositionCount} positions", 
+                accountId, positionDetails.Count);
+
+            return (result, null);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting real-time open positions for account {AccountId}", accountId);
+            return (null, "An error occurred while retrieving real-time open positions");
+        }
+    }
+
+    private OpenPositionDetailDto MapToOpenPositionDetailDto(EaopenPosition position)
+    {
+        var currentMarketPrice = position.CurrentMarketPrice;
+        var unrealizedPnL = CalculateUnrealizedPnL(position, currentMarketPrice);
+        var marginRequired = CalculateMarginRequired(position);
+        var percentageReturn = CalculatePercentageReturn(position, unrealizedPnL);
+        var daysOpen = (int)(DateTime.UtcNow - position.OpenTime).TotalDays;
+
+        return new OpenPositionDetailDto
+        {
+            OpenPositionId = position.OpenPositionId,
+            EaTicketId = position.EaticketId,
+            Symbol = position.Symbol,
+            TradeType = position.TradeType,
+            VolumeLots = position.VolumeLots,
+            OpenPrice = position.OpenPrice,
+            OpenTime = position.OpenTime,
+            CurrentMarketPrice = currentMarketPrice,
+            UnrealizedPnL = unrealizedPnL,
+            Swap = position.Swap ?? 0,
+            Commission = position.Commission ?? 0,
+            MarginRequired = marginRequired,
+            PercentageReturn = percentageReturn,
+            DaysOpen = daysOpen,
+            LastUpdateTime = position.LastUpdateTime
+        };
+    }
+
+    private decimal CalculateUnrealizedPnL(EaopenPosition position, decimal currentMarketPrice)
+    {
+        // Use existing FloatingPandL if available
+        return position.FloatingPandL;
+    }
+
+    private decimal CalculateMarginRequired(EaopenPosition position)
+    {
+        // Simplified margin calculation - should be enhanced with actual leverage and symbol specifications
+        var contractSize = GetContractSize(position.Symbol);
+        var leverage = 100; // Default leverage, should come from account settings
+        
+        return Math.Round((position.OpenPrice * position.VolumeLots * contractSize) / leverage, 2);
+    }
+
+    private decimal CalculatePercentageReturn(EaopenPosition position, decimal unrealizedPnL)
+    {
+        var marginRequired = CalculateMarginRequired(position);
+        return marginRequired > 0 ? Math.Round((unrealizedPnL / marginRequired) * 100, 2) : 0;
+    }
+
+    private decimal GetContractSize(string symbol)
+    {
+        // Simplified contract size mapping - should be enhanced with actual symbol specifications
+        return symbol.Contains("JPY") ? 1000 : 100000;
+    }
+
+    private PositionsSummaryDto CalculatePositionsSummary(
+        List<OpenPositionDetailDto> positions, 
+        TradingAccount tradingAccount, 
+        bool includeMetrics)
+    {
+        var longPositions = positions.Where(p => p.TradeType.ToUpper() == "BUY").ToList();
+        var shortPositions = positions.Where(p => p.TradeType.ToUpper() == "SELL").ToList();
+        
+        var totalUnrealizedPnL = positions.Sum(p => p.UnrealizedPnL);
+        var totalMarginUsed = positions.Sum(p => p.MarginRequired);
+        var accountEquity = tradingAccount.CurrentNetAssetValue;
+        var freeMargin = Math.Max(0, accountEquity - totalMarginUsed);
+        var marginLevel = totalMarginUsed > 0 ? (accountEquity / totalMarginUsed) * 100 : 0;
+
+        var summary = new PositionsSummaryDto
+        {
+            TotalPositions = positions.Count,
+            TotalUnrealizedPnL = totalUnrealizedPnL,
+            TotalMarginUsed = totalMarginUsed,
+            FreeMargin = freeMargin,
+            MarginLevel = marginLevel,
+            TotalVolume = positions.Sum(p => p.VolumeLots),
+            LongPositions = longPositions.Count,
+            ShortPositions = shortPositions.Count,
+            LongVolume = longPositions.Sum(p => p.VolumeLots),
+            ShortVolume = shortPositions.Sum(p => p.VolumeLots),
+            DailyPnL = 0, // Would require additional calculation
+            WeeklyPnL = 0, // Would require additional calculation
+            MonthlyPnL = 0 // Would require additional calculation
+        };
+
+        return summary;
+    }
+
+    private MarketDataDto CalculateMarketData(
+        List<EaopenPosition> positions, 
+        TradingAccount tradingAccount)
+    {
+        var uniqueSymbols = positions.Select(p => p.Symbol).Distinct().ToList();
+        var quotes = new List<SymbolQuoteDto>();
+
+        // Generate mock quotes for each symbol (in real implementation, this would fetch from market data provider)
+        foreach (var symbol in uniqueSymbols)
+        {
+            var lastPrice = positions.Where(p => p.Symbol == symbol)
+                                   .Select(p => p.CurrentMarketPrice)
+                                   .FirstOrDefault();
+
+            quotes.Add(new SymbolQuoteDto
+            {
+                Symbol = symbol,
+                Bid = lastPrice - 0.0001m, // Mock spread
+                Ask = lastPrice + 0.0001m,
+                Spread = 0.0002m,
+                DailyChange = 0, // Would require historical data
+                DailyChangePercent = 0, // Would require historical data
+                LastUpdate = DateTime.UtcNow
+            });
+        }
+
+        var accountEquity = tradingAccount.CurrentNetAssetValue;
+        var accountBalance = tradingAccount.InitialCapital; // Simplified - should be current balance
+        var drawdownPercent = accountBalance > 0 ? Math.Max(0, ((accountBalance - accountEquity) / accountBalance) * 100) : 0;
+
+        return new MarketDataDto
+        {
+            LastPriceUpdate = DateTime.UtcNow,
+            Quotes = quotes,
+            AccountEquity = accountEquity,
+            AccountBalance = accountBalance,
+            DrawdownPercent = drawdownPercent
+        };
     }
 }
