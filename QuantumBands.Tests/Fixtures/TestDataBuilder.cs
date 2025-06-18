@@ -21,6 +21,7 @@ using QuantumBands.Application.Features.Users.Commands.Disable2FA;
 using QuantumBands.Application.Features.Wallets.Queries.GetTransactions;
 using QuantumBands.Application.Features.TradingAccounts.Queries;
 using QuantumBands.Application.Features.Admin.TradingAccounts.Dtos;
+using QuantumBands.Application.Features.Admin.TradingAccounts.Commands;
 using QuantumBands.Application.Features.TradingAccounts.Dtos;
 using QuantumBands.Application.Features.Portfolio.Dtos;
 using QuantumBands.Application.Common.Models;
