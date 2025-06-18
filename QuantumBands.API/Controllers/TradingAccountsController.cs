@@ -239,4 +239,62 @@ public class TradingAccountsController : ControllerBase
 
         return Ok(tradingHistory);
     }
+
+    /// <summary>
+    /// Gets real-time open positions for a specific trading account with comprehensive metrics and market data.
+    /// Includes unrealized P&L calculations, margin information, and position summary statistics.
+    /// Supports optional symbol filtering and real-time refresh capabilities.
+    /// Users can only access their own accounts, admins can access any account.
+    /// </summary>
+    /// <param name="accountId">Trading account identifier</param>
+    /// <param name="includeMetrics">Include advanced performance metrics in response</param>
+    /// <param name="symbols">Comma-separated list of symbols to filter positions (optional)</param>
+    /// <param name="refresh">Force refresh of real-time data before response</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Real-time open positions with summary metrics and market data</returns>
+    [HttpGet("{accountId}/open-positions")] // Endpoint: /api/v1/trading-accounts/{accountId}/open-positions
+    [ProducesResponseType(typeof(OpenPositionsRealtimeDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetOpenPositions(
+        int accountId,
+        [FromQuery] bool includeMetrics = false,
+        [FromQuery] string? symbols = null,
+        [FromQuery] bool refresh = false,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Request received for real-time open positions for TradingAccountID: {AccountId}, includeMetrics: {IncludeMetrics}, symbols: {Symbols}, refresh: {Refresh}", 
+            accountId, includeMetrics, symbols, refresh);
+
+        // Get current user info
+        var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier || c.Type == "uid" || c.Type == JwtRegisteredClaimNames.Sub)?.Value;
+        if (!int.TryParse(userIdClaim, out var userId))
+        {
+            return Unauthorized(new { Message = "Invalid user authentication" });
+        }
+
+        var isAdmin = User.IsInRole("Admin");
+
+        var (openPositions, errorMessage) = await _tradingAccountService.GetOpenPositionsRealtimeAsync(
+            accountId, includeMetrics, symbols, refresh, userId, isAdmin, cancellationToken);
+
+        if (openPositions == null)
+        {
+            _logger.LogWarning("Failed to retrieve real-time open positions for TradingAccountID {AccountId}. Error: {ErrorMessage}", accountId, errorMessage);
+            
+            if (errorMessage != null && errorMessage.Contains("Unauthorized"))
+            {
+                return Forbid();
+            }
+            if (errorMessage != null && errorMessage.Contains("not found"))
+            {
+                return NotFound(new { Message = errorMessage });
+            }
+            return StatusCode(StatusCodes.Status500InternalServerError, new { Message = errorMessage ?? $"An unexpected error occurred while fetching open positions for trading account ID {accountId}." });
+        }
+
+        return Ok(openPositions);
+    }
 }
