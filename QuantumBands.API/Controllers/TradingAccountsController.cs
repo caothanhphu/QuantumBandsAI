@@ -297,4 +297,56 @@ public class TradingAccountsController : ControllerBase
 
         return Ok(openPositions);
     }
+
+    /// <summary>
+    /// Gets comprehensive trading statistics and risk metrics for a specific trading account.
+    /// Provides detailed analysis including trading performance, financial metrics, risk analysis,
+    /// symbol breakdown, and monthly performance data with optional advanced metrics.
+    /// Users can only access their own accounts, admins can access any account.
+    /// </summary>
+    /// <param name="accountId">Trading account identifier</param>
+    /// <param name="query">Statistics query parameters with period, symbols filter, and advanced metrics options</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Comprehensive trading statistics with performance analysis and risk metrics</returns>
+    [HttpGet("{accountId}/statistics")] // Endpoint: /api/v1/trading-accounts/{accountId}/statistics
+    [ProducesResponseType(typeof(TradingStatisticsDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetStatistics(
+        int accountId,
+        [FromQuery] GetStatisticsQuery query,
+        CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Request received for trading statistics for TradingAccountID: {AccountId} with query: {@Query}", accountId, query);
+
+        // Get current user info
+        var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier || c.Type == "uid" || c.Type == JwtRegisteredClaimNames.Sub)?.Value;
+        if (!int.TryParse(userIdClaim, out var userId))
+        {
+            return Unauthorized(new { Message = "Invalid user authentication" });
+        }
+
+        var isAdmin = User.IsInRole("Admin");
+
+        var (statistics, errorMessage) = await _tradingAccountService.GetStatisticsAsync(accountId, query, userId, isAdmin, cancellationToken);
+
+        if (statistics == null)
+        {
+            _logger.LogWarning("Failed to retrieve trading statistics for TradingAccountID {AccountId}. Error: {ErrorMessage}", accountId, errorMessage);
+
+            if (errorMessage != null && errorMessage.Contains("Unauthorized"))
+            {
+                return Forbid();
+            }
+            if (errorMessage != null && errorMessage.Contains("not found"))
+            {
+                return NotFound(new { Message = errorMessage });
+            }
+            return StatusCode(StatusCodes.Status500InternalServerError, new { Message = errorMessage ?? $"An unexpected error occurred while calculating statistics for trading account ID {accountId}." });
+        }
+
+        return Ok(statistics);
+    }
 }
