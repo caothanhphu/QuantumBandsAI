@@ -3,6 +3,7 @@ using FluentValidation.TestHelper;
 using QuantumBands.Application.Features.Authentication.Commands.RegisterUser;
 using QuantumBands.Tests.Common;
 using QuantumBands.Tests.Fixtures;
+using static QuantumBands.Tests.Fixtures.AuthenticationTestDataBuilder;
 using Xunit;
 
 namespace QuantumBands.Tests.Validators;
@@ -22,7 +23,7 @@ public class RegisterUserCommandValidatorTests : TestBase
     public void Username_WhenValid_ShouldNotHaveValidationError()
     {
         // Arrange
-        var command = TestDataBuilder.RegisterUser.ValidCommand();
+        var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
 
         // Act & Assert
         var result = _validator.TestValidate(command);
@@ -36,7 +37,7 @@ public class RegisterUserCommandValidatorTests : TestBase
     public void Username_WhenNullOrEmpty_ShouldHaveValidationError(string? username)
     {
         // Arrange
-        var command = TestDataBuilder.RegisterUser.ValidCommand();
+        var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
         command.Username = username!;
 
         // Act & Assert
@@ -51,7 +52,7 @@ public class RegisterUserCommandValidatorTests : TestBase
     public void Username_WhenTooShort_ShouldHaveValidationError(string username)
     {
         // Arrange
-        var command = TestDataBuilder.RegisterUser.ValidCommand();
+        var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
         command.Username = username;
 
         // Act & Assert
@@ -64,7 +65,7 @@ public class RegisterUserCommandValidatorTests : TestBase
     public void Username_WhenTooLong_ShouldHaveValidationError()
     {
         // Arrange
-        var command = TestDataBuilder.RegisterUser.ValidCommand();
+        var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
         command.Username = new string('a', 51); // 51 characters
 
         // Act & Assert
@@ -83,7 +84,7 @@ public class RegisterUserCommandValidatorTests : TestBase
     public void Username_WhenContainsInvalidCharacters_ShouldHaveValidationError(string username)
     {
         // Arrange
-        var command = TestDataBuilder.RegisterUser.ValidCommand();
+        var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
         command.Username = username;
 
         // Act & Assert
@@ -102,7 +103,7 @@ public class RegisterUserCommandValidatorTests : TestBase
     public void Username_WhenContainsValidCharacters_ShouldNotHaveValidationError(string username)
     {
         // Arrange
-        var command = TestDataBuilder.RegisterUser.ValidCommand();
+        var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
         command.Username = username;
 
         // Act & Assert
@@ -118,7 +119,7 @@ public class RegisterUserCommandValidatorTests : TestBase
     public void Email_WhenValid_ShouldNotHaveValidationError()
     {
         // Arrange
-        var command = TestDataBuilder.RegisterUser.ValidCommand();
+        var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
 
         // Act & Assert
         var result = _validator.TestValidate(command);
@@ -132,7 +133,7 @@ public class RegisterUserCommandValidatorTests : TestBase
     public void Email_WhenNullOrEmpty_ShouldHaveValidationError(string? email)
     {
         // Arrange
-        var command = TestDataBuilder.RegisterUser.ValidCommand();
+        var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
         command.Email = email!;
 
         // Act & Assert
@@ -148,7 +149,7 @@ public class RegisterUserCommandValidatorTests : TestBase
     public void Email_WhenInvalidFormat_ShouldHaveValidationError(string email)
     {
         // Arrange
-        var command = TestDataBuilder.RegisterUser.ValidCommand();
+        var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
         command.Email = email;
 
         // Act & Assert
@@ -161,7 +162,7 @@ public class RegisterUserCommandValidatorTests : TestBase
     public void Email_WhenTooLong_ShouldHaveValidationError()
     {
         // Arrange
-        var command = TestDataBuilder.RegisterUser.ValidCommand();
+        var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
         command.Email = new string('a', 250) + "@example.com"; // 262 characters total
 
         // Act & Assert
@@ -180,7 +181,7 @@ public class RegisterUserCommandValidatorTests : TestBase
     public void Email_WhenValidFormat_ShouldNotHaveValidationError(string email)
     {
         // Arrange
-        var command = TestDataBuilder.RegisterUser.ValidCommand();
+        var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
         command.Email = email;
 
         // Act & Assert
@@ -196,7 +197,7 @@ public class RegisterUserCommandValidatorTests : TestBase
     public void Password_WhenValid_ShouldNotHaveValidationError()
     {
         // Arrange
-        var command = TestDataBuilder.RegisterUser.ValidCommand();
+        var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
 
         // Act & Assert
         var result = _validator.TestValidate(command);
@@ -210,7 +211,7 @@ public class RegisterUserCommandValidatorTests : TestBase
     public void Password_WhenNullOrEmpty_ShouldHaveValidationError(string? password)
     {
         // Arrange
-        var command = TestDataBuilder.RegisterUser.ValidCommand();
+        var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
         command.Password = password!;
 
         // Act & Assert
@@ -226,7 +227,7 @@ public class RegisterUserCommandValidatorTests : TestBase
     public void Password_WhenTooShort_ShouldHaveValidationError(string password)
     {
         // Arrange
-        var command = TestDataBuilder.RegisterUser.ValidCommand();
+        var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
         command.Password = password;
 
         // Act & Assert
@@ -243,7 +244,7 @@ public class RegisterUserCommandValidatorTests : TestBase
     public void Password_WhenMissingRequiredCharacterTypes_ShouldHaveValidationError(string password)
     {
         // Arrange
-        var command = TestDataBuilder.RegisterUser.ValidCommand();
+        var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
         command.Password = password;
 
         // Act & Assert
@@ -259,7 +260,7 @@ public class RegisterUserCommandValidatorTests : TestBase
     public void Password_WhenMissingMultipleRequiredCharacterTypes_ShouldHaveValidationError(string password)
     {
         // Arrange
-        var command = TestDataBuilder.RegisterUser.ValidCommand();
+        var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
         command.Password = password;
 
         // Act & Assert
@@ -275,7 +276,7 @@ public class RegisterUserCommandValidatorTests : TestBase
     public void Password_WhenMeetsAllRequirements_ShouldNotHaveValidationError(string password)
     {
         // Arrange
-        var command = TestDataBuilder.RegisterUser.ValidCommand();
+        var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
         command.Password = password;
 
         // Act & Assert
@@ -291,7 +292,7 @@ public class RegisterUserCommandValidatorTests : TestBase
     public void FullName_WhenNull_ShouldNotHaveValidationError()
     {
         // Arrange
-        var command = TestDataBuilder.RegisterUser.ValidCommandWithoutFullName();
+        var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommandWithoutFullName();
 
         // Act & Assert
         var result = _validator.TestValidate(command);
@@ -302,7 +303,7 @@ public class RegisterUserCommandValidatorTests : TestBase
     public void FullName_WhenEmpty_ShouldNotHaveValidationError()
     {
         // Arrange
-        var command = TestDataBuilder.RegisterUser.ValidCommand();
+        var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
         command.FullName = "";
 
         // Act & Assert
@@ -314,7 +315,7 @@ public class RegisterUserCommandValidatorTests : TestBase
     public void FullName_WhenValid_ShouldNotHaveValidationError()
     {
         // Arrange
-        var command = TestDataBuilder.RegisterUser.ValidCommand();
+        var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
 
         // Act & Assert
         var result = _validator.TestValidate(command);
@@ -325,7 +326,7 @@ public class RegisterUserCommandValidatorTests : TestBase
     public void FullName_WhenTooLong_ShouldHaveValidationError()
     {
         // Arrange
-        var command = TestDataBuilder.RegisterUser.ValidCommand();
+        var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
         command.FullName = new string('a', 201); // 201 characters
 
         // Act & Assert
@@ -343,7 +344,7 @@ public class RegisterUserCommandValidatorTests : TestBase
     public void FullName_WhenValidFormat_ShouldNotHaveValidationError(string fullName)
     {
         // Arrange
-        var command = TestDataBuilder.RegisterUser.ValidCommand();
+        var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
         command.FullName = fullName;
 
         // Act & Assert
@@ -359,7 +360,7 @@ public class RegisterUserCommandValidatorTests : TestBase
     public void Validate_WithCompletelyValidCommand_ShouldNotHaveAnyValidationErrors()
     {
         // Arrange
-        var command = TestDataBuilder.RegisterUser.ValidCommand();
+        var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
 
         // Act & Assert
         var result = _validator.TestValidate(command);
@@ -449,10 +450,10 @@ public class RegisterUserCommandValidatorTests : TestBase
     public void Validate_Username_ShouldBeCaseSensitive(string original, string modified)
     {
         // Arrange - Test that both lowercase and uppercase usernames are valid
-        var command1 = TestDataBuilder.RegisterUser.ValidCommand();
+        var command1 = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
         command1.Username = original; // lowercase
 
-        var command2 = TestDataBuilder.RegisterUser.ValidCommand();
+        var command2 = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
         command2.Username = modified; // UPPERCASE
         command2.Email = "different@example.com"; // Use different email to avoid conflicts
 

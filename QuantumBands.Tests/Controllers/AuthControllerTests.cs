@@ -14,6 +14,7 @@ using QuantumBands.Application.Features.Authentication;
 using QuantumBands.Application.Interfaces;
 using QuantumBands.Tests.Common;
 using QuantumBands.Tests.Fixtures;
+using static QuantumBands.Tests.Fixtures.AuthenticationTestDataBuilder;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
@@ -48,7 +49,7 @@ public class AuthControllerTests : TestBase
     public async Task Register_WithValidCommand_ShouldReturnCreatedResult()
     {
         // Arrange
-        var command = TestDataBuilder.RegisterUser.ValidCommand();
+        var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
         var expectedUserDto = TestDataBuilder.UserDtos.ValidUserDto();
 
         _mockAuthService.Setup(x => x.RegisterUserAsync(command, It.IsAny<CancellationToken>()))
@@ -70,7 +71,7 @@ public class AuthControllerTests : TestBase
     public async Task Register_WithValidCommandWithoutFullName_ShouldReturnCreatedResult()
     {
         // Arrange
-        var command = TestDataBuilder.RegisterUser.ValidCommandWithoutFullName();
+        var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommandWithoutFullName();
         var expectedUserDto = TestDataBuilder.UserDtos.ValidUserDto();
 
         _mockAuthService.Setup(x => x.RegisterUserAsync(command, It.IsAny<CancellationToken>()))
@@ -90,7 +91,7 @@ public class AuthControllerTests : TestBase
     public async Task Register_ShouldCallAuthServiceWithCorrectCommand()
     {
         // Arrange
-        var command = TestDataBuilder.RegisterUser.ValidCommand();
+        var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
         var expectedUserDto = TestDataBuilder.UserDtos.ValidUserDto();
 
         _mockAuthService.Setup(x => x.RegisterUserAsync(It.IsAny<RegisterUserCommand>(), It.IsAny<CancellationToken>()))
@@ -117,7 +118,7 @@ public class AuthControllerTests : TestBase
     public async Task Register_WithInvalidModelState_ShouldReturnBadRequest()
     {
         // Arrange
-        var command = TestDataBuilder.RegisterUser.CommandWithShortUsername();
+        var command = AuthenticationTestDataBuilder.RegisterUser.CommandWithShortUsername();
         _authController.ModelState.AddModelError("Username", "Username must be between 3 and 50 characters");
 
         // Act
@@ -139,7 +140,7 @@ public class AuthControllerTests : TestBase
     public async Task Register_WithInvalidUsername_ShouldReturnBadRequest(string invalidUsername)
     {
         // Arrange
-        var command = TestDataBuilder.RegisterUser.ValidCommand();
+        var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
         command.Username = invalidUsername;
         
         // Simulate model validation failure
@@ -162,7 +163,7 @@ public class AuthControllerTests : TestBase
     public async Task Register_WithInvalidEmail_ShouldReturnBadRequest(string invalidEmail)
     {
         // Arrange
-        var command = TestDataBuilder.RegisterUser.ValidCommand();
+        var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
         command.Email = invalidEmail;
         
         // Simulate model validation failure
@@ -186,7 +187,7 @@ public class AuthControllerTests : TestBase
     public async Task Register_WithInvalidPassword_ShouldReturnBadRequest(string invalidPassword)
     {
         // Arrange
-        var command = TestDataBuilder.RegisterUser.ValidCommand();
+        var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
         command.Password = invalidPassword;
         
         // Simulate model validation failure
@@ -210,7 +211,7 @@ public class AuthControllerTests : TestBase
     public async Task Register_WithDuplicateUsername_ShouldReturnConflict()
     {
         // Arrange
-        var command = TestDataBuilder.RegisterUser.ValidCommand();
+        var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
         var errorMessage = "Username already exists";
 
         _mockAuthService.Setup(x => x.RegisterUserAsync(command, It.IsAny<CancellationToken>()))
@@ -231,7 +232,7 @@ public class AuthControllerTests : TestBase
     public async Task Register_WithDuplicateEmail_ShouldReturnConflict()
     {
         // Arrange
-        var command = TestDataBuilder.RegisterUser.ValidCommand();
+        var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
         var errorMessage = "Email already exists";
 
         _mockAuthService.Setup(x => x.RegisterUserAsync(command, It.IsAny<CancellationToken>()))
@@ -252,7 +253,7 @@ public class AuthControllerTests : TestBase
     public async Task Register_WithServiceError_ShouldReturnInternalServerError()
     {
         // Arrange
-        var command = TestDataBuilder.RegisterUser.ValidCommand();
+        var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
         var errorMessage = "An error occurred during registration";
 
         _mockAuthService.Setup(x => x.RegisterUserAsync(command, It.IsAny<CancellationToken>()))
@@ -277,7 +278,7 @@ public class AuthControllerTests : TestBase
     public async Task Register_WhenServiceThrowsException_ShouldReturnInternalServerError()
     {
         // Arrange
-        var command = TestDataBuilder.RegisterUser.ValidCommand();
+        var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
         var exceptionMessage = "Unexpected error occurred";
 
         _mockAuthService.Setup(x => x.RegisterUserAsync(command, It.IsAny<CancellationToken>()))
@@ -298,7 +299,7 @@ public class AuthControllerTests : TestBase
     public async Task Register_WhenServiceThrowsArgumentException_ShouldReturnBadRequest()
     {
         // Arrange
-        var command = TestDataBuilder.RegisterUser.ValidCommand();
+        var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
         var exceptionMessage = "Invalid argument provided";
 
         _mockAuthService.Setup(x => x.RegisterUserAsync(command, It.IsAny<CancellationToken>()))
@@ -322,7 +323,7 @@ public class AuthControllerTests : TestBase
     public async Task Register_ShouldCreateUserAndReturnCorrectResponse()
     {
         // Arrange
-        var command = TestDataBuilder.RegisterUser.ValidCommand();
+        var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
         var expectedUserDto = TestDataBuilder.UserDtos.ValidUserDto();
 
         _mockAuthService.Setup(x => x.RegisterUserAsync(command, It.IsAny<CancellationToken>()))
@@ -378,7 +379,7 @@ public class AuthControllerTests : TestBase
     public async Task Register_ShouldNotExposePasswordInResponse()
     {
         // Arrange
-        var command = TestDataBuilder.RegisterUser.ValidCommand();
+        var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
         var expectedUserDto = TestDataBuilder.UserDtos.ValidUserDto();
 
         _mockAuthService.Setup(x => x.RegisterUserAsync(command, It.IsAny<CancellationToken>()))
@@ -411,8 +412,8 @@ public class AuthControllerTests : TestBase
     public async Task Login_WithValidUsernameAndPassword_ShouldReturnOkWithLoginResponse()
     {
         // Arrange
-        var loginRequest = TestDataBuilder.Login.ValidLoginWithUsername();
-        var expectedResponse = TestDataBuilder.LoginResponses.ValidLoginResponse();
+        var loginRequest = AuthenticationTestDataBuilder.Login.ValidLoginWithUsername();
+        var expectedResponse = AuthenticationTestDataBuilder.LoginResponses.ValidLoginResponse();
 
         _mockAuthService.Setup(x => x.LoginAsync(loginRequest, It.IsAny<CancellationToken>()))
             .ReturnsAsync((expectedResponse, (string?)null));
@@ -433,8 +434,8 @@ public class AuthControllerTests : TestBase
     public async Task Login_WithValidEmailAndPassword_ShouldReturnOkWithLoginResponse()
     {
         // Arrange
-        var loginRequest = TestDataBuilder.Login.ValidLoginWithEmail();
-        var expectedResponse = TestDataBuilder.LoginResponses.ValidLoginResponse();
+        var loginRequest = AuthenticationTestDataBuilder.Login.ValidLoginWithEmail();
+        var expectedResponse = AuthenticationTestDataBuilder.LoginResponses.ValidLoginResponse();
 
         _mockAuthService.Setup(x => x.LoginAsync(loginRequest, It.IsAny<CancellationToken>()))
             .ReturnsAsync((expectedResponse, (string?)null));
@@ -458,7 +459,7 @@ public class AuthControllerTests : TestBase
             UsernameOrEmail = "admin",
             Password = "AdminPassword123!"
         };
-        var expectedResponse = TestDataBuilder.LoginResponses.AdminLoginResponse();
+        var expectedResponse = AuthenticationTestDataBuilder.LoginResponses.AdminLoginResponse();
 
         _mockAuthService.Setup(x => x.LoginAsync(loginRequest, It.IsAny<CancellationToken>()))
             .ReturnsAsync((expectedResponse, (string?)null));
@@ -480,8 +481,8 @@ public class AuthControllerTests : TestBase
     public async Task Login_ShouldCallAuthServiceWithCorrectRequest()
     {
         // Arrange
-        var loginRequest = TestDataBuilder.Login.ValidLoginWithUsername();
-        var expectedResponse = TestDataBuilder.LoginResponses.ValidLoginResponse();
+        var loginRequest = AuthenticationTestDataBuilder.Login.ValidLoginWithUsername();
+        var expectedResponse = AuthenticationTestDataBuilder.LoginResponses.ValidLoginResponse();
 
         _mockAuthService.Setup(x => x.LoginAsync(It.IsAny<LoginRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((expectedResponse, null));
@@ -555,7 +556,7 @@ public class AuthControllerTests : TestBase
     public async Task Login_WithInvalidCredentials_ShouldReturnUnauthorized()
     {
         // Arrange
-        var loginRequest = TestDataBuilder.Login.LoginWithInvalidPassword();
+        var loginRequest = AuthenticationTestDataBuilder.Login.LoginWithInvalidPassword();
         var errorMessage = "Invalid username/email or password";
 
         _mockAuthService.Setup(x => x.LoginAsync(loginRequest, It.IsAny<CancellationToken>()))
@@ -575,7 +576,7 @@ public class AuthControllerTests : TestBase
     public async Task Login_WithInactiveUser_ShouldReturnUnauthorized()
     {
         // Arrange
-        var loginRequest = TestDataBuilder.Login.LoginWithInactiveUser();
+        var loginRequest = AuthenticationTestDataBuilder.Login.LoginWithInactiveUser();
         var errorMessage = "User account is inactive";
 
         _mockAuthService.Setup(x => x.LoginAsync(loginRequest, It.IsAny<CancellationToken>()))
@@ -595,7 +596,7 @@ public class AuthControllerTests : TestBase
     public async Task Login_WithUnverifiedEmail_ShouldReturnUnauthorized()
     {
         // Arrange
-        var loginRequest = TestDataBuilder.Login.LoginWithUnverifiedEmail();
+        var loginRequest = AuthenticationTestDataBuilder.Login.LoginWithUnverifiedEmail();
         var errorMessage = "Please verify your email before logging in";
 
         _mockAuthService.Setup(x => x.LoginAsync(loginRequest, It.IsAny<CancellationToken>()))
@@ -615,7 +616,7 @@ public class AuthControllerTests : TestBase
     public async Task Login_WithNonExistentUser_ShouldReturnUnauthorized()
     {
         // Arrange
-        var loginRequest = TestDataBuilder.Login.LoginWithInvalidUsername();
+        var loginRequest = AuthenticationTestDataBuilder.Login.LoginWithInvalidUsername();
         var errorMessage = "Invalid username/email or password";
 
         _mockAuthService.Setup(x => x.LoginAsync(loginRequest, It.IsAny<CancellationToken>()))
@@ -639,7 +640,7 @@ public class AuthControllerTests : TestBase
     public async Task Login_WithServiceError_ShouldReturnInternalServerError()
     {
         // Arrange
-        var loginRequest = TestDataBuilder.Login.ValidLoginWithUsername();
+        var loginRequest = AuthenticationTestDataBuilder.Login.ValidLoginWithUsername();
         var errorMessage = "Database connection failed";
 
         _mockAuthService.Setup(x => x.LoginAsync(loginRequest, It.IsAny<CancellationToken>()))
@@ -659,7 +660,7 @@ public class AuthControllerTests : TestBase
     public async Task Login_WhenServiceReturnsNullWithoutMessage_ShouldReturnInternalServerError()
     {
         // Arrange
-        var loginRequest = TestDataBuilder.Login.ValidLoginWithUsername();
+        var loginRequest = AuthenticationTestDataBuilder.Login.ValidLoginWithUsername();
 
         _mockAuthService.Setup(x => x.LoginAsync(loginRequest, It.IsAny<CancellationToken>()))
             .ReturnsAsync(((LoginResponse?)null, (string?)null));
@@ -678,7 +679,7 @@ public class AuthControllerTests : TestBase
     public async Task Login_WhenServiceThrowsException_ShouldReturnInternalServerError()
     {
         // Arrange
-        var loginRequest = TestDataBuilder.Login.ValidLoginWithUsername();
+        var loginRequest = AuthenticationTestDataBuilder.Login.ValidLoginWithUsername();
         var exceptionMessage = "Unexpected database error";
 
         _mockAuthService.Setup(x => x.LoginAsync(loginRequest, It.IsAny<CancellationToken>()))
@@ -699,8 +700,8 @@ public class AuthControllerTests : TestBase
     public async Task Login_ShouldReturnJwtTokenInResponse()
     {
         // Arrange
-        var loginRequest = TestDataBuilder.Login.ValidLoginWithUsername();
-        var expectedResponse = TestDataBuilder.LoginResponses.ValidLoginResponse();
+        var loginRequest = AuthenticationTestDataBuilder.Login.ValidLoginWithUsername();
+        var expectedResponse = AuthenticationTestDataBuilder.LoginResponses.ValidLoginResponse();
 
         _mockAuthService.Setup(x => x.LoginAsync(loginRequest, It.IsAny<CancellationToken>()))
             .ReturnsAsync((expectedResponse, (string?)null));
@@ -722,8 +723,8 @@ public class AuthControllerTests : TestBase
     public async Task Login_ShouldNotExposePasswordInResponse()
     {
         // Arrange
-        var loginRequest = TestDataBuilder.Login.ValidLoginWithUsername();
-        var expectedResponse = TestDataBuilder.LoginResponses.ValidLoginResponse();
+        var loginRequest = AuthenticationTestDataBuilder.Login.ValidLoginWithUsername();
+        var expectedResponse = AuthenticationTestDataBuilder.LoginResponses.ValidLoginResponse();
 
         _mockAuthService.Setup(x => x.LoginAsync(loginRequest, It.IsAny<CancellationToken>()))
             .ReturnsAsync((expectedResponse, (string?)null));
@@ -746,8 +747,8 @@ public class AuthControllerTests : TestBase
     public async Task Login_ShouldLogUserLoginAttempt()
     {
         // Arrange
-        var loginRequest = TestDataBuilder.Login.ValidLoginWithUsername();
-        var expectedResponse = TestDataBuilder.LoginResponses.ValidLoginResponse();
+        var loginRequest = AuthenticationTestDataBuilder.Login.ValidLoginWithUsername();
+        var expectedResponse = AuthenticationTestDataBuilder.LoginResponses.ValidLoginResponse();
 
         _mockAuthService.Setup(x => x.LoginAsync(loginRequest, It.IsAny<CancellationToken>()))
             .ReturnsAsync((expectedResponse, (string?)null));
@@ -773,7 +774,7 @@ public class AuthControllerTests : TestBase
     public async Task Login_WithFailedLogin_ShouldLogWarning()
     {
         // Arrange
-        var loginRequest = TestDataBuilder.Login.LoginWithInvalidPassword();
+        var loginRequest = AuthenticationTestDataBuilder.Login.LoginWithInvalidPassword();
         var errorMessage = "Invalid username/email or password";
 
         _mockAuthService.Setup(x => x.LoginAsync(loginRequest, It.IsAny<CancellationToken>()))
@@ -804,8 +805,8 @@ public class AuthControllerTests : TestBase
     public async Task Login_ShouldUpdateUserLastLoginDate()
     {
         // Arrange
-        var loginRequest = TestDataBuilder.Login.ValidLoginWithUsername();
-        var expectedResponse = TestDataBuilder.LoginResponses.ValidLoginResponse();
+        var loginRequest = AuthenticationTestDataBuilder.Login.ValidLoginWithUsername();
+        var expectedResponse = AuthenticationTestDataBuilder.LoginResponses.ValidLoginResponse();
 
         _mockAuthService.Setup(x => x.LoginAsync(loginRequest, It.IsAny<CancellationToken>()))
             .ReturnsAsync((expectedResponse, (string?)null));
@@ -824,8 +825,8 @@ public class AuthControllerTests : TestBase
     public async Task Login_ShouldGenerateRefreshToken()
     {
         // Arrange
-        var loginRequest = TestDataBuilder.Login.ValidLoginWithUsername();
-        var expectedResponse = TestDataBuilder.LoginResponses.ValidLoginResponse();
+        var loginRequest = AuthenticationTestDataBuilder.Login.ValidLoginWithUsername();
+        var expectedResponse = AuthenticationTestDataBuilder.LoginResponses.ValidLoginResponse();
 
         _mockAuthService.Setup(x => x.LoginAsync(loginRequest, It.IsAny<CancellationToken>()))
             .ReturnsAsync((expectedResponse, (string?)null));
@@ -855,7 +856,7 @@ public class AuthControllerTests : TestBase
             UsernameOrEmail = usernameOrEmail,
             Password = "StrongPassword123!"
         };
-        var expectedResponse = TestDataBuilder.LoginResponses.ValidLoginResponse();
+        var expectedResponse = AuthenticationTestDataBuilder.LoginResponses.ValidLoginResponse();
 
         _mockAuthService.Setup(x => x.LoginAsync(It.IsAny<LoginRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((expectedResponse, (string?)null));
@@ -881,8 +882,8 @@ public class AuthControllerTests : TestBase
     public async Task Login_EndToEndHappyPath_ShouldReturnCompleteLoginResponse()
     {
         // Arrange
-        var loginRequest = TestDataBuilder.Login.ValidLoginWithUsername();
-        var expectedResponse = TestDataBuilder.LoginResponses.ValidLoginResponse();
+        var loginRequest = AuthenticationTestDataBuilder.Login.ValidLoginWithUsername();
+        var expectedResponse = AuthenticationTestDataBuilder.LoginResponses.ValidLoginResponse();
 
         _mockAuthService.Setup(x => x.LoginAsync(loginRequest, It.IsAny<CancellationToken>()))
             .ReturnsAsync((expectedResponse, (string?)null));
@@ -921,7 +922,7 @@ public class AuthControllerTests : TestBase
     public async Task VerifyEmail_WithValidRequest_ShouldReturnOkWithSuccessMessage()
     {
         // Arrange
-        var request = TestDataBuilder.VerifyEmail.ValidRequest();
+        var request = AuthenticationTestDataBuilder.VerifyEmail.ValidRequest();
         var expectedMessage = "Email verified successfully.";
 
         _mockAuthService.Setup(x => x.VerifyEmailAsync(request, It.IsAny<CancellationToken>()))
@@ -947,7 +948,7 @@ public class AuthControllerTests : TestBase
     public async Task VerifyEmail_WithValidToken_ShouldActivateUserAccount()
     {
         // Arrange
-        var request = TestDataBuilder.VerifyEmail.ValidRequest();
+        var request = AuthenticationTestDataBuilder.VerifyEmail.ValidRequest();
         var successMessage = "Email verified successfully. Account activated.";
 
         _mockAuthService.Setup(x => x.VerifyEmailAsync(request, It.IsAny<CancellationToken>()))
@@ -976,7 +977,7 @@ public class AuthControllerTests : TestBase
     public async Task VerifyEmail_ShouldCallAuthServiceWithCorrectRequest()
     {
         // Arrange
-        var request = TestDataBuilder.VerifyEmail.ValidRequest();
+        var request = AuthenticationTestDataBuilder.VerifyEmail.ValidRequest();
         var expectedMessage = "Email verified successfully.";
 
         _mockAuthService.Setup(x => x.VerifyEmailAsync(It.IsAny<VerifyEmailRequest>(), It.IsAny<CancellationToken>()))
@@ -1020,7 +1021,7 @@ public class AuthControllerTests : TestBase
     public async Task VerifyEmail_WithInvalidUserId_ShouldReturnInternalServerError()
     {
         // Arrange
-        var request = TestDataBuilder.VerifyEmail.RequestWithInvalidUserId();
+        var request = AuthenticationTestDataBuilder.VerifyEmail.RequestWithInvalidUserId();
         var errorMessage = "User ID must be valid.";
         
         _mockAuthService.Setup(x => x.VerifyEmailAsync(request, It.IsAny<CancellationToken>()))
@@ -1044,7 +1045,7 @@ public class AuthControllerTests : TestBase
     public async Task VerifyEmail_WithEmptyToken_ShouldReturnInternalServerError()
     {
         // Arrange
-        var request = TestDataBuilder.VerifyEmail.RequestWithEmptyToken();
+        var request = AuthenticationTestDataBuilder.VerifyEmail.RequestWithEmptyToken();
         var errorMessage = "Verification token is required.";
         
         _mockAuthService.Setup(x => x.VerifyEmailAsync(request, It.IsAny<CancellationToken>()))
@@ -1099,7 +1100,7 @@ public class AuthControllerTests : TestBase
     public async Task VerifyEmail_WithNonExistentUser_ShouldReturnInternalServerError()
     {
         // Arrange
-        var request = TestDataBuilder.VerifyEmail.RequestWithNonExistentUser();
+        var request = AuthenticationTestDataBuilder.VerifyEmail.RequestWithNonExistentUser();
         var errorMessage = "User not found.";
 
         _mockAuthService.Setup(x => x.VerifyEmailAsync(request, It.IsAny<CancellationToken>()))
@@ -1123,7 +1124,7 @@ public class AuthControllerTests : TestBase
     public async Task VerifyEmail_WithExpiredToken_ShouldReturnBadRequest()
     {
         // Arrange
-        var request = TestDataBuilder.VerifyEmail.RequestWithExpiredToken();
+        var request = AuthenticationTestDataBuilder.VerifyEmail.RequestWithExpiredToken();
         var errorMessage = "Verification token has expired.";
 
         _mockAuthService.Setup(x => x.VerifyEmailAsync(request, It.IsAny<CancellationToken>()))
@@ -1147,7 +1148,7 @@ public class AuthControllerTests : TestBase
     public async Task VerifyEmail_WithInvalidToken_ShouldReturnBadRequest()
     {
         // Arrange
-        var request = TestDataBuilder.VerifyEmail.RequestWithInvalidToken();
+        var request = AuthenticationTestDataBuilder.VerifyEmail.RequestWithInvalidToken();
         var errorMessage = "Invalid verification token.";
 
         _mockAuthService.Setup(x => x.VerifyEmailAsync(request, It.IsAny<CancellationToken>()))
@@ -1171,7 +1172,7 @@ public class AuthControllerTests : TestBase
     public async Task VerifyEmail_WithAlreadyVerifiedEmail_ShouldReturnBadRequest()
     {
         // Arrange
-        var request = TestDataBuilder.VerifyEmail.RequestWithAlreadyVerifiedUser();
+        var request = AuthenticationTestDataBuilder.VerifyEmail.RequestWithAlreadyVerifiedUser();
         var errorMessage = "Email is already verified.";
 
         _mockAuthService.Setup(x => x.VerifyEmailAsync(request, It.IsAny<CancellationToken>()))
@@ -1193,7 +1194,7 @@ public class AuthControllerTests : TestBase
     public async Task VerifyEmail_WithTokenMismatch_ShouldReturnBadRequest()
     {
         // Arrange
-        var request = TestDataBuilder.VerifyEmail.ValidRequest();
+        var request = AuthenticationTestDataBuilder.VerifyEmail.ValidRequest();
         var errorMessage = "Invalid verification token provided.";
 
         _mockAuthService.Setup(x => x.VerifyEmailAsync(request, It.IsAny<CancellationToken>()))
@@ -1219,7 +1220,7 @@ public class AuthControllerTests : TestBase
     public async Task VerifyEmail_WhenServiceThrowsException_ShouldReturnInternalServerError()
     {
         // Arrange
-        var request = TestDataBuilder.VerifyEmail.ValidRequest();
+        var request = AuthenticationTestDataBuilder.VerifyEmail.ValidRequest();
         var exceptionMessage = "Database connection failed";
 
         _mockAuthService.Setup(x => x.VerifyEmailAsync(request, It.IsAny<CancellationToken>()))
@@ -1240,7 +1241,7 @@ public class AuthControllerTests : TestBase
     public async Task VerifyEmail_WithServiceError_ShouldReturnInternalServerError()
     {
         // Arrange
-        var request = TestDataBuilder.VerifyEmail.ValidRequest();
+        var request = AuthenticationTestDataBuilder.VerifyEmail.ValidRequest();
         var errorMessage = "Internal server error occurred.";
 
         _mockAuthService.Setup(x => x.VerifyEmailAsync(request, It.IsAny<CancellationToken>()))
@@ -1262,7 +1263,7 @@ public class AuthControllerTests : TestBase
     public async Task VerifyEmail_WhenServiceReturnsNullMessage_ShouldReturnInternalServerError()
     {
         // Arrange
-        var request = TestDataBuilder.VerifyEmail.ValidRequest();
+        var request = AuthenticationTestDataBuilder.VerifyEmail.ValidRequest();
 
         _mockAuthService.Setup(x => x.VerifyEmailAsync(request, It.IsAny<CancellationToken>()))
             .ReturnsAsync((false, null!));
@@ -1284,7 +1285,7 @@ public class AuthControllerTests : TestBase
     public async Task VerifyEmail_ShouldLogVerificationAttempt()
     {
         // Arrange
-        var request = TestDataBuilder.VerifyEmail.ValidRequest();
+        var request = AuthenticationTestDataBuilder.VerifyEmail.ValidRequest();
         var successMessage = "Email verified successfully.";
 
         _mockAuthService.Setup(x => x.VerifyEmailAsync(request, It.IsAny<CancellationToken>()))
@@ -1311,7 +1312,7 @@ public class AuthControllerTests : TestBase
     public async Task VerifyEmail_WithFailedVerification_ShouldLogWarning()
     {
         // Arrange
-        var request = TestDataBuilder.VerifyEmail.RequestWithInvalidToken();
+        var request = AuthenticationTestDataBuilder.VerifyEmail.RequestWithInvalidToken();
         var errorMessage = "Invalid verification token.";
 
         _mockAuthService.Setup(x => x.VerifyEmailAsync(request, It.IsAny<CancellationToken>()))
@@ -1338,7 +1339,7 @@ public class AuthControllerTests : TestBase
     public async Task VerifyEmail_WithSuccessfulVerification_ShouldLogSuccess()
     {
         // Arrange
-        var request = TestDataBuilder.VerifyEmail.ValidRequest();
+        var request = AuthenticationTestDataBuilder.VerifyEmail.ValidRequest();
         var successMessage = "Email verified successfully.";
 
         _mockAuthService.Setup(x => x.VerifyEmailAsync(request, It.IsAny<CancellationToken>()))
@@ -1365,7 +1366,7 @@ public class AuthControllerTests : TestBase
     public async Task VerifyEmail_ShouldValidateTokenSecurely()
     {
         // Arrange
-        var request = TestDataBuilder.VerifyEmail.RequestWithMalformedToken();
+        var request = AuthenticationTestDataBuilder.VerifyEmail.RequestWithMalformedToken();
         var errorMessage = "Invalid verification token format.";
 
         _mockAuthService.Setup(x => x.VerifyEmailAsync(request, It.IsAny<CancellationToken>()))
@@ -1391,7 +1392,7 @@ public class AuthControllerTests : TestBase
     public async Task VerifyEmail_ShouldPreventTokenReuse()
     {
         // Arrange
-        var request = TestDataBuilder.VerifyEmail.ValidRequest();
+        var request = AuthenticationTestDataBuilder.VerifyEmail.ValidRequest();
         var errorMessage = "Token has already been used.";
 
         _mockAuthService.Setup(x => x.VerifyEmailAsync(request, It.IsAny<CancellationToken>()))
@@ -1419,7 +1420,7 @@ public class AuthControllerTests : TestBase
     public async Task VerifyEmail_EndToEndHappyPath_ShouldReturnCompleteResponse()
     {
         // Arrange
-        var request = TestDataBuilder.VerifyEmail.ValidRequest();
+        var request = AuthenticationTestDataBuilder.VerifyEmail.ValidRequest();
         var successMessage = "Email verified successfully. Welcome to QuantumBands!";
 
         _mockAuthService.Setup(x => x.VerifyEmailAsync(request, It.IsAny<CancellationToken>()))
@@ -1467,7 +1468,7 @@ public class AuthControllerTests : TestBase
     public async Task VerifyEmail_CompleteWorkflow_ShouldHandleAllSteps()
     {
         // Arrange
-        var request = TestDataBuilder.VerifyEmail.ValidRequest();
+        var request = AuthenticationTestDataBuilder.VerifyEmail.ValidRequest();
         var successMessage = "Email verified successfully. Account activated.";
 
         _mockAuthService.Setup(x => x.VerifyEmailAsync(request, It.IsAny<CancellationToken>()))
@@ -1519,8 +1520,8 @@ public class AuthControllerTests : TestBase
     public async Task RefreshToken_WithValidToken_ShouldReturnOkWithNewLoginResponse()
     {
         // Arrange
-        var request = TestDataBuilder.RefreshToken.ValidRequest();
-        var expectedResponse = TestDataBuilder.LoginResponses.ValidLoginResponse();
+        var request = AuthenticationTestDataBuilder.RefreshToken.ValidRequest();
+        var expectedResponse = AuthenticationTestDataBuilder.LoginResponses.ValidLoginResponse();
 
         _mockAuthService.Setup(x => x.RefreshTokenAsync(request, It.IsAny<CancellationToken>()))
             .ReturnsAsync((expectedResponse, (string?)null));
@@ -1541,8 +1542,8 @@ public class AuthControllerTests : TestBase
     public async Task RefreshToken_WithValidToken_ShouldGenerateNewJwtToken()
     {
         // Arrange
-        var request = TestDataBuilder.RefreshToken.ValidRequest();
-        var expectedResponse = TestDataBuilder.LoginResponses.ValidLoginResponse();
+        var request = AuthenticationTestDataBuilder.RefreshToken.ValidRequest();
+        var expectedResponse = AuthenticationTestDataBuilder.LoginResponses.ValidLoginResponse();
 
         _mockAuthService.Setup(x => x.RefreshTokenAsync(request, It.IsAny<CancellationToken>()))
             .ReturnsAsync((expectedResponse, (string?)null));
@@ -1564,8 +1565,8 @@ public class AuthControllerTests : TestBase
     public async Task RefreshToken_WithValidToken_ShouldReturnNewRefreshToken()
     {
         // Arrange
-        var request = TestDataBuilder.RefreshToken.ValidRequest();
-        var expectedResponse = TestDataBuilder.LoginResponses.ValidLoginResponse();
+        var request = AuthenticationTestDataBuilder.RefreshToken.ValidRequest();
+        var expectedResponse = AuthenticationTestDataBuilder.LoginResponses.ValidLoginResponse();
 
         _mockAuthService.Setup(x => x.RefreshTokenAsync(request, It.IsAny<CancellationToken>()))
             .ReturnsAsync((expectedResponse, (string?)null));
@@ -1587,8 +1588,8 @@ public class AuthControllerTests : TestBase
     public async Task RefreshToken_ShouldCallAuthServiceWithCorrectRequest()
     {
         // Arrange
-        var request = TestDataBuilder.RefreshToken.ValidRequest();
-        var expectedResponse = TestDataBuilder.LoginResponses.ValidLoginResponse();
+        var request = AuthenticationTestDataBuilder.RefreshToken.ValidRequest();
+        var expectedResponse = AuthenticationTestDataBuilder.LoginResponses.ValidLoginResponse();
 
         _mockAuthService.Setup(x => x.RefreshTokenAsync(It.IsAny<RefreshTokenRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((expectedResponse, null));
@@ -1630,7 +1631,7 @@ public class AuthControllerTests : TestBase
     public async Task RefreshToken_WithEmptyRefreshToken_ShouldReturnUnauthorized()
     {
         // Arrange
-        var request = TestDataBuilder.RefreshToken.RequestWithEmptyRefreshToken();
+        var request = AuthenticationTestDataBuilder.RefreshToken.RequestWithEmptyRefreshToken();
         var errorMessage = "Invalid token or refresh token.";
 
         _mockAuthService.Setup(x => x.RefreshTokenAsync(request, It.IsAny<CancellationToken>()))
@@ -1652,7 +1653,7 @@ public class AuthControllerTests : TestBase
     public async Task RefreshToken_WithInvalidTokenFormat_ShouldReturnUnauthorized()
     {
         // Arrange
-        var request = TestDataBuilder.RefreshToken.RequestWithInvalidToken();
+        var request = AuthenticationTestDataBuilder.RefreshToken.RequestWithInvalidToken();
         var errorMessage = "Invalid token format.";
 
         _mockAuthService.Setup(x => x.RefreshTokenAsync(request, It.IsAny<CancellationToken>()))
@@ -1674,7 +1675,7 @@ public class AuthControllerTests : TestBase
     public async Task RefreshToken_WithNonExistentToken_ShouldReturnUnauthorized()
     {
         // Arrange
-        var request = TestDataBuilder.RefreshToken.RequestWithNonExistentToken();
+        var request = AuthenticationTestDataBuilder.RefreshToken.RequestWithNonExistentToken();
         var errorMessage = "Refresh token not found.";
 
         _mockAuthService.Setup(x => x.RefreshTokenAsync(request, It.IsAny<CancellationToken>()))
@@ -1700,7 +1701,7 @@ public class AuthControllerTests : TestBase
     public async Task RefreshToken_WithExpiredRefreshToken_ShouldReturnUnauthorized()
     {
         // Arrange
-        var request = TestDataBuilder.RefreshToken.RequestWithExpiredRefreshToken();
+        var request = AuthenticationTestDataBuilder.RefreshToken.RequestWithExpiredRefreshToken();
         var errorMessage = "Refresh token has expired.";
 
         _mockAuthService.Setup(x => x.RefreshTokenAsync(request, It.IsAny<CancellationToken>()))
@@ -1722,7 +1723,7 @@ public class AuthControllerTests : TestBase
     public async Task RefreshToken_WithRevokedRefreshToken_ShouldReturnUnauthorized()
     {
         // Arrange
-        var request = TestDataBuilder.RefreshToken.RequestWithRevokedToken();
+        var request = AuthenticationTestDataBuilder.RefreshToken.RequestWithRevokedToken();
         var errorMessage = "Refresh token has been revoked.";
 
         _mockAuthService.Setup(x => x.RefreshTokenAsync(request, It.IsAny<CancellationToken>()))
@@ -1744,7 +1745,7 @@ public class AuthControllerTests : TestBase
     public async Task RefreshToken_WithTokenReuse_ShouldReturnUnauthorized()
     {
         // Arrange
-        var request = TestDataBuilder.RefreshToken.RequestForTokenReuse();
+        var request = AuthenticationTestDataBuilder.RefreshToken.RequestForTokenReuse();
         var errorMessage = "Token reuse detected. Security breach.";
 
         _mockAuthService.Setup(x => x.RefreshTokenAsync(request, It.IsAny<CancellationToken>()))
@@ -1766,8 +1767,8 @@ public class AuthControllerTests : TestBase
     public async Task RefreshToken_ShouldGenerateSecureNewTokens()
     {
         // Arrange
-        var request = TestDataBuilder.RefreshToken.ValidRequest();
-        var expectedResponse = TestDataBuilder.LoginResponses.ValidLoginResponse();
+        var request = AuthenticationTestDataBuilder.RefreshToken.ValidRequest();
+        var expectedResponse = AuthenticationTestDataBuilder.LoginResponses.ValidLoginResponse();
         // Generate a different JWT token for the response
         expectedResponse.JwtToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwibmFtZSI6InRlc3R1c2VyMTIzIiwiaWF0IjoxNjEwMjQzNjAwfQ.NEW_TOKEN_SIGNATURE";
         expectedResponse.RefreshToken = Guid.NewGuid().ToString(); // Different refresh token
@@ -1801,8 +1802,8 @@ public class AuthControllerTests : TestBase
     public async Task RefreshToken_ShouldInvalidateOldToken()
     {
         // Arrange
-        var request = TestDataBuilder.RefreshToken.ValidRequest();
-        var expectedResponse = TestDataBuilder.LoginResponses.ValidLoginResponse();
+        var request = AuthenticationTestDataBuilder.RefreshToken.ValidRequest();
+        var expectedResponse = AuthenticationTestDataBuilder.LoginResponses.ValidLoginResponse();
 
         _mockAuthService.Setup(x => x.RefreshTokenAsync(request, It.IsAny<CancellationToken>()))
             .ReturnsAsync((expectedResponse, (string?)null));
@@ -1823,8 +1824,8 @@ public class AuthControllerTests : TestBase
     public async Task RefreshToken_ShouldValidateUserSession()
     {
         // Arrange
-        var request = TestDataBuilder.RefreshToken.ValidRequest();
-        var expectedResponse = TestDataBuilder.LoginResponses.ValidLoginResponse();
+        var request = AuthenticationTestDataBuilder.RefreshToken.ValidRequest();
+        var expectedResponse = AuthenticationTestDataBuilder.LoginResponses.ValidLoginResponse();
 
         _mockAuthService.Setup(x => x.RefreshTokenAsync(request, It.IsAny<CancellationToken>()))
             .ReturnsAsync((expectedResponse, (string?)null));
@@ -1848,9 +1849,9 @@ public class AuthControllerTests : TestBase
     public async Task RefreshToken_ShouldImplementTokenRotation()
     {
         // Arrange
-        var request = TestDataBuilder.RefreshToken.ValidRequest();
-        var firstResponse = TestDataBuilder.LoginResponses.ValidLoginResponse();
-        var secondResponse = TestDataBuilder.LoginResponses.ValidLoginResponse();
+        var request = AuthenticationTestDataBuilder.RefreshToken.ValidRequest();
+        var firstResponse = AuthenticationTestDataBuilder.LoginResponses.ValidLoginResponse();
+        var secondResponse = AuthenticationTestDataBuilder.LoginResponses.ValidLoginResponse();
         secondResponse.RefreshToken = Guid.NewGuid().ToString(); // Different token
 
         _mockAuthService.SetupSequence(x => x.RefreshTokenAsync(It.IsAny<RefreshTokenRequest>(), It.IsAny<CancellationToken>()))
@@ -1891,7 +1892,7 @@ public class AuthControllerTests : TestBase
     public async Task RefreshToken_WhenServiceReturnsNullWithoutMessage_ShouldReturnUnauthorized()
     {
         // Arrange
-        var request = TestDataBuilder.RefreshToken.ValidRequest();
+        var request = AuthenticationTestDataBuilder.RefreshToken.ValidRequest();
 
         _mockAuthService.Setup(x => x.RefreshTokenAsync(request, It.IsAny<CancellationToken>()))
             .ReturnsAsync(((LoginResponse?)null, (string?)null));
@@ -1912,7 +1913,7 @@ public class AuthControllerTests : TestBase
     public async Task RefreshToken_WhenServiceThrowsException_ShouldThrowException()
     {
         // Arrange
-        var request = TestDataBuilder.RefreshToken.ValidRequest();
+        var request = AuthenticationTestDataBuilder.RefreshToken.ValidRequest();
         var exceptionMessage = "Database connection failed";
 
         _mockAuthService.Setup(x => x.RefreshTokenAsync(request, It.IsAny<CancellationToken>()))
@@ -1933,8 +1934,8 @@ public class AuthControllerTests : TestBase
     public async Task RefreshToken_ShouldLogTokenRefreshAttempt()
     {
         // Arrange
-        var request = TestDataBuilder.RefreshToken.ValidRequest();
-        var expectedResponse = TestDataBuilder.LoginResponses.ValidLoginResponse();
+        var request = AuthenticationTestDataBuilder.RefreshToken.ValidRequest();
+        var expectedResponse = AuthenticationTestDataBuilder.LoginResponses.ValidLoginResponse();
 
         _mockAuthService.Setup(x => x.RefreshTokenAsync(request, It.IsAny<CancellationToken>()))
             .ReturnsAsync((expectedResponse, (string?)null));
@@ -1960,8 +1961,8 @@ public class AuthControllerTests : TestBase
     public async Task RefreshToken_WithSuccessfulRefresh_ShouldLogSuccess()
     {
         // Arrange
-        var request = TestDataBuilder.RefreshToken.ValidRequest();
-        var expectedResponse = TestDataBuilder.LoginResponses.ValidLoginResponse();
+        var request = AuthenticationTestDataBuilder.RefreshToken.ValidRequest();
+        var expectedResponse = AuthenticationTestDataBuilder.LoginResponses.ValidLoginResponse();
 
         _mockAuthService.Setup(x => x.RefreshTokenAsync(request, It.IsAny<CancellationToken>()))
             .ReturnsAsync((expectedResponse, (string?)null));
@@ -1987,7 +1988,7 @@ public class AuthControllerTests : TestBase
     public async Task RefreshToken_WithFailedRefresh_ShouldLogWarning()
     {
         // Arrange
-        var request = TestDataBuilder.RefreshToken.RequestWithExpiredRefreshToken();
+        var request = AuthenticationTestDataBuilder.RefreshToken.RequestWithExpiredRefreshToken();
         var errorMessage = "Refresh token has expired.";
 
         _mockAuthService.Setup(x => x.RefreshTokenAsync(request, It.IsAny<CancellationToken>()))
@@ -2018,8 +2019,8 @@ public class AuthControllerTests : TestBase
     public async Task RefreshToken_EndToEndHappyPath_ShouldReturnCompleteResponse()
     {
         // Arrange
-        var request = TestDataBuilder.RefreshToken.ValidRequest();
-        var expectedResponse = TestDataBuilder.LoginResponses.ValidLoginResponse();
+        var request = AuthenticationTestDataBuilder.RefreshToken.ValidRequest();
+        var expectedResponse = AuthenticationTestDataBuilder.LoginResponses.ValidLoginResponse();
 
         _mockAuthService.Setup(x => x.RefreshTokenAsync(request, It.IsAny<CancellationToken>()))
             .ReturnsAsync((expectedResponse, (string?)null));
@@ -2083,7 +2084,7 @@ public class AuthControllerTests : TestBase
     public async Task ForgotPassword_WithValidEmail_ShouldReturnOkWithSuccessMessage()
     {
         // Arrange
-        var request = TestDataBuilder.ForgotPassword.ValidRequest();
+        var request = AuthenticationTestDataBuilder.ForgotPassword.ValidRequest();
         var expectedMessage = "If this email address exists in our system, you will receive a password reset email shortly.";
 
         _mockAuthService.Setup(x => x.ForgotPasswordAsync(request, It.IsAny<CancellationToken>()))
@@ -2107,7 +2108,7 @@ public class AuthControllerTests : TestBase
     public async Task ForgotPassword_WithExistingUser_ShouldGenerateResetToken()
     {
         // Arrange
-        var request = TestDataBuilder.ForgotPassword.ValidRequestWithExistingUser();
+        var request = AuthenticationTestDataBuilder.ForgotPassword.ValidRequestWithExistingUser();
         var expectedMessage = "If this email address exists in our system, you will receive a password reset email shortly.";
 
         _mockAuthService.Setup(x => x.ForgotPasswordAsync(request, It.IsAny<CancellationToken>()))
@@ -2132,7 +2133,7 @@ public class AuthControllerTests : TestBase
     public async Task ForgotPassword_ShouldCallAuthServiceWithCorrectRequest()
     {
         // Arrange
-        var request = TestDataBuilder.ForgotPassword.ValidRequest();
+        var request = AuthenticationTestDataBuilder.ForgotPassword.ValidRequest();
         var expectedMessage = "Password reset email sent successfully.";
 
         _mockAuthService.Setup(x => x.ForgotPasswordAsync(It.IsAny<ForgotPasswordRequest>(), It.IsAny<CancellationToken>()))
@@ -2152,7 +2153,7 @@ public class AuthControllerTests : TestBase
     public async Task ForgotPassword_WithValidSpecialCharacterEmail_ShouldReturnOk()
     {
         // Arrange
-        var request = TestDataBuilder.ForgotPassword.RequestWithSpecialCharacterEmail();
+        var request = AuthenticationTestDataBuilder.ForgotPassword.RequestWithSpecialCharacterEmail();
         var expectedMessage = "If this email address exists in our system, you will receive a password reset email shortly.";
 
         _mockAuthService.Setup(x => x.ForgotPasswordAsync(request, It.IsAny<CancellationToken>()))
@@ -2196,7 +2197,7 @@ public class AuthControllerTests : TestBase
     public async Task ForgotPassword_WithInvalidEmailFormat_ShouldReturnOkWithGenericMessage()
     {
         // Arrange
-        var request = TestDataBuilder.ForgotPassword.RequestWithInvalidEmail();
+        var request = AuthenticationTestDataBuilder.ForgotPassword.RequestWithInvalidEmail();
         var expectedMessage = "If this email address exists in our system, you will receive a password reset email shortly.";
 
         _mockAuthService.Setup(x => x.ForgotPasswordAsync(request, It.IsAny<CancellationToken>()))
@@ -2218,7 +2219,7 @@ public class AuthControllerTests : TestBase
     public async Task ForgotPassword_WithEmptyEmail_ShouldReturnOkWithGenericMessage()
     {
         // Arrange
-        var request = TestDataBuilder.ForgotPassword.RequestWithEmptyEmail();
+        var request = AuthenticationTestDataBuilder.ForgotPassword.RequestWithEmptyEmail();
         var expectedMessage = "If this email address exists in our system, you will receive a password reset email shortly.";
 
         _mockAuthService.Setup(x => x.ForgotPasswordAsync(request, It.IsAny<CancellationToken>()))
@@ -2240,7 +2241,7 @@ public class AuthControllerTests : TestBase
     public async Task ForgotPassword_WithNonExistentEmail_ShouldReturnOkWithGenericMessage()
     {
         // Arrange
-        var request = TestDataBuilder.ForgotPassword.RequestWithNonExistentEmail();
+        var request = AuthenticationTestDataBuilder.ForgotPassword.RequestWithNonExistentEmail();
         var expectedMessage = "If this email address exists in our system, you will receive a password reset email shortly.";
 
         _mockAuthService.Setup(x => x.ForgotPasswordAsync(request, It.IsAny<CancellationToken>()))
@@ -2262,7 +2263,7 @@ public class AuthControllerTests : TestBase
     public async Task ForgotPassword_WithMalformedEmail_ShouldReturnOkWithGenericMessage()
     {
         // Arrange
-        var request = TestDataBuilder.ForgotPassword.RequestWithMalformedEmail();
+        var request = AuthenticationTestDataBuilder.ForgotPassword.RequestWithMalformedEmail();
         var expectedMessage = "If this email address exists in our system, you will receive a password reset email shortly.";
 
         _mockAuthService.Setup(x => x.ForgotPasswordAsync(request, It.IsAny<CancellationToken>()))
@@ -2288,8 +2289,8 @@ public class AuthControllerTests : TestBase
     public async Task ForgotPassword_ShouldPreventUserEnumeration()
     {
         // Arrange
-        var validRequest = TestDataBuilder.ForgotPassword.ValidRequestWithExistingUser();
-        var invalidRequest = TestDataBuilder.ForgotPassword.RequestWithNonExistentEmail();
+        var validRequest = AuthenticationTestDataBuilder.ForgotPassword.ValidRequestWithExistingUser();
+        var invalidRequest = AuthenticationTestDataBuilder.ForgotPassword.RequestWithNonExistentEmail();
         var expectedMessage = "If this email address exists in our system, you will receive a password reset email shortly.";
 
         _mockAuthService.Setup(x => x.ForgotPasswordAsync(It.IsAny<ForgotPasswordRequest>(), It.IsAny<CancellationToken>()))
@@ -2318,7 +2319,7 @@ public class AuthControllerTests : TestBase
     public async Task ForgotPassword_WithRateLimitExceeded_ShouldReturnGenericMessage()
     {
         // Arrange
-        var request = TestDataBuilder.ForgotPassword.RequestForRateLimitTesting();
+        var request = AuthenticationTestDataBuilder.ForgotPassword.RequestForRateLimitTesting();
         var expectedMessage = "If this email address exists in our system, you will receive a password reset email shortly.";
 
         _mockAuthService.Setup(x => x.ForgotPasswordAsync(request, It.IsAny<CancellationToken>()))
@@ -2342,10 +2343,10 @@ public class AuthControllerTests : TestBase
         // Arrange
         var requests = new[]
         {
-            TestDataBuilder.ForgotPassword.ValidRequest(),
-            TestDataBuilder.ForgotPassword.RequestWithNonExistentEmail(),
-            TestDataBuilder.ForgotPassword.RequestWithInvalidEmail(),
-            TestDataBuilder.ForgotPassword.RequestWithEmptyEmail()
+            AuthenticationTestDataBuilder.ForgotPassword.ValidRequest(),
+            AuthenticationTestDataBuilder.ForgotPassword.RequestWithNonExistentEmail(),
+            AuthenticationTestDataBuilder.ForgotPassword.RequestWithInvalidEmail(),
+            AuthenticationTestDataBuilder.ForgotPassword.RequestWithEmptyEmail()
         };
 
         var expectedMessage = "If this email address exists in our system, you will receive a password reset email shortly.";
@@ -2371,7 +2372,7 @@ public class AuthControllerTests : TestBase
     public async Task ForgotPassword_WithInactiveUser_ShouldReturnGenericMessage()
     {
         // Arrange
-        var request = TestDataBuilder.ForgotPassword.RequestWithInactiveUserEmail();
+        var request = AuthenticationTestDataBuilder.ForgotPassword.RequestWithInactiveUserEmail();
         var expectedMessage = "If this email address exists in our system, you will receive a password reset email shortly.";
 
         _mockAuthService.Setup(x => x.ForgotPasswordAsync(request, It.IsAny<CancellationToken>()))
@@ -2397,7 +2398,7 @@ public class AuthControllerTests : TestBase
     public async Task ForgotPassword_ShouldInvalidatePreviousTokens()
     {
         // Arrange
-        var request = TestDataBuilder.ForgotPassword.ValidRequestWithExistingUser();
+        var request = AuthenticationTestDataBuilder.ForgotPassword.ValidRequestWithExistingUser();
         var expectedMessage = "Password reset email sent successfully.";
 
         _mockAuthService.Setup(x => x.ForgotPasswordAsync(request, It.IsAny<CancellationToken>()))
@@ -2419,7 +2420,7 @@ public class AuthControllerTests : TestBase
     public async Task ForgotPassword_ShouldGenerateSecureToken()
     {
         // Arrange
-        var request = TestDataBuilder.ForgotPassword.ValidRequest();
+        var request = AuthenticationTestDataBuilder.ForgotPassword.ValidRequest();
         var expectedMessage = "Password reset email sent successfully.";
 
         _mockAuthService.Setup(x => x.ForgotPasswordAsync(request, It.IsAny<CancellationToken>()))
@@ -2439,7 +2440,7 @@ public class AuthControllerTests : TestBase
     public async Task ForgotPassword_ShouldSetTokenExpiration()
     {
         // Arrange
-        var request = TestDataBuilder.ForgotPassword.ValidRequestWithExistingUser();
+        var request = AuthenticationTestDataBuilder.ForgotPassword.ValidRequestWithExistingUser();
         var expectedMessage = "Password reset email sent successfully.";
 
         _mockAuthService.Setup(x => x.ForgotPasswordAsync(request, It.IsAny<CancellationToken>()))
@@ -2461,7 +2462,7 @@ public class AuthControllerTests : TestBase
     public async Task ForgotPassword_ShouldIntegrateWithEmailService()
     {
         // Arrange
-        var request = TestDataBuilder.ForgotPassword.ValidRequestWithExistingUser();
+        var request = AuthenticationTestDataBuilder.ForgotPassword.ValidRequestWithExistingUser();
         var expectedMessage = "Password reset email sent successfully.";
 
         _mockAuthService.Setup(x => x.ForgotPasswordAsync(request, It.IsAny<CancellationToken>()))
@@ -2484,7 +2485,7 @@ public class AuthControllerTests : TestBase
     public async Task ForgotPassword_WithUnverifiedUser_ShouldStillAllowPasswordReset()
     {
         // Arrange
-        var request = TestDataBuilder.ForgotPassword.RequestWithUnverifiedUserEmail();
+        var request = AuthenticationTestDataBuilder.ForgotPassword.RequestWithUnverifiedUserEmail();
         var expectedMessage = "If this email address exists in our system, you will receive a password reset email shortly.";
 
         _mockAuthService.Setup(x => x.ForgotPasswordAsync(request, It.IsAny<CancellationToken>()))
@@ -2510,7 +2511,7 @@ public class AuthControllerTests : TestBase
     public async Task ForgotPassword_WhenServiceReturnsFailure_ShouldStillReturnOkWithMessage()
     {
         // Arrange
-        var request = TestDataBuilder.ForgotPassword.ValidRequest();
+        var request = AuthenticationTestDataBuilder.ForgotPassword.ValidRequest();
         var errorMessage = "Email service temporarily unavailable.";
 
         _mockAuthService.Setup(x => x.ForgotPasswordAsync(request, It.IsAny<CancellationToken>()))
@@ -2532,7 +2533,7 @@ public class AuthControllerTests : TestBase
     public async Task ForgotPassword_WhenServiceThrowsException_ShouldThrowException()
     {
         // Arrange
-        var request = TestDataBuilder.ForgotPassword.ValidRequest();
+        var request = AuthenticationTestDataBuilder.ForgotPassword.ValidRequest();
         var exceptionMessage = "Database connection failed";
 
         _mockAuthService.Setup(x => x.ForgotPasswordAsync(request, It.IsAny<CancellationToken>()))
@@ -2549,7 +2550,7 @@ public class AuthControllerTests : TestBase
     public async Task ForgotPassword_WithServiceError_ShouldReturnGenericMessage()
     {
         // Arrange
-        var request = TestDataBuilder.ForgotPassword.ValidRequest();
+        var request = AuthenticationTestDataBuilder.ForgotPassword.ValidRequest();
         var errorMessage = "If this email address exists in our system, you will receive a password reset email shortly.";
 
         _mockAuthService.Setup(x => x.ForgotPasswordAsync(request, It.IsAny<CancellationToken>()))
@@ -2575,7 +2576,7 @@ public class AuthControllerTests : TestBase
     public async Task ForgotPassword_ShouldLogPasswordResetRequest()
     {
         // Arrange
-        var request = TestDataBuilder.ForgotPassword.ValidRequest();
+        var request = AuthenticationTestDataBuilder.ForgotPassword.ValidRequest();
         var expectedMessage = "Password reset email sent successfully.";
 
         _mockAuthService.Setup(x => x.ForgotPasswordAsync(request, It.IsAny<CancellationToken>()))
@@ -2602,7 +2603,7 @@ public class AuthControllerTests : TestBase
     public async Task ForgotPassword_ShouldLogPasswordResetCompletion()
     {
         // Arrange
-        var request = TestDataBuilder.ForgotPassword.ValidRequest();
+        var request = AuthenticationTestDataBuilder.ForgotPassword.ValidRequest();
         var expectedMessage = "Password reset email sent successfully.";
 
         _mockAuthService.Setup(x => x.ForgotPasswordAsync(request, It.IsAny<CancellationToken>()))
@@ -2629,7 +2630,7 @@ public class AuthControllerTests : TestBase
     public async Task ForgotPassword_ShouldNotLogSensitiveInformation()
     {
         // Arrange
-        var request = TestDataBuilder.ForgotPassword.ValidRequest();
+        var request = AuthenticationTestDataBuilder.ForgotPassword.ValidRequest();
         var expectedMessage = "Password reset email sent successfully.";
 
         _mockAuthService.Setup(x => x.ForgotPasswordAsync(request, It.IsAny<CancellationToken>()))
@@ -2660,7 +2661,7 @@ public class AuthControllerTests : TestBase
     public async Task ForgotPassword_EndToEndHappyPath_ShouldReturnCompleteResponse()
     {
         // Arrange
-        var request = TestDataBuilder.ForgotPassword.ValidRequestWithExistingUser();
+        var request = AuthenticationTestDataBuilder.ForgotPassword.ValidRequestWithExistingUser();
         var expectedMessage = "Password reset email sent successfully.";
 
         _mockAuthService.Setup(x => x.ForgotPasswordAsync(request, It.IsAny<CancellationToken>()))
@@ -2704,7 +2705,7 @@ public class AuthControllerTests : TestBase
     public async Task ForgotPassword_CompleteWorkflow_ShouldHandleAllSteps()
     {
         // Arrange
-        var request = TestDataBuilder.ForgotPassword.ValidRequest();
+        var request = AuthenticationTestDataBuilder.ForgotPassword.ValidRequest();
         var expectedMessage = "If this email address exists in our system, you will receive a password reset email shortly.";
 
         _mockAuthService.Setup(x => x.ForgotPasswordAsync(request, It.IsAny<CancellationToken>()))
@@ -2755,7 +2756,7 @@ public class AuthControllerTests : TestBase
     public async Task ResetPassword_WithValidRequest_ShouldReturnOkWithSuccessMessage()
     {
         // Arrange
-        var request = TestDataBuilder.ResetPassword.ValidRequest();
+        var request = AuthenticationTestDataBuilder.ResetPassword.ValidRequest();
         var expectedMessage = "Password reset successfully.";
 
         _mockAuthService.Setup(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()))
@@ -2779,7 +2780,7 @@ public class AuthControllerTests : TestBase
     public async Task ResetPassword_WithValidToken_ShouldUpdatePasswordAndInvalidateToken()
     {
         // Arrange
-        var request = TestDataBuilder.ResetPassword.ValidRequestWithExistingUser();
+        var request = AuthenticationTestDataBuilder.ResetPassword.ValidRequestWithExistingUser();
         var expectedMessage = "Password reset successfully.";
 
         _mockAuthService.Setup(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()))
@@ -2807,7 +2808,7 @@ public class AuthControllerTests : TestBase
     public async Task ResetPassword_ShouldCallAuthServiceWithCorrectRequest()
     {
         // Arrange
-        var request = TestDataBuilder.ResetPassword.ValidRequest();
+        var request = AuthenticationTestDataBuilder.ResetPassword.ValidRequest();
         var expectedMessage = "Password reset successfully.";
 
         _mockAuthService.Setup(x => x.ResetPasswordAsync(It.IsAny<ResetPasswordRequest>(), It.IsAny<CancellationToken>()))
@@ -2830,7 +2831,7 @@ public class AuthControllerTests : TestBase
     public async Task ResetPassword_WithSpecialCharacterEmail_ShouldReturnOk()
     {
         // Arrange
-        var request = TestDataBuilder.ResetPassword.RequestWithSpecialCharacterEmail();
+        var request = AuthenticationTestDataBuilder.ResetPassword.RequestWithSpecialCharacterEmail();
         var expectedMessage = "Password reset successfully.";
 
         _mockAuthService.Setup(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()))
@@ -2874,7 +2875,7 @@ public class AuthControllerTests : TestBase
     public async Task ResetPassword_WithInvalidEmailFormat_ShouldReturnBadRequest()
     {
         // Arrange
-        var request = TestDataBuilder.ResetPassword.RequestWithInvalidEmail();
+        var request = AuthenticationTestDataBuilder.ResetPassword.RequestWithInvalidEmail();
         var errorMessage = "Invalid email format.";
 
         _mockAuthService.Setup(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()))
@@ -2896,7 +2897,7 @@ public class AuthControllerTests : TestBase
     public async Task ResetPassword_WithEmptyEmail_ShouldReturnBadRequest()
     {
         // Arrange
-        var request = TestDataBuilder.ResetPassword.RequestWithEmptyEmail();
+        var request = AuthenticationTestDataBuilder.ResetPassword.RequestWithEmptyEmail();
         var errorMessage = "Email is required.";
 
         _mockAuthService.Setup(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()))
@@ -2918,7 +2919,7 @@ public class AuthControllerTests : TestBase
     public async Task ResetPassword_WithEmptyToken_ShouldReturnBadRequest()
     {
         // Arrange
-        var request = TestDataBuilder.ResetPassword.RequestWithEmptyToken();
+        var request = AuthenticationTestDataBuilder.ResetPassword.RequestWithEmptyToken();
         var errorMessage = "Reset token is required.";
 
         _mockAuthService.Setup(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()))
@@ -2940,7 +2941,7 @@ public class AuthControllerTests : TestBase
     public async Task ResetPassword_WithWeakPassword_ShouldReturnBadRequest()
     {
         // Arrange
-        var request = TestDataBuilder.ResetPassword.RequestWithWeakPassword();
+        var request = AuthenticationTestDataBuilder.ResetPassword.RequestWithWeakPassword();
         var errorMessage = "Password does not meet complexity requirements.";
 
         _mockAuthService.Setup(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()))
@@ -2965,7 +2966,7 @@ public class AuthControllerTests : TestBase
     public async Task ResetPassword_WithPasswordComplexityIssues_ShouldReturnBadRequest(string password, string expectedError)
     {
         // Arrange
-        var request = TestDataBuilder.ResetPassword.ValidRequest();
+        var request = AuthenticationTestDataBuilder.ResetPassword.ValidRequest();
         request.NewPassword = password;
         request.ConfirmNewPassword = password;
 
@@ -2988,7 +2989,7 @@ public class AuthControllerTests : TestBase
     public async Task ResetPassword_WithPasswordMismatch_ShouldReturnBadRequest()
     {
         // Arrange
-        var request = TestDataBuilder.ResetPassword.RequestWithPasswordMismatch();
+        var request = AuthenticationTestDataBuilder.ResetPassword.RequestWithPasswordMismatch();
         var errorMessage = "Password and confirmation password do not match.";
 
         _mockAuthService.Setup(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()))
@@ -3010,7 +3011,7 @@ public class AuthControllerTests : TestBase
     public async Task ResetPassword_WithEmptyPassword_ShouldReturnBadRequest()
     {
         // Arrange
-        var request = TestDataBuilder.ResetPassword.RequestWithEmptyPassword();
+        var request = AuthenticationTestDataBuilder.ResetPassword.RequestWithEmptyPassword();
         var errorMessage = "New password is required.";
 
         _mockAuthService.Setup(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()))
@@ -3036,7 +3037,7 @@ public class AuthControllerTests : TestBase
     public async Task ResetPassword_WithExpiredToken_ShouldReturnBadRequest()
     {
         // Arrange
-        var request = TestDataBuilder.ResetPassword.RequestWithExpiredToken();
+        var request = AuthenticationTestDataBuilder.ResetPassword.RequestWithExpiredToken();
         var errorMessage = "Reset token has expired.";
 
         _mockAuthService.Setup(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()))
@@ -3058,7 +3059,7 @@ public class AuthControllerTests : TestBase
     public async Task ResetPassword_WithInvalidToken_ShouldReturnBadRequest()
     {
         // Arrange
-        var request = TestDataBuilder.ResetPassword.RequestWithInvalidToken();
+        var request = AuthenticationTestDataBuilder.ResetPassword.RequestWithInvalidToken();
         var errorMessage = "Invalid reset token.";
 
         _mockAuthService.Setup(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()))
@@ -3080,7 +3081,7 @@ public class AuthControllerTests : TestBase
     public async Task ResetPassword_WithUsedToken_ShouldReturnBadRequest()
     {
         // Arrange
-        var request = TestDataBuilder.ResetPassword.RequestWithUsedToken();
+        var request = AuthenticationTestDataBuilder.ResetPassword.RequestWithUsedToken();
         var errorMessage = "Reset token has already been used.";
 
         _mockAuthService.Setup(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()))
@@ -3102,7 +3103,7 @@ public class AuthControllerTests : TestBase
     public async Task ResetPassword_WithMalformedToken_ShouldReturnBadRequest()
     {
         // Arrange
-        var request = TestDataBuilder.ResetPassword.RequestWithMalformedToken();
+        var request = AuthenticationTestDataBuilder.ResetPassword.RequestWithMalformedToken();
         var errorMessage = "Invalid token format.";
 
         _mockAuthService.Setup(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()))
@@ -3124,7 +3125,7 @@ public class AuthControllerTests : TestBase
     public async Task ResetPassword_ShouldVerifyPasswordHashing()
     {
         // Arrange
-        var request = TestDataBuilder.ResetPassword.ValidRequest();
+        var request = AuthenticationTestDataBuilder.ResetPassword.ValidRequest();
         var expectedMessage = "Password reset successfully.";
 
         _mockAuthService.Setup(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()))
@@ -3146,7 +3147,7 @@ public class AuthControllerTests : TestBase
     public async Task ResetPassword_WithNonExistentUser_ShouldReturnBadRequest()
     {
         // Arrange
-        var request = TestDataBuilder.ResetPassword.RequestWithNonExistentUser();
+        var request = AuthenticationTestDataBuilder.ResetPassword.RequestWithNonExistentUser();
         var errorMessage = "Invalid reset token or user not found.";
 
         _mockAuthService.Setup(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()))
@@ -3172,7 +3173,7 @@ public class AuthControllerTests : TestBase
     public async Task ResetPassword_ShouldInvalidateResetToken()
     {
         // Arrange
-        var request = TestDataBuilder.ResetPassword.ValidRequestWithExistingUser();
+        var request = AuthenticationTestDataBuilder.ResetPassword.ValidRequestWithExistingUser();
         var expectedMessage = "Password reset successfully.";
 
         _mockAuthService.Setup(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()))
@@ -3194,7 +3195,7 @@ public class AuthControllerTests : TestBase
     public async Task ResetPassword_ShouldUpdateUserPassword()
     {
         // Arrange
-        var request = TestDataBuilder.ResetPassword.ValidRequest();
+        var request = AuthenticationTestDataBuilder.ResetPassword.ValidRequest();
         var expectedMessage = "Password reset successfully.";
 
         _mockAuthService.Setup(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()))
@@ -3214,7 +3215,7 @@ public class AuthControllerTests : TestBase
     public async Task ResetPassword_ShouldCleanupResetTokenAfterSuccess()
     {
         // Arrange
-        var request = TestDataBuilder.ResetPassword.ValidRequestWithExistingUser();
+        var request = AuthenticationTestDataBuilder.ResetPassword.ValidRequestWithExistingUser();
         var expectedMessage = "Password reset successfully. All reset tokens have been invalidated.";
 
         _mockAuthService.Setup(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()))
@@ -3237,7 +3238,7 @@ public class AuthControllerTests : TestBase
     public async Task ResetPassword_ShouldSendUserNotification()
     {
         // Arrange
-        var request = TestDataBuilder.ResetPassword.ValidRequestWithExistingUser();
+        var request = AuthenticationTestDataBuilder.ResetPassword.ValidRequestWithExistingUser();
         var expectedMessage = "Password reset successfully. A confirmation email has been sent.";
 
         _mockAuthService.Setup(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()))
@@ -3260,8 +3261,8 @@ public class AuthControllerTests : TestBase
     public async Task ResetPassword_WithValidRequest_ShouldPreventTokenReuse()
     {
         // Arrange
-        var validRequest = TestDataBuilder.ResetPassword.ValidRequest();
-        var reusedTokenRequest = TestDataBuilder.ResetPassword.RequestWithUsedToken();
+        var validRequest = AuthenticationTestDataBuilder.ResetPassword.ValidRequest();
+        var reusedTokenRequest = AuthenticationTestDataBuilder.ResetPassword.RequestWithUsedToken();
         
         var successMessage = "Password reset successfully.";
         var errorMessage = "Reset token has already been used.";
@@ -3295,7 +3296,7 @@ public class AuthControllerTests : TestBase
     public async Task ResetPassword_WhenServiceReturnsFailureWithSystemError_ShouldReturnInternalServerError()
     {
         // Arrange
-        var request = TestDataBuilder.ResetPassword.ValidRequest();
+        var request = AuthenticationTestDataBuilder.ResetPassword.ValidRequest();
         var errorMessage = "Database connection failed";
 
         _mockAuthService.Setup(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()))
@@ -3317,7 +3318,7 @@ public class AuthControllerTests : TestBase
     public async Task ResetPassword_WhenServiceThrowsException_ShouldThrowException()
     {
         // Arrange
-        var request = TestDataBuilder.ResetPassword.ValidRequest();
+        var request = AuthenticationTestDataBuilder.ResetPassword.ValidRequest();
         var exceptionMessage = "Unexpected database error";
 
         _mockAuthService.Setup(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()))
@@ -3334,7 +3335,7 @@ public class AuthControllerTests : TestBase
     public async Task ResetPassword_WhenServiceReturnsNullMessage_ShouldReturnInternalServerError()
     {
         // Arrange
-        var request = TestDataBuilder.ResetPassword.ValidRequest();
+        var request = AuthenticationTestDataBuilder.ResetPassword.ValidRequest();
 
         _mockAuthService.Setup(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()))
             .ReturnsAsync((false, null!));
@@ -3359,7 +3360,7 @@ public class AuthControllerTests : TestBase
     public async Task ResetPassword_ShouldLogPasswordResetRequest()
     {
         // Arrange
-        var request = TestDataBuilder.ResetPassword.ValidRequest();
+        var request = AuthenticationTestDataBuilder.ResetPassword.ValidRequest();
         var expectedMessage = "Password reset successfully.";
 
         _mockAuthService.Setup(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()))
@@ -3386,7 +3387,7 @@ public class AuthControllerTests : TestBase
     public async Task ResetPassword_WithSuccessfulReset_ShouldLogSuccess()
     {
         // Arrange
-        var request = TestDataBuilder.ResetPassword.ValidRequest();
+        var request = AuthenticationTestDataBuilder.ResetPassword.ValidRequest();
         var expectedMessage = "Password reset successfully.";
 
         _mockAuthService.Setup(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()))
@@ -3413,7 +3414,7 @@ public class AuthControllerTests : TestBase
     public async Task ResetPassword_WithFailedReset_ShouldLogWarning()
     {
         // Arrange
-        var request = TestDataBuilder.ResetPassword.RequestWithExpiredToken();
+        var request = AuthenticationTestDataBuilder.ResetPassword.RequestWithExpiredToken();
         var errorMessage = "Reset token has expired.";
 
         _mockAuthService.Setup(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()))
@@ -3440,7 +3441,7 @@ public class AuthControllerTests : TestBase
     public async Task ResetPassword_ShouldNotLogSensitiveInformation()
     {
         // Arrange
-        var request = TestDataBuilder.ResetPassword.ValidRequest();
+        var request = AuthenticationTestDataBuilder.ResetPassword.ValidRequest();
         var expectedMessage = "Password reset successfully.";
 
         _mockAuthService.Setup(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()))
@@ -3471,7 +3472,7 @@ public class AuthControllerTests : TestBase
     public async Task ResetPassword_EndToEndHappyPath_ShouldReturnCompleteResponse()
     {
         // Arrange
-        var request = TestDataBuilder.ResetPassword.ValidRequestWithExistingUser();
+        var request = AuthenticationTestDataBuilder.ResetPassword.ValidRequestWithExistingUser();
         var expectedMessage = "Password reset successfully.";
 
         _mockAuthService.Setup(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()))
@@ -3515,7 +3516,7 @@ public class AuthControllerTests : TestBase
     public async Task ResetPassword_CompleteWorkflow_ShouldHandleAllSteps()
     {
         // Arrange
-        var request = TestDataBuilder.ResetPassword.ValidRequest();
+        var request = AuthenticationTestDataBuilder.ResetPassword.ValidRequest();
         var expectedMessage = "Password reset successfully. All reset tokens have been invalidated.";
 
         _mockAuthService.Setup(x => x.ResetPasswordAsync(request, It.IsAny<CancellationToken>()))
@@ -4375,7 +4376,7 @@ public class AuthControllerTests : TestBase
     public async Task ResendVerificationEmail_WithValidEmail_ShouldReturnOkWithSuccessMessage()
     {
         // Arrange
-        var request = TestDataBuilder.ResendVerificationEmail.ValidRequest();
+        var request = AuthenticationTestDataBuilder.ResendVerificationEmail.ValidRequest();
         var expectedMessage = "If this email exists and is not yet verified, a new verification email has been sent.";
 
         _mockAuthService.Setup(x => x.ResendVerificationEmailAsync(request, It.IsAny<CancellationToken>()))
@@ -4399,7 +4400,7 @@ public class AuthControllerTests : TestBase
     public async Task ResendVerificationEmail_WithExistingUnverifiedUser_ShouldGenerateNewToken()
     {
         // Arrange
-        var request = TestDataBuilder.ResendVerificationEmail.ValidRequestWithExistingUnverifiedUser();
+        var request = AuthenticationTestDataBuilder.ResendVerificationEmail.ValidRequestWithExistingUnverifiedUser();
         var expectedMessage = "A new verification email has been sent to your email address.";
 
         _mockAuthService.Setup(x => x.ResendVerificationEmailAsync(request, It.IsAny<CancellationToken>()))
@@ -4425,7 +4426,7 @@ public class AuthControllerTests : TestBase
     public async Task ResendVerificationEmail_ShouldCallAuthServiceWithCorrectRequest()
     {
         // Arrange
-        var request = TestDataBuilder.ResendVerificationEmail.ValidRequest();
+        var request = AuthenticationTestDataBuilder.ResendVerificationEmail.ValidRequest();
         var expectedMessage = "Verification email sent successfully.";
 
         _mockAuthService.Setup(x => x.ResendVerificationEmailAsync(It.IsAny<ResendVerificationEmailRequest>(), It.IsAny<CancellationToken>()))
@@ -4447,7 +4448,7 @@ public class AuthControllerTests : TestBase
     public async Task ResendVerificationEmail_WithSpecialCharacterEmail_ShouldReturnOk()
     {
         // Arrange
-        var request = TestDataBuilder.ResendVerificationEmail.RequestWithSpecialCharacterEmail();
+        var request = AuthenticationTestDataBuilder.ResendVerificationEmail.RequestWithSpecialCharacterEmail();
         var expectedMessage = "If this email exists and is not yet verified, a new verification email has been sent.";
 
         _mockAuthService.Setup(x => x.ResendVerificationEmailAsync(request, It.IsAny<CancellationToken>()))
@@ -4488,7 +4489,7 @@ public class AuthControllerTests : TestBase
     public async Task ResendVerificationEmail_WithInvalidEmailFormat_ShouldReturnOkWithGenericMessage()
     {
         // Arrange
-        var request = TestDataBuilder.ResendVerificationEmail.RequestWithInvalidEmail();
+        var request = AuthenticationTestDataBuilder.ResendVerificationEmail.RequestWithInvalidEmail();
         var expectedMessage = "If this email exists and is not yet verified, a new verification email has been sent.";
 
         _mockAuthService.Setup(x => x.ResendVerificationEmailAsync(request, It.IsAny<CancellationToken>()))
@@ -4509,7 +4510,7 @@ public class AuthControllerTests : TestBase
     public async Task ResendVerificationEmail_WithEmptyEmail_ShouldReturnOkWithGenericMessage()
     {
         // Arrange
-        var request = TestDataBuilder.ResendVerificationEmail.RequestWithEmptyEmail();
+        var request = AuthenticationTestDataBuilder.ResendVerificationEmail.RequestWithEmptyEmail();
         var expectedMessage = "If this email exists and is not yet verified, a new verification email has been sent.";
 
         _mockAuthService.Setup(x => x.ResendVerificationEmailAsync(request, It.IsAny<CancellationToken>()))
@@ -4530,7 +4531,7 @@ public class AuthControllerTests : TestBase
     public async Task ResendVerificationEmail_WithNonExistentEmail_ShouldReturnOkWithGenericMessage()
     {
         // Arrange
-        var request = TestDataBuilder.ResendVerificationEmail.RequestWithNonExistentEmail();
+        var request = AuthenticationTestDataBuilder.ResendVerificationEmail.RequestWithNonExistentEmail();
         var expectedMessage = "If this email exists and is not yet verified, a new verification email has been sent.";
 
         _mockAuthService.Setup(x => x.ResendVerificationEmailAsync(request, It.IsAny<CancellationToken>()))
@@ -4551,7 +4552,7 @@ public class AuthControllerTests : TestBase
     public async Task ResendVerificationEmail_WithMalformedEmail_ShouldReturnOkWithGenericMessage()
     {
         // Arrange
-        var request = TestDataBuilder.ResendVerificationEmail.RequestWithMalformedEmail();
+        var request = AuthenticationTestDataBuilder.ResendVerificationEmail.RequestWithMalformedEmail();
         var expectedMessage = "If this email exists and is not yet verified, a new verification email has been sent.";
 
         _mockAuthService.Setup(x => x.ResendVerificationEmailAsync(request, It.IsAny<CancellationToken>()))
@@ -4576,7 +4577,7 @@ public class AuthControllerTests : TestBase
     public async Task ResendVerificationEmail_WithAlreadyVerifiedEmail_ShouldReturnOkWithGenericMessage()
     {
         // Arrange
-        var request = TestDataBuilder.ResendVerificationEmail.RequestWithAlreadyVerifiedEmail();
+        var request = AuthenticationTestDataBuilder.ResendVerificationEmail.RequestWithAlreadyVerifiedEmail();
         var expectedMessage = "If this email exists and is not yet verified, a new verification email has been sent.";
 
         _mockAuthService.Setup(x => x.ResendVerificationEmailAsync(request, It.IsAny<CancellationToken>()))
@@ -4597,7 +4598,7 @@ public class AuthControllerTests : TestBase
     public async Task ResendVerificationEmail_ShouldInvalidatePreviousToken()
     {
         // Arrange
-        var request = TestDataBuilder.ResendVerificationEmail.ValidRequestWithExistingUnverifiedUser();
+        var request = AuthenticationTestDataBuilder.ResendVerificationEmail.ValidRequestWithExistingUnverifiedUser();
         var expectedMessage = "Previous token invalidated. New verification email sent.";
 
         _mockAuthService.Setup(x => x.ResendVerificationEmailAsync(request, It.IsAny<CancellationToken>()))
@@ -4620,7 +4621,7 @@ public class AuthControllerTests : TestBase
     public async Task ResendVerificationEmail_WithRateLimitExceeded_ShouldReturnOkWithGenericMessage()
     {
         // Arrange
-        var request = TestDataBuilder.ResendVerificationEmail.RequestForRateLimitTesting();
+        var request = AuthenticationTestDataBuilder.ResendVerificationEmail.RequestForRateLimitTesting();
         var expectedMessage = "If this email exists and is not yet verified, a new verification email has been sent.";
 
         _mockAuthService.Setup(x => x.ResendVerificationEmailAsync(request, It.IsAny<CancellationToken>()))
@@ -4641,7 +4642,7 @@ public class AuthControllerTests : TestBase
     public async Task ResendVerificationEmail_WithInactiveUser_ShouldReturnOkWithGenericMessage()
     {
         // Arrange
-        var request = TestDataBuilder.ResendVerificationEmail.RequestWithInactiveUserEmail();
+        var request = AuthenticationTestDataBuilder.ResendVerificationEmail.RequestWithInactiveUserEmail();
         var expectedMessage = "If this email exists and is not yet verified, a new verification email has been sent.";
 
         _mockAuthService.Setup(x => x.ResendVerificationEmailAsync(request, It.IsAny<CancellationToken>()))
@@ -4662,8 +4663,8 @@ public class AuthControllerTests : TestBase
     public async Task ResendVerificationEmail_ShouldPreventUserEnumeration()
     {
         // Arrange
-        var existingEmailRequest = TestDataBuilder.ResendVerificationEmail.ValidRequest();
-        var nonExistentEmailRequest = TestDataBuilder.ResendVerificationEmail.RequestWithNonExistentEmail();
+        var existingEmailRequest = AuthenticationTestDataBuilder.ResendVerificationEmail.ValidRequest();
+        var nonExistentEmailRequest = AuthenticationTestDataBuilder.ResendVerificationEmail.RequestWithNonExistentEmail();
         var genericMessage = "If this email exists and is not yet verified, a new verification email has been sent.";
 
         _mockAuthService.Setup(x => x.ResendVerificationEmailAsync(It.IsAny<ResendVerificationEmailRequest>(), It.IsAny<CancellationToken>()))
@@ -4693,7 +4694,7 @@ public class AuthControllerTests : TestBase
     public async Task ResendVerificationEmail_ShouldImplementRateLimiting()
     {
         // Arrange
-        var request = TestDataBuilder.ResendVerificationEmail.RequestForRateLimitTesting();
+        var request = AuthenticationTestDataBuilder.ResendVerificationEmail.RequestForRateLimitTesting();
         var expectedMessage = "If this email exists and is not yet verified, a new verification email has been sent.";
 
         _mockAuthService.Setup(x => x.ResendVerificationEmailAsync(request, It.IsAny<CancellationToken>()))
@@ -4713,7 +4714,7 @@ public class AuthControllerTests : TestBase
     public async Task ResendVerificationEmail_ShouldGenerateSecureTokens()
     {
         // Arrange
-        var request = TestDataBuilder.ResendVerificationEmail.ValidRequest();
+        var request = AuthenticationTestDataBuilder.ResendVerificationEmail.ValidRequest();
         var expectedMessage = "Secure verification token generated and sent.";
 
         _mockAuthService.Setup(x => x.ResendVerificationEmailAsync(request, It.IsAny<CancellationToken>()))
@@ -4736,7 +4737,7 @@ public class AuthControllerTests : TestBase
     public async Task ResendVerificationEmail_ShouldPreventSpam()
     {
         // Arrange
-        var request = TestDataBuilder.ResendVerificationEmail.RequestForSpamPrevention();
+        var request = AuthenticationTestDataBuilder.ResendVerificationEmail.RequestForSpamPrevention();
         var expectedMessage = "If this email exists and is not yet verified, a new verification email has been sent.";
 
         _mockAuthService.Setup(x => x.ResendVerificationEmailAsync(request, It.IsAny<CancellationToken>()))
@@ -4757,7 +4758,7 @@ public class AuthControllerTests : TestBase
     public async Task ResendVerificationEmail_ShouldHandleCaseSensitiveEmails()
     {
         // Arrange
-        var request = TestDataBuilder.ResendVerificationEmail.RequestWithCaseSensitiveEmail();
+        var request = AuthenticationTestDataBuilder.ResendVerificationEmail.RequestWithCaseSensitiveEmail();
         var expectedMessage = "If this email exists and is not yet verified, a new verification email has been sent.";
 
         _mockAuthService.Setup(x => x.ResendVerificationEmailAsync(request, It.IsAny<CancellationToken>()))
@@ -4781,7 +4782,7 @@ public class AuthControllerTests : TestBase
     public async Task ResendVerificationEmail_WhenServiceReturnsFailure_ShouldReturnInternalServerError()
     {
         // Arrange
-        var request = TestDataBuilder.ResendVerificationEmail.ValidRequest();
+        var request = AuthenticationTestDataBuilder.ResendVerificationEmail.ValidRequest();
         var errorMessage = "Failed to send verification email due to email service error.";
 
         _mockAuthService.Setup(x => x.ResendVerificationEmailAsync(request, It.IsAny<CancellationToken>()))
@@ -4803,7 +4804,7 @@ public class AuthControllerTests : TestBase
     public async Task ResendVerificationEmail_WhenServiceThrowsException_ShouldThrowException()
     {
         // Arrange
-        var request = TestDataBuilder.ResendVerificationEmail.ValidRequest();
+        var request = AuthenticationTestDataBuilder.ResendVerificationEmail.ValidRequest();
         var exceptionMessage = "Email service connection failed";
 
         _mockAuthService.Setup(x => x.ResendVerificationEmailAsync(request, It.IsAny<CancellationToken>()))
@@ -4820,7 +4821,7 @@ public class AuthControllerTests : TestBase
     public async Task ResendVerificationEmail_WithEmailServiceError_ShouldReturnInternalServerError()
     {
         // Arrange
-        var request = TestDataBuilder.ResendVerificationEmail.ValidRequest();
+        var request = AuthenticationTestDataBuilder.ResendVerificationEmail.ValidRequest();
         var errorMessage = "Email service temporarily unavailable.";
 
         _mockAuthService.Setup(x => x.ResendVerificationEmailAsync(request, It.IsAny<CancellationToken>()))
@@ -4846,7 +4847,7 @@ public class AuthControllerTests : TestBase
     public async Task ResendVerificationEmail_ShouldLogResendRequest()
     {
         // Arrange
-        var request = TestDataBuilder.ResendVerificationEmail.ValidRequest();
+        var request = AuthenticationTestDataBuilder.ResendVerificationEmail.ValidRequest();
         var expectedMessage = "Verification email resent successfully.";
 
         _mockAuthService.Setup(x => x.ResendVerificationEmailAsync(request, It.IsAny<CancellationToken>()))
@@ -4873,7 +4874,7 @@ public class AuthControllerTests : TestBase
     public async Task ResendVerificationEmail_WithSuccessfulResend_ShouldLogCompletion()
     {
         // Arrange
-        var request = TestDataBuilder.ResendVerificationEmail.ValidRequest();
+        var request = AuthenticationTestDataBuilder.ResendVerificationEmail.ValidRequest();
         var expectedMessage = "Verification email resent successfully.";
 
         _mockAuthService.Setup(x => x.ResendVerificationEmailAsync(request, It.IsAny<CancellationToken>()))
@@ -4900,7 +4901,7 @@ public class AuthControllerTests : TestBase
     public async Task ResendVerificationEmail_WithFailedResend_ShouldLogError()
     {
         // Arrange
-        var request = TestDataBuilder.ResendVerificationEmail.ValidRequest();
+        var request = AuthenticationTestDataBuilder.ResendVerificationEmail.ValidRequest();
         var errorMessage = "Email service error";
 
         _mockAuthService.Setup(x => x.ResendVerificationEmailAsync(request, It.IsAny<CancellationToken>()))
@@ -4927,7 +4928,7 @@ public class AuthControllerTests : TestBase
     public async Task ResendVerificationEmail_ShouldNotLogSensitiveInformation()
     {
         // Arrange
-        var request = TestDataBuilder.ResendVerificationEmail.ValidRequest();
+        var request = AuthenticationTestDataBuilder.ResendVerificationEmail.ValidRequest();
         var expectedMessage = "Verification email resent successfully.";
 
         _mockAuthService.Setup(x => x.ResendVerificationEmailAsync(request, It.IsAny<CancellationToken>()))
@@ -4958,7 +4959,7 @@ public class AuthControllerTests : TestBase
     public async Task ResendVerificationEmail_EndToEndHappyPath_ShouldReturnCompleteResponse()
     {
         // Arrange
-        var request = TestDataBuilder.ResendVerificationEmail.ValidRequestWithExistingUnverifiedUser();
+        var request = AuthenticationTestDataBuilder.ResendVerificationEmail.ValidRequestWithExistingUnverifiedUser();
         var expectedMessage = "A new verification email has been sent to your email address. Please check your inbox and spam folder.";
 
         _mockAuthService.Setup(x => x.ResendVerificationEmailAsync(request, It.IsAny<CancellationToken>()))
@@ -5004,7 +5005,7 @@ public class AuthControllerTests : TestBase
     public async Task ResendVerificationEmail_CompleteWorkflow_ShouldHandleAllSteps()
     {
         // Arrange
-        var request = TestDataBuilder.ResendVerificationEmail.ValidRequest();
+        var request = AuthenticationTestDataBuilder.ResendVerificationEmail.ValidRequest();
         var expectedMessage = "If this email exists and is not yet verified, a new verification email has been sent.";
 
         _mockAuthService.Setup(x => x.ResendVerificationEmailAsync(request, It.IsAny<CancellationToken>()))

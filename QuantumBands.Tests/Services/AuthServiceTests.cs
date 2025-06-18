@@ -10,6 +10,7 @@ using QuantumBands.Application.Services;
 using QuantumBands.Domain.Entities;
 using QuantumBands.Tests.Common;
 using QuantumBands.Tests.Fixtures;
+using static QuantumBands.Tests.Fixtures.AuthenticationTestDataBuilder;
 using System.Linq.Expressions;
 using Xunit;
 
@@ -68,7 +69,7 @@ public class AuthServiceTests : TestBase
     public async Task RegisterUserAsync_WithValidCommand_ShouldReturnSuccessResult()
     {
         // Arrange
-        var command = TestDataBuilder.RegisterUser.ValidCommand();
+        var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
         var expectedUser = TestDataBuilder.Users.ValidUser();
         var expectedWallet = TestDataBuilder.Wallets.ValidWallet(expectedUser.UserId);
 
@@ -91,7 +92,7 @@ public class AuthServiceTests : TestBase
     public async Task RegisterUserAsync_WithoutFullName_ShouldReturnSuccessResult()
     {
         // Arrange
-        var command = TestDataBuilder.RegisterUser.ValidCommandWithoutFullName();
+        var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommandWithoutFullName();
         var expectedUser = TestDataBuilder.Users.ValidUser();
         expectedUser.FullName = null;
         var expectedWallet = TestDataBuilder.Wallets.ValidWallet(expectedUser.UserId);
@@ -113,7 +114,7 @@ public class AuthServiceTests : TestBase
     public async Task RegisterUserAsync_ShouldGenerateEmailVerificationToken()
     {
         // Arrange
-        var command = TestDataBuilder.RegisterUser.ValidCommand();
+        var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
         var expectedUser = TestDataBuilder.Users.ValidUser();
         var expectedWallet = TestDataBuilder.Wallets.ValidWallet(expectedUser.UserId);
 
@@ -136,7 +137,7 @@ public class AuthServiceTests : TestBase
     public async Task RegisterUserAsync_ShouldCreateWalletForNewUser()
     {
         // Arrange
-        var command = TestDataBuilder.RegisterUser.ValidCommand();
+        var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
         var expectedUser = TestDataBuilder.Users.ValidUser();
         var expectedWallet = TestDataBuilder.Wallets.ValidWallet(expectedUser.UserId);
 
@@ -164,7 +165,7 @@ public class AuthServiceTests : TestBase
         {
             // Arrange
             SetupDefaultRole();
-            var command = TestDataBuilder.RegisterUser.ValidCommand();
+            var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
             command.Username = "ab";
 
             // Act
@@ -181,7 +182,7 @@ public class AuthServiceTests : TestBase
         {
             // Arrange
             SetupDefaultRole();
-            var command = TestDataBuilder.RegisterUser.ValidCommand();
+            var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
             command.Email = "invalid-email";
 
             // Act
@@ -197,7 +198,7 @@ public class AuthServiceTests : TestBase
         public async Task RegisterUserAsync_ShouldFailWhenRoleNotFound()
         {
             // Arrange - Don't setup role to simulate missing role
-            var command = TestDataBuilder.RegisterUser.ValidCommand();
+            var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
 
             // Act
             var result = await _authService.RegisterUserAsync(command);
@@ -212,7 +213,7 @@ public class AuthServiceTests : TestBase
         {
             // Arrange
             SetupDefaultRole();
-            var command = TestDataBuilder.RegisterUser.ValidCommand();
+            var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
             var existingUser = TestDataBuilder.Users.ValidUser();
             existingUser.Username = command.Username;
 
@@ -234,7 +235,7 @@ public class AuthServiceTests : TestBase
         {
             // Arrange
             SetupDefaultRole();
-            var command = TestDataBuilder.RegisterUser.ValidCommand();
+            var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
             var existingUser = TestDataBuilder.Users.ValidUser();
             existingUser.Email = command.Email;
 
@@ -261,7 +262,7 @@ public class AuthServiceTests : TestBase
     public async Task RegisterUserAsync_WhenUserSaveFails_ShouldReturnError()
     {
         // Arrange
-        var command = TestDataBuilder.RegisterUser.ValidCommand();
+        var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
 
         SetupNoDuplicateUsers();
         SetupDefaultRole();
@@ -287,7 +288,7 @@ public class AuthServiceTests : TestBase
     public async Task RegisterUserAsync_ShouldCallEmailServiceWithCorrectParameters()
     {
         // Arrange
-        var command = TestDataBuilder.RegisterUser.ValidCommand();
+        var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
         var expectedUser = TestDataBuilder.Users.ValidUser();
         var expectedWallet = TestDataBuilder.Wallets.ValidWallet(expectedUser.UserId);
 
@@ -314,7 +315,7 @@ public class AuthServiceTests : TestBase
     public async Task RegisterUserAsync_ShouldSaveUserEntityWithCorrectData()
     {
         // Arrange
-        var command = TestDataBuilder.RegisterUser.ValidCommand();
+        var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
         var expectedUser = TestDataBuilder.Users.ValidUser();
         var expectedWallet = TestDataBuilder.Wallets.ValidWallet(expectedUser.UserId);
 
@@ -336,7 +337,7 @@ public class AuthServiceTests : TestBase
     public async Task RegisterUserAsync_ShouldCreateAssociatedWallet()
     {
         // Arrange
-        var command = TestDataBuilder.RegisterUser.ValidCommand();
+        var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
         var expectedUser = TestDataBuilder.Users.ValidUser();
         var expectedWallet = TestDataBuilder.Wallets.ValidWallet(expectedUser.UserId);
 
@@ -358,7 +359,7 @@ public class AuthServiceTests : TestBase
     public async Task RegisterUserAsync_ShouldStoreVerificationTokenWithCorrectExpiration()
     {
         // Arrange
-        var command = TestDataBuilder.RegisterUser.ValidCommand();
+        var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
         var expectedUser = TestDataBuilder.Users.ValidUser();
         var expectedWallet = TestDataBuilder.Wallets.ValidWallet(expectedUser.UserId);
 
