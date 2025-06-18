@@ -10,6 +10,7 @@ using QuantumBands.Application.Features.Authentication;
 using QuantumBands.Application.Features.Wallets.Commands.BankDeposit;
 using QuantumBands.Application.Features.Wallets.Commands.CreateWithdrawal;
 using QuantumBands.Application.Features.Wallets.Commands.InternalTransfer;
+using QuantumBands.Application.Features.Wallets.Commands.AdminActions;
 using QuantumBands.Application.Features.Wallets.Dtos;
 using QuantumBands.Application.Features.Exchange.Commands.CreateOrder;
 using QuantumBands.Application.Features.Exchange.Dtos;
@@ -5789,6 +5790,162 @@ public static class TestDataBuilder
             UserNotes = $"Withdrawal for user {username}",
             RequestedAt = DateTime.UtcNow.AddHours(-1),
             AdminNotes = null
+        };
+    }
+
+    /// <summary>
+    /// Test data for ApproveWithdrawal endpoint testing
+    /// </summary>
+    public static class ApproveWithdrawal
+    {
+        /// <summary>
+        /// Valid approval request with minimal data
+        /// </summary>
+        public static ApproveWithdrawalRequest ValidRequest() => new()
+        {
+            TransactionId = 1001L,
+            AdminNotes = "Approved after verification",
+            ExternalTransactionReference = "EXT-12345"
+        };
+
+        /// <summary>
+        /// Valid approval request without optional fields
+        /// </summary>
+        public static ApproveWithdrawalRequest ValidRequestMinimal() => new()
+        {
+            TransactionId = 1002L
+        };
+
+        /// <summary>
+        /// Approval request with maximum length admin notes
+        /// </summary>
+        public static ApproveWithdrawalRequest ValidRequestMaxNotes() => new()
+        {
+            TransactionId = 1003L,
+            AdminNotes = new string('a', 500), // Max 500 chars
+            ExternalTransactionReference = "EXT-MAX-NOTES"
+        };
+
+        /// <summary>
+        /// Invalid request with zero transaction ID
+        /// </summary>
+        public static ApproveWithdrawalRequest InvalidTransactionIdZero() => new()
+        {
+            TransactionId = 0L,
+            AdminNotes = "Invalid transaction ID"
+        };
+
+        /// <summary>
+        /// Invalid request with negative transaction ID
+        /// </summary>
+        public static ApproveWithdrawalRequest InvalidTransactionIdNegative() => new()
+        {
+            TransactionId = -1L,
+            AdminNotes = "Negative transaction ID"
+        };
+
+        /// <summary>
+        /// Invalid request with admin notes too long
+        /// </summary>
+        public static ApproveWithdrawalRequest InvalidAdminNotesTooLong() => new()
+        {
+            TransactionId = 1004L,
+            AdminNotes = new string('x', 501), // Exceeds 500 chars limit
+            ExternalTransactionReference = "EXT-LONG-NOTES"
+        };
+
+        /// <summary>
+        /// Invalid request with external reference too long
+        /// </summary>
+        public static ApproveWithdrawalRequest InvalidExternalReferenceTooLong() => new()
+        {
+            TransactionId = 1005L,
+            AdminNotes = "Valid notes",
+            ExternalTransactionReference = new string('y', 256) // Exceeds 255 chars limit
+        };
+
+        /// <summary>
+        /// Request for non-existent transaction
+        /// </summary>
+        public static ApproveWithdrawalRequest NonExistentTransaction() => new()
+        {
+            TransactionId = 999999L,
+            AdminNotes = "Transaction not found"
+        };
+
+        /// <summary>
+        /// Request for already processed transaction
+        /// </summary>
+        public static ApproveWithdrawalRequest AlreadyProcessedTransaction() => new()
+        {
+            TransactionId = 2001L,
+            AdminNotes = "Already processed"
+        };
+
+        /// <summary>
+        /// Request for cancelled transaction
+        /// </summary>
+        public static ApproveWithdrawalRequest CancelledTransaction() => new()
+        {
+            TransactionId = 2002L,
+            AdminNotes = "Cancelled transaction"
+        };
+
+        /// <summary>
+        /// Valid wallet transaction response for successful approval
+        /// </summary>
+        public static WalletTransactionDto SuccessfulApprovalResponse() => new()
+        {
+            TransactionId = 1001L,
+            TransactionTypeName = "Withdrawal",
+            Amount = 100.00m,
+            CurrencyCode = "USD",
+            BalanceAfter = 900.00m,
+            ReferenceId = "WD-1001",
+            PaymentMethod = "Bank Transfer",
+            ExternalTransactionId = "EXT-12345",
+            Description = "Withdrawal approved by admin",
+            Status = "Completed",
+            TransactionDate = DateTime.UtcNow.AddMinutes(-5),
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        /// <summary>
+        /// Valid wallet transaction response for large amount approval
+        /// </summary>
+        public static WalletTransactionDto LargeAmountApprovalResponse() => new()
+        {
+            TransactionId = 1003L,
+            TransactionTypeName = "Withdrawal",
+            Amount = 5000.00m,
+            CurrencyCode = "USD",
+            BalanceAfter = 15000.00m,
+            ReferenceId = "WD-1003",
+            PaymentMethod = "Wire Transfer",
+            ExternalTransactionId = "EXT-LARGE-001",
+            Description = "Large withdrawal approved after enhanced verification",
+            Status = "Completed",
+            TransactionDate = DateTime.UtcNow.AddMinutes(-2),
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        /// <summary>
+        /// Valid wallet transaction response for minimal approval
+        /// </summary>
+        public static WalletTransactionDto MinimalApprovalResponse() => new()
+        {
+            TransactionId = 1002L,
+            TransactionTypeName = "Withdrawal",
+            Amount = 50.00m,
+            CurrencyCode = "USD",
+            BalanceAfter = 450.00m,
+            ReferenceId = "WD-1002",
+            PaymentMethod = "Bank Transfer",
+            ExternalTransactionId = null,
+            Description = "Withdrawal approved",
+            Status = "Completed",
+            TransactionDate = DateTime.UtcNow.AddMinutes(-3),
+            UpdatedAt = DateTime.UtcNow
         };
     }
 } 

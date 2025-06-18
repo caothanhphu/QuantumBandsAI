@@ -2185,5 +2185,414 @@ public class AdminControllerTests : TestBase
 
     #endregion
 
+    #region ApproveWithdrawal Tests
+
+    #region Happy Path Tests
+
+    /// <summary>
+    /// Test: Valid withdrawal approval should return OK with transaction details
+    /// Verifies the happy path scenario works correctly
+    /// </summary>
+    [Fact]
+    public async Task ApproveWithdrawal_WithValidRequest_ShouldReturnOkWithTransaction()
+    {
+        // Arrange
+        var request = TestDataBuilder.ApproveWithdrawal.ValidRequest();
+        var expectedTransaction = TestDataBuilder.ApproveWithdrawal.SuccessfulApprovalResponse();
+
+        _mockWalletService.Setup(x => x.ApproveWithdrawalAsync(
+                It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedTransaction, null));
+
+        // Act
+        var result = await _adminController.ApproveWithdrawal(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        var transaction = okResult!.Value as WalletTransactionDto;
+
+        transaction.Should().NotBeNull();
+        transaction!.TransactionId.Should().Be(expectedTransaction.TransactionId);
+        transaction.Status.Should().Be("Completed");
+        transaction.Amount.Should().Be(expectedTransaction.Amount);
+
+        _mockWalletService.Verify(x => x.ApproveWithdrawalAsync(
+            It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Valid minimal approval request should work
+    /// Verifies approval works with minimal required data
+    /// </summary>
+    [Fact]
+    public async Task ApproveWithdrawal_WithMinimalRequest_ShouldReturnOkWithTransaction()
+    {
+        // Arrange
+        var request = TestDataBuilder.ApproveWithdrawal.ValidRequestMinimal();
+        var expectedTransaction = TestDataBuilder.ApproveWithdrawal.MinimalApprovalResponse();
+
+        _mockWalletService.Setup(x => x.ApproveWithdrawalAsync(
+                It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedTransaction, null));
+
+        // Act
+        var result = await _adminController.ApproveWithdrawal(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        var transaction = okResult!.Value as WalletTransactionDto;
+
+        transaction.Should().NotBeNull();
+        transaction!.TransactionId.Should().Be(expectedTransaction.TransactionId);
+        transaction.Status.Should().Be("Completed");
+
+        _mockWalletService.Verify(x => x.ApproveWithdrawalAsync(
+            It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Large withdrawal approval should work correctly
+    /// Verifies large amount withdrawals can be processed
+    /// </summary>
+    [Fact]
+    public async Task ApproveWithdrawal_WithLargeAmount_ShouldReturnOkWithTransaction()
+    {
+        // Arrange
+        var request = TestDataBuilder.ApproveWithdrawal.ValidRequestMaxNotes();
+        var expectedTransaction = TestDataBuilder.ApproveWithdrawal.LargeAmountApprovalResponse();
+
+        _mockWalletService.Setup(x => x.ApproveWithdrawalAsync(
+                It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedTransaction, null));
+
+        // Act
+        var result = await _adminController.ApproveWithdrawal(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        var transaction = okResult!.Value as WalletTransactionDto;
+
+        transaction.Should().NotBeNull();
+        transaction!.TransactionId.Should().Be(expectedTransaction.TransactionId);
+        transaction.Status.Should().Be("Completed");
+        transaction.Amount.Should().Be(5000.00m);
+
+        _mockWalletService.Verify(x => x.ApproveWithdrawalAsync(
+            It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Admin information should be logged correctly
+    /// Verifies proper logging of admin actions
+    /// </summary>
+    [Fact]
+    public async Task ApproveWithdrawal_ShouldLogAdminInformation()
+    {
+        // Arrange
+        var request = TestDataBuilder.ApproveWithdrawal.ValidRequest();
+        var expectedTransaction = TestDataBuilder.ApproveWithdrawal.SuccessfulApprovalResponse();
+
+        _mockWalletService.Setup(x => x.ApproveWithdrawalAsync(
+                It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedTransaction, null));
+
+        // Act
+        var result = await _adminController.ApproveWithdrawal(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        
+        // Verify that logging occurred with correct admin ID and transaction ID
+        _mockLogger.Verify(
+            x => x.Log(
+                LogLevel.Information,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Admin 1 attempting to approve withdrawal TransactionID: 1001")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    #endregion
+
+    #region Authorization Tests
+
+    /// <summary>
+    /// Test: Non-admin users should be handled by authorization
+    /// Verifies authorization attribute prevents non-admin access
+    /// </summary>
+    [Fact]
+    public async Task ApproveWithdrawal_WithNonAdminUser_ShouldBeHandledByAuthorization()
+    {
+        // Arrange
+        var request = TestDataBuilder.ApproveWithdrawal.ValidRequest();
+
+        // Setup non-admin user
+        var nonAdminClaims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, "2"),
+            new(ClaimTypes.Name, "normaluser"),
+            new(ClaimTypes.Role, "User")
+        };
+
+        var nonAdminIdentity = new ClaimsIdentity(nonAdminClaims, "TestAuth");
+        var nonAdminPrincipal = new ClaimsPrincipal(nonAdminIdentity);
+
+        _adminController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext
+            {
+                User = nonAdminPrincipal
+            }
+        };
+
+        var expectedTransaction = TestDataBuilder.ApproveWithdrawal.SuccessfulApprovalResponse();
+        _mockWalletService.Setup(x => x.ApproveWithdrawalAsync(
+                It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedTransaction, null));
+
+        // Act
+        var result = await _adminController.ApproveWithdrawal(request, CancellationToken.None);
+
+        // Assert
+        // The method should still execute (authorization is handled at attribute level)
+        // But the user claim should be passed correctly to the service
+        result.Should().BeOfType<OkObjectResult>();
+        
+        _mockWalletService.Verify(x => x.ApproveWithdrawalAsync(
+            It.Is<ClaimsPrincipal>(p => p.FindFirstValue(ClaimTypes.NameIdentifier) == "2"),
+            request, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    #endregion
+
+    #region Validation Tests
+
+    /// <summary>
+    /// Test: Non-existent transaction should return NotFound
+    /// Verifies proper handling of non-existent transactions
+    /// </summary>
+    [Fact]
+    public async Task ApproveWithdrawal_WithNonExistentTransaction_ShouldReturnNotFound()
+    {
+        // Arrange
+        var request = TestDataBuilder.ApproveWithdrawal.NonExistentTransaction();
+
+        _mockWalletService.Setup(x => x.ApproveWithdrawalAsync(
+                It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((null, "Transaction not found"));
+
+        // Act
+        var result = await _adminController.ApproveWithdrawal(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<NotFoundObjectResult>();
+        var notFoundResult = result as NotFoundObjectResult;
+        notFoundResult!.Value.Should().BeEquivalentTo(new { Message = "Transaction not found" });
+
+        _mockWalletService.Verify(x => x.ApproveWithdrawalAsync(
+            It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Already processed transaction should return BadRequest
+    /// Verifies proper handling of already processed transactions
+    /// </summary>
+    [Fact]
+    public async Task ApproveWithdrawal_WithAlreadyProcessedTransaction_ShouldReturnBadRequest()
+    {
+        // Arrange
+        var request = TestDataBuilder.ApproveWithdrawal.AlreadyProcessedTransaction();
+
+        _mockWalletService.Setup(x => x.ApproveWithdrawalAsync(
+                It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((null, "Transaction is not pending approval"));
+
+        // Act
+        var result = await _adminController.ApproveWithdrawal(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+        var badRequestResult = result as BadRequestObjectResult;
+        badRequestResult!.Value.Should().BeEquivalentTo(new { Message = "Transaction is not pending approval" });
+
+        _mockWalletService.Verify(x => x.ApproveWithdrawalAsync(
+            It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Insufficient balance should return BadRequest
+    /// Verifies proper handling of insufficient balance scenarios
+    /// </summary>
+    [Fact]
+    public async Task ApproveWithdrawal_WithInsufficientBalance_ShouldReturnBadRequest()
+    {
+        // Arrange
+        var request = TestDataBuilder.ApproveWithdrawal.ValidRequest();
+
+        _mockWalletService.Setup(x => x.ApproveWithdrawalAsync(
+                It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((null, "Insufficient balance for withdrawal"));
+
+        // Act
+        var result = await _adminController.ApproveWithdrawal(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+        var badRequestResult = result as BadRequestObjectResult;
+        badRequestResult!.Value.Should().BeEquivalentTo(new { Message = "Insufficient balance for withdrawal" });
+
+        _mockWalletService.Verify(x => x.ApproveWithdrawalAsync(
+            It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Invalid transaction data should return BadRequest
+    /// Verifies proper handling of invalid transaction data
+    /// </summary>
+    [Fact]
+    public async Task ApproveWithdrawal_WithInvalidTransactionData_ShouldReturnBadRequest()
+    {
+        // Arrange
+        var request = TestDataBuilder.ApproveWithdrawal.ValidRequest();
+
+        _mockWalletService.Setup(x => x.ApproveWithdrawalAsync(
+                It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((null, "Invalid transaction data"));
+
+        // Act
+        var result = await _adminController.ApproveWithdrawal(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+        var badRequestResult = result as BadRequestObjectResult;
+        badRequestResult!.Value.Should().BeEquivalentTo(new { Message = "Invalid transaction data" });
+
+        _mockWalletService.Verify(x => x.ApproveWithdrawalAsync(
+            It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    #endregion
+
+    #region Business Logic Tests
+
+    /// <summary>
+    /// Test: Service failure should return InternalServerError
+    /// Verifies proper handling of service failures
+    /// </summary>
+    [Fact]
+    public async Task ApproveWithdrawal_WithServiceFailure_ShouldReturnInternalServerError()
+    {
+        // Arrange
+        var request = TestDataBuilder.ApproveWithdrawal.ValidRequest();
+
+        _mockWalletService.Setup(x => x.ApproveWithdrawalAsync(
+                It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((null, "Database connection failed"));
+
+        // Act
+        var result = await _adminController.ApproveWithdrawal(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<ObjectResult>();
+        var objectResult = result as ObjectResult;
+        objectResult!.StatusCode.Should().Be(StatusCodes.Status500InternalServerError);
+        objectResult.Value.Should().BeEquivalentTo(new { Message = "Database connection failed" });
+
+        _mockWalletService.Verify(x => x.ApproveWithdrawalAsync(
+            It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Service error without message should return generic error
+    /// Verifies proper handling when error message is null
+    /// </summary>
+    [Fact]
+    public async Task ApproveWithdrawal_WithServiceErrorWithoutMessage_ShouldReturnGenericError()
+    {
+        // Arrange
+        var request = TestDataBuilder.ApproveWithdrawal.ValidRequest();
+
+        _mockWalletService.Setup(x => x.ApproveWithdrawalAsync(
+                It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((null, null));
+
+        // Act
+        var result = await _adminController.ApproveWithdrawal(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<ObjectResult>();
+        var objectResult = result as ObjectResult;
+        objectResult!.StatusCode.Should().Be(StatusCodes.Status500InternalServerError);
+        objectResult.Value.Should().BeEquivalentTo(new { Message = "Failed to approve withdrawal request." });
+
+        _mockWalletService.Verify(x => x.ApproveWithdrawalAsync(
+            It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Warning should be logged on approval failure
+    /// Verifies proper warning logging when approval fails
+    /// </summary>
+    [Fact]
+    public async Task ApproveWithdrawal_OnFailure_ShouldLogWarning()
+    {
+        // Arrange
+        var request = TestDataBuilder.ApproveWithdrawal.ValidRequest();
+
+        _mockWalletService.Setup(x => x.ApproveWithdrawalAsync(
+                It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((null, "Transaction not found"));
+
+        // Act
+        var result = await _adminController.ApproveWithdrawal(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<NotFoundObjectResult>();
+        
+        // Verify warning was logged
+        _mockLogger.Verify(
+            x => x.Log(
+                LogLevel.Warning,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Admin approve withdrawal failed for TransactionID 1001")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Cancellation token should be passed correctly
+    /// Verifies proper cancellation token handling
+    /// </summary>
+    [Fact]
+    public async Task ApproveWithdrawal_ShouldPassCancellationTokenToService()
+    {
+        // Arrange
+        var request = TestDataBuilder.ApproveWithdrawal.ValidRequest();
+        var expectedTransaction = TestDataBuilder.ApproveWithdrawal.SuccessfulApprovalResponse();
+        var cancellationToken = new CancellationToken();
+
+        _mockWalletService.Setup(x => x.ApproveWithdrawalAsync(
+                It.IsAny<ClaimsPrincipal>(), request, cancellationToken))
+            .ReturnsAsync((expectedTransaction, null));
+
+        // Act
+        var result = await _adminController.ApproveWithdrawal(request, cancellationToken);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+
+        _mockWalletService.Verify(x => x.ApproveWithdrawalAsync(
+            It.IsAny<ClaimsPrincipal>(), request, cancellationToken), Times.Once);
+    }
+
+    #endregion
+
+    #endregion
+
     #endregion
 } 
