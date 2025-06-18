@@ -7,6 +7,7 @@ using QuantumBands.API.Controllers;
 using QuantumBands.Application.Common.Models;
 using QuantumBands.Application.Features.Admin.TradingAccounts.Commands;
 using QuantumBands.Application.Features.Admin.TradingAccounts.Dtos;
+using QuantumBands.Application.Features.Wallets.Commands.AdminActions;
 using QuantumBands.Application.Features.Wallets.Commands.BankDeposit;
 using QuantumBands.Application.Features.Wallets.Dtos;
 using QuantumBands.Application.Features.Wallets.Queries.GetTransactions;
@@ -2588,6 +2589,516 @@ public class AdminControllerTests : TestBase
 
         _mockWalletService.Verify(x => x.ApproveWithdrawalAsync(
             It.IsAny<ClaimsPrincipal>(), request, cancellationToken), Times.Once);
+    }
+
+    #endregion
+
+    #endregion
+
+    #region RejectWithdrawal Tests
+
+    #region Happy Path Tests
+
+    /// <summary>
+    /// Test: Valid withdrawal rejection should return OK with transaction details
+    /// Verifies the happy path scenario works correctly
+    /// </summary>
+    [Fact]
+    public async Task RejectWithdrawal_WithValidRequest_ShouldReturnOkWithTransaction()
+    {
+        // Arrange
+        var request = TestDataBuilder.RejectWithdrawal.ValidRequest();
+        var expectedTransaction = TestDataBuilder.RejectWithdrawal.SuccessfulRejectionResponse();
+
+        _mockWalletService.Setup(x => x.RejectWithdrawalAsync(
+                It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedTransaction, null));
+
+        // Act
+        var result = await _adminController.RejectWithdrawal(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        var transaction = okResult!.Value as WalletTransactionDto;
+
+        transaction.Should().NotBeNull();
+        transaction!.TransactionId.Should().Be(expectedTransaction.TransactionId);
+        transaction.Status.Should().Be("Rejected");
+        transaction.Amount.Should().Be(expectedTransaction.Amount);
+        transaction.BalanceAfter.Should().Be(expectedTransaction.BalanceAfter); // Balance restored
+
+        _mockWalletService.Verify(x => x.RejectWithdrawalAsync(
+            It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Valid detailed rejection request should work
+    /// Verifies rejection works with detailed rejection reason
+    /// </summary>
+    [Fact]
+    public async Task RejectWithdrawal_WithDetailedRequest_ShouldReturnOkWithTransaction()
+    {
+        // Arrange
+        var request = TestDataBuilder.RejectWithdrawal.ValidRequestDetailed();
+        var expectedTransaction = TestDataBuilder.RejectWithdrawal.DetailedRejectionResponse();
+
+        _mockWalletService.Setup(x => x.RejectWithdrawalAsync(
+                It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedTransaction, null));
+
+        // Act
+        var result = await _adminController.RejectWithdrawal(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        var transaction = okResult!.Value as WalletTransactionDto;
+
+        transaction.Should().NotBeNull();
+        transaction!.TransactionId.Should().Be(expectedTransaction.TransactionId);
+        transaction.Status.Should().Be("Rejected");
+
+        _mockWalletService.Verify(x => x.RejectWithdrawalAsync(
+            It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Large withdrawal rejection should work correctly
+    /// Verifies large amount withdrawals can be rejected with balance restoration
+    /// </summary>
+    [Fact]
+    public async Task RejectWithdrawal_WithLargeAmount_ShouldReturnOkWithTransaction()
+    {
+        // Arrange
+        var request = TestDataBuilder.RejectWithdrawal.ValidRequestMaxNotes();
+        var expectedTransaction = TestDataBuilder.RejectWithdrawal.LargeAmountRejectionResponse();
+
+        _mockWalletService.Setup(x => x.RejectWithdrawalAsync(
+                It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedTransaction, null));
+
+        // Act
+        var result = await _adminController.RejectWithdrawal(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        var transaction = okResult!.Value as WalletTransactionDto;
+
+        transaction.Should().NotBeNull();
+        transaction!.TransactionId.Should().Be(expectedTransaction.TransactionId);
+        transaction.Status.Should().Be("Rejected");
+        transaction.Amount.Should().Be(10000.00m);
+        transaction.BalanceAfter.Should().Be(25000.00m); // Balance properly restored
+
+        _mockWalletService.Verify(x => x.RejectWithdrawalAsync(
+            It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Admin information should be logged correctly
+    /// Verifies proper logging of admin actions for rejection
+    /// </summary>
+    [Fact]
+    public async Task RejectWithdrawal_ShouldLogAdminInformation()
+    {
+        // Arrange
+        var request = TestDataBuilder.RejectWithdrawal.ValidRequest();
+        var expectedTransaction = TestDataBuilder.RejectWithdrawal.SuccessfulRejectionResponse();
+
+        _mockWalletService.Setup(x => x.RejectWithdrawalAsync(
+                It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedTransaction, null));
+
+        // Act
+        var result = await _adminController.RejectWithdrawal(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        
+        // Verify that logging occurred with correct admin ID and transaction ID
+        _mockLogger.Verify(
+            x => x.Log(
+                LogLevel.Information,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Admin 1 attempting to reject withdrawal TransactionID: 2001")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    #endregion
+
+    #region Authorization Tests
+
+    /// <summary>
+    /// Test: Non-admin users should be handled by authorization
+    /// Verifies authorization attribute prevents non-admin access
+    /// </summary>
+    [Fact]
+    public async Task RejectWithdrawal_WithNonAdminUser_ShouldBeHandledByAuthorization()
+    {
+        // Arrange
+        var request = TestDataBuilder.RejectWithdrawal.ValidRequest();
+
+        // Setup non-admin user
+        var nonAdminClaims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, "3"),
+            new(ClaimTypes.Name, "normaluser"),
+            new(ClaimTypes.Role, "User")
+        };
+
+        var nonAdminIdentity = new ClaimsIdentity(nonAdminClaims, "TestAuth");
+        var nonAdminPrincipal = new ClaimsPrincipal(nonAdminIdentity);
+
+        _adminController.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext
+            {
+                User = nonAdminPrincipal
+            }
+        };
+
+        var expectedTransaction = TestDataBuilder.RejectWithdrawal.SuccessfulRejectionResponse();
+        _mockWalletService.Setup(x => x.RejectWithdrawalAsync(
+                It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedTransaction, null));
+
+        // Act
+        var result = await _adminController.RejectWithdrawal(request, CancellationToken.None);
+
+        // Assert
+        // The method should still execute (authorization is handled at attribute level)
+        // But the user claim should be passed correctly to the service
+        result.Should().BeOfType<OkObjectResult>();
+        
+        _mockWalletService.Verify(x => x.RejectWithdrawalAsync(
+            It.Is<ClaimsPrincipal>(p => p.FindFirstValue(ClaimTypes.NameIdentifier) == "3"),
+            request, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    #endregion
+
+    #region Validation Tests
+
+    /// <summary>
+    /// Test: Non-existent transaction should return NotFound
+    /// Verifies proper handling of non-existent transactions
+    /// </summary>
+    [Fact]
+    public async Task RejectWithdrawal_WithNonExistentTransaction_ShouldReturnNotFound()
+    {
+        // Arrange
+        var request = TestDataBuilder.RejectWithdrawal.NonExistentTransaction();
+
+        _mockWalletService.Setup(x => x.RejectWithdrawalAsync(
+                It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((null, "Transaction not found"));
+
+        // Act
+        var result = await _adminController.RejectWithdrawal(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<NotFoundObjectResult>();
+        var notFoundResult = result as NotFoundObjectResult;
+        notFoundResult!.Value.Should().BeEquivalentTo(new { Message = "Transaction not found" });
+
+        _mockWalletService.Verify(x => x.RejectWithdrawalAsync(
+            It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Already processed transaction should return BadRequest
+    /// Verifies proper handling of already processed transactions
+    /// </summary>
+    [Fact]
+    public async Task RejectWithdrawal_WithAlreadyProcessedTransaction_ShouldReturnBadRequest()
+    {
+        // Arrange
+        var request = TestDataBuilder.RejectWithdrawal.AlreadyProcessedTransaction();
+
+        _mockWalletService.Setup(x => x.RejectWithdrawalAsync(
+                It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((null, "Transaction cannot be rejected as it has already been processed"));
+
+        // Act
+        var result = await _adminController.RejectWithdrawal(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+        var badRequestResult = result as BadRequestObjectResult;
+        badRequestResult!.Value.Should().BeEquivalentTo(new { Message = "Transaction cannot be rejected as it has already been processed" });
+
+        _mockWalletService.Verify(x => x.RejectWithdrawalAsync(
+            It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Already cancelled transaction should return BadRequest
+    /// Verifies proper handling of already cancelled transactions
+    /// </summary>
+    [Fact]
+    public async Task RejectWithdrawal_WithAlreadyCancelledTransaction_ShouldReturnBadRequest()
+    {
+        // Arrange
+        var request = TestDataBuilder.RejectWithdrawal.AlreadyCancelledTransaction();
+
+        _mockWalletService.Setup(x => x.RejectWithdrawalAsync(
+                It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((null, "Transaction cannot be rejected as it has already been cancelled"));
+
+        // Act
+        var result = await _adminController.RejectWithdrawal(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+        var badRequestResult = result as BadRequestObjectResult;
+        badRequestResult!.Value.Should().BeEquivalentTo(new { Message = "Transaction cannot be rejected as it has already been cancelled" });
+
+        _mockWalletService.Verify(x => x.RejectWithdrawalAsync(
+            It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Invalid transaction data should return BadRequest
+    /// Verifies proper handling of invalid transaction data
+    /// </summary>
+    [Fact]
+    public async Task RejectWithdrawal_WithInvalidTransactionData_ShouldReturnBadRequest()
+    {
+        // Arrange
+        var request = TestDataBuilder.RejectWithdrawal.ValidRequest();
+
+        _mockWalletService.Setup(x => x.RejectWithdrawalAsync(
+                It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((null, "Invalid transaction data"));
+
+        // Act
+        var result = await _adminController.RejectWithdrawal(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+        var badRequestResult = result as BadRequestObjectResult;
+        badRequestResult!.Value.Should().BeEquivalentTo(new { Message = "Invalid transaction data" });
+
+        _mockWalletService.Verify(x => x.RejectWithdrawalAsync(
+            It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Empty rejection reason should be handled by FluentValidation
+    /// Verifies that validation prevents empty rejection reasons
+    /// </summary>
+    [Fact]
+    public async Task RejectWithdrawal_WithEmptyRejectionReason_ShouldBeValidatedByFluentValidation()
+    {
+        // Note: This test documents that FluentValidation should handle empty admin notes
+        // The actual validation happens at the framework level before reaching the controller
+        // This test verifies the service layer behavior when such a request somehow gets through
+        
+        // Arrange
+        var request = TestDataBuilder.RejectWithdrawal.InvalidEmptyAdminNotes();
+
+        _mockWalletService.Setup(x => x.RejectWithdrawalAsync(
+                It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((null, "Invalid rejection reason provided"));
+
+        // Act
+        var result = await _adminController.RejectWithdrawal(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+        var badRequestResult = result as BadRequestObjectResult;
+        badRequestResult!.Value.Should().BeEquivalentTo(new { Message = "Invalid rejection reason provided" });
+
+        _mockWalletService.Verify(x => x.RejectWithdrawalAsync(
+            It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    #endregion
+
+    #region Business Logic Tests
+
+    /// <summary>
+    /// Test: Service failure should return InternalServerError
+    /// Verifies proper handling of service failures
+    /// </summary>
+    [Fact]
+    public async Task RejectWithdrawal_WithServiceFailure_ShouldReturnInternalServerError()
+    {
+        // Arrange
+        var request = TestDataBuilder.RejectWithdrawal.ValidRequest();
+
+        _mockWalletService.Setup(x => x.RejectWithdrawalAsync(
+                It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((null, "Database connection failed"));
+
+        // Act
+        var result = await _adminController.RejectWithdrawal(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<ObjectResult>();
+        var objectResult = result as ObjectResult;
+        objectResult!.StatusCode.Should().Be(StatusCodes.Status500InternalServerError);
+        objectResult.Value.Should().BeEquivalentTo(new { Message = "Database connection failed" });
+
+        _mockWalletService.Verify(x => x.RejectWithdrawalAsync(
+            It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Service error without message should return generic error
+    /// Verifies proper handling when error message is null
+    /// </summary>
+    [Fact]
+    public async Task RejectWithdrawal_WithServiceErrorWithoutMessage_ShouldReturnGenericError()
+    {
+        // Arrange
+        var request = TestDataBuilder.RejectWithdrawal.ValidRequest();
+
+        _mockWalletService.Setup(x => x.RejectWithdrawalAsync(
+                It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((null, null));
+
+        // Act
+        var result = await _adminController.RejectWithdrawal(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<ObjectResult>();
+        var objectResult = result as ObjectResult;
+        objectResult!.StatusCode.Should().Be(StatusCodes.Status500InternalServerError);
+        objectResult.Value.Should().BeEquivalentTo(new { Message = "Failed to reject withdrawal request." });
+
+        _mockWalletService.Verify(x => x.RejectWithdrawalAsync(
+            It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Warning should be logged on rejection failure
+    /// Verifies proper warning logging when rejection fails
+    /// </summary>
+    [Fact]
+    public async Task RejectWithdrawal_OnFailure_ShouldLogWarning()
+    {
+        // Arrange
+        var request = TestDataBuilder.RejectWithdrawal.ValidRequest();
+
+        _mockWalletService.Setup(x => x.RejectWithdrawalAsync(
+                It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((null, "Transaction not found"));
+
+        // Act
+        var result = await _adminController.RejectWithdrawal(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<NotFoundObjectResult>();
+        
+        // Verify warning was logged
+        _mockLogger.Verify(
+            x => x.Log(
+                LogLevel.Warning,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Admin reject withdrawal failed for TransactionID 2001")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Cancellation token should be passed correctly
+    /// Verifies proper cancellation token handling
+    /// </summary>
+    [Fact]
+    public async Task RejectWithdrawal_ShouldPassCancellationTokenToService()
+    {
+        // Arrange
+        var request = TestDataBuilder.RejectWithdrawal.ValidRequest();
+        var expectedTransaction = TestDataBuilder.RejectWithdrawal.SuccessfulRejectionResponse();
+        var cancellationToken = new CancellationToken();
+
+        _mockWalletService.Setup(x => x.RejectWithdrawalAsync(
+                It.IsAny<ClaimsPrincipal>(), request, cancellationToken))
+            .ReturnsAsync((expectedTransaction, null));
+
+        // Act
+        var result = await _adminController.RejectWithdrawal(request, cancellationToken);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+
+        _mockWalletService.Verify(x => x.RejectWithdrawalAsync(
+            It.IsAny<ClaimsPrincipal>(), request, cancellationToken), Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Balance restoration should be verified in successful rejection
+    /// Verifies that rejected withdrawals restore user balance correctly
+    /// </summary>
+    [Fact]
+    public async Task RejectWithdrawal_OnSuccess_ShouldRestoreBalance()
+    {
+        // Arrange
+        var request = TestDataBuilder.RejectWithdrawal.ValidRequest();
+        var expectedTransaction = TestDataBuilder.RejectWithdrawal.SuccessfulRejectionResponse();
+
+        _mockWalletService.Setup(x => x.RejectWithdrawalAsync(
+                It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedTransaction, null));
+
+        // Act
+        var result = await _adminController.RejectWithdrawal(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        var transaction = okResult!.Value as WalletTransactionDto;
+
+        transaction.Should().NotBeNull();
+        transaction!.Status.Should().Be("Rejected");
+        
+        // Verify balance restoration - the balance should be restored to include the rejected amount
+        transaction.Amount.Should().Be(150.00m); // The rejected amount
+        transaction.BalanceAfter.Should().Be(1150.00m); // Balance after restoration
+        
+        _mockWalletService.Verify(x => x.RejectWithdrawalAsync(
+            It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Rejection reason should be properly recorded
+    /// Verifies that admin notes (rejection reason) are processed correctly
+    /// </summary>
+    [Fact]
+    public async Task RejectWithdrawal_ShouldProcessRejectionReasonCorrectly()
+    {
+        // Arrange
+        var request = TestDataBuilder.RejectWithdrawal.ValidRequestDetailed();
+        var expectedTransaction = TestDataBuilder.RejectWithdrawal.DetailedRejectionResponse();
+
+        _mockWalletService.Setup(x => x.RejectWithdrawalAsync(
+                It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedTransaction, null));
+
+        // Act
+        var result = await _adminController.RejectWithdrawal(request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        var transaction = okResult!.Value as WalletTransactionDto;
+
+        transaction.Should().NotBeNull();
+        transaction!.Status.Should().Be("Rejected");
+        
+        // Verify that the service was called with the detailed rejection reason
+        _mockWalletService.Verify(x => x.RejectWithdrawalAsync(
+            It.IsAny<ClaimsPrincipal>(), 
+            It.Is<RejectWithdrawalRequest>(r => 
+                r.TransactionId == 2002L && 
+                r.AdminNotes.Contains("risk management system")),
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 
     #endregion

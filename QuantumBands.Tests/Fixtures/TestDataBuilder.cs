@@ -5948,4 +5948,166 @@ public static class TestDataBuilder
             UpdatedAt = DateTime.UtcNow
         };
     }
+
+    /// <summary>
+    /// Test data for RejectWithdrawal endpoint testing
+    /// </summary>
+    public static class RejectWithdrawal
+    {
+        /// <summary>
+        /// Valid rejection request with minimal data
+        /// </summary>
+        public static RejectWithdrawalRequest ValidRequest() => new()
+        {
+            TransactionId = 2001L,
+            AdminNotes = "Insufficient verification documents provided"
+        };
+
+        /// <summary>
+        /// Valid rejection request with detailed reason
+        /// </summary>
+        public static RejectWithdrawalRequest ValidRequestDetailed() => new()
+        {
+            TransactionId = 2002L,
+            AdminNotes = "Transaction flagged by risk management system due to suspicious activity patterns. Additional verification required before processing can continue."
+        };
+
+        /// <summary>
+        /// Rejection request with maximum length admin notes
+        /// </summary>
+        public static RejectWithdrawalRequest ValidRequestMaxNotes() => new()
+        {
+            TransactionId = 2003L,
+            AdminNotes = new string('a', 500) // Max 500 chars
+        };
+
+        /// <summary>
+        /// Invalid request with zero transaction ID
+        /// </summary>
+        public static RejectWithdrawalRequest InvalidTransactionIdZero() => new()
+        {
+            TransactionId = 0L,
+            AdminNotes = "Invalid transaction ID"
+        };
+
+        /// <summary>
+        /// Invalid request with negative transaction ID
+        /// </summary>
+        public static RejectWithdrawalRequest InvalidTransactionIdNegative() => new()
+        {
+            TransactionId = -1L,
+            AdminNotes = "Negative transaction ID"
+        };
+
+        /// <summary>
+        /// Invalid request with empty admin notes
+        /// </summary>
+        public static RejectWithdrawalRequest InvalidEmptyAdminNotes() => new()
+        {
+            TransactionId = 2004L,
+            AdminNotes = ""
+        };
+
+        /// <summary>
+        /// Invalid request with whitespace-only admin notes
+        /// </summary>
+        public static RejectWithdrawalRequest InvalidWhitespaceAdminNotes() => new()
+        {
+            TransactionId = 2005L,
+            AdminNotes = "   "
+        };
+
+        /// <summary>
+        /// Invalid request with admin notes too long
+        /// </summary>
+        public static RejectWithdrawalRequest InvalidAdminNotesTooLong() => new()
+        {
+            TransactionId = 2006L,
+            AdminNotes = new string('x', 501) // Exceeds 500 chars limit
+        };
+
+        /// <summary>
+        /// Request for non-existent transaction
+        /// </summary>
+        public static RejectWithdrawalRequest NonExistentTransaction() => new()
+        {
+            TransactionId = 999999L,
+            AdminNotes = "Transaction not found"
+        };
+
+        /// <summary>
+        /// Request for already processed transaction
+        /// </summary>
+        public static RejectWithdrawalRequest AlreadyProcessedTransaction() => new()
+        {
+            TransactionId = 3001L,
+            AdminNotes = "Already processed transaction"
+        };
+
+        /// <summary>
+        /// Request for already cancelled transaction
+        /// </summary>
+        public static RejectWithdrawalRequest AlreadyCancelledTransaction() => new()
+        {
+            TransactionId = 3002L,
+            AdminNotes = "Already cancelled transaction"
+        };
+
+        /// <summary>
+        /// Valid wallet transaction response for successful rejection
+        /// </summary>
+        public static WalletTransactionDto SuccessfulRejectionResponse() => new()
+        {
+            TransactionId = 2001L,
+            TransactionTypeName = "Withdrawal",
+            Amount = 150.00m,
+            CurrencyCode = "USD",
+            BalanceAfter = 1150.00m, // Balance restored
+            ReferenceId = "WD-2001",
+            PaymentMethod = "Bank Transfer",
+            ExternalTransactionId = null,
+            Description = "Withdrawal rejected by admin",
+            Status = "Rejected",
+            TransactionDate = DateTime.UtcNow.AddMinutes(-10),
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        /// <summary>
+        /// Valid wallet transaction response for large amount rejection
+        /// </summary>
+        public static WalletTransactionDto LargeAmountRejectionResponse() => new()
+        {
+            TransactionId = 2003L,
+            TransactionTypeName = "Withdrawal",
+            Amount = 10000.00m,
+            CurrencyCode = "USD",
+            BalanceAfter = 25000.00m, // Balance restored
+            ReferenceId = "WD-2003",
+            PaymentMethod = "Wire Transfer",
+            ExternalTransactionId = null,
+            Description = "Large withdrawal rejected after review",
+            Status = "Rejected",
+            TransactionDate = DateTime.UtcNow.AddMinutes(-5),
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        /// <summary>
+        /// Valid wallet transaction response for detailed rejection
+        /// </summary>
+        public static WalletTransactionDto DetailedRejectionResponse() => new()
+        {
+            TransactionId = 2002L,
+            TransactionTypeName = "Withdrawal",
+            Amount = 500.00m,
+            CurrencyCode = "USD",
+            BalanceAfter = 2500.00m, // Balance restored
+            ReferenceId = "WD-2002",
+            PaymentMethod = "Bank Transfer",
+            ExternalTransactionId = null,
+            Description = "Withdrawal rejected due to compliance concerns",
+            Status = "Rejected",
+            TransactionDate = DateTime.UtcNow.AddMinutes(-15),
+            UpdatedAt = DateTime.UtcNow
+        };
+    }
 } 
