@@ -5532,4 +5532,263 @@ public static class TestDataBuilder
             AdminNotes = adminNotes
         };
     }
+
+    // SCRUM-78: Test data for GET /admin/wallets/withdrawals/pending-approval endpoint testing
+    /// <summary>
+    /// Test data builder for GetPendingWithdrawals functionality
+    /// Provides comprehensive test data for unit testing the pending withdrawals retrieval feature.
+    /// 
+    /// This class supports testing of:
+    /// - Valid query requests (happy path scenarios)
+    /// - Pagination parameters (page number, page size)
+    /// - Filtering scenarios (date ranges, amounts, user filters)
+    /// - Sorting options (RequestedAt, Amount, Username)
+    /// - Response DTOs for pending withdrawal requests
+    /// 
+    /// Usage:
+    /// - TestDataBuilder.GetPendingWithdrawals.ValidQuery() - Returns valid query with default parameters
+    /// - TestDataBuilder.GetPendingWithdrawals.PendingWithdrawalsResponse() - Returns expected response list
+    /// - Various filtering and pagination methods for comprehensive testing coverage
+    /// </summary>
+    public static class GetPendingWithdrawals
+    {
+        /// <summary>
+        /// Valid query for getting pending withdrawals with default parameters
+        /// </summary>
+        public static GetAdminPendingWithdrawalsQuery ValidQuery() => new()
+        {
+            PageNumber = 1,
+            PageSize = 10,
+            SortBy = "RequestedAt",
+            SortOrder = "desc"
+        };
+
+        /// <summary>
+        /// Query with custom pagination parameters
+        /// </summary>
+        public static GetAdminPendingWithdrawalsQuery QueryWithPagination(int pageNumber, int pageSize) => new()
+        {
+            PageNumber = pageNumber,
+            PageSize = pageSize,
+            SortBy = "RequestedAt",
+            SortOrder = "desc"
+        };
+
+        /// <summary>
+        /// Query with date range filtering
+        /// </summary>
+        public static GetAdminPendingWithdrawalsQuery QueryWithDateRange() => new()
+        {
+            PageNumber = 1,
+            PageSize = 10,
+            SortBy = "RequestedAt",
+            SortOrder = "desc",
+            DateFrom = DateTime.UtcNow.AddDays(-30),
+            DateTo = DateTime.UtcNow
+        };
+
+        /// <summary>
+        /// Query with amount range filtering
+        /// </summary>
+        public static GetAdminPendingWithdrawalsQuery QueryWithAmountRange() => new()
+        {
+            PageNumber = 1,
+            PageSize = 10,
+            SortBy = "Amount",
+            SortOrder = "desc",
+            MinAmount = 100m,
+            MaxAmount = 10000m
+        };
+
+        /// <summary>
+        /// Query with user filtering
+        /// </summary>
+        public static GetAdminPendingWithdrawalsQuery QueryWithUserFilter() => new()
+        {
+            PageNumber = 1,
+            PageSize = 10,
+            SortBy = "RequestedAt",
+            SortOrder = "desc",
+            UserId = 123,
+            UsernameOrEmail = "testuser"
+        };
+
+        /// <summary>
+        /// Query with custom sorting
+        /// </summary>
+        public static GetAdminPendingWithdrawalsQuery QueryWithCustomSorting(string sortBy, string sortOrder) => new()
+        {
+            PageNumber = 1,
+            PageSize = 10,
+            SortBy = sortBy,
+            SortOrder = sortOrder
+        };
+
+        /// <summary>
+        /// Query with invalid pagination (negative values)
+        /// </summary>
+        public static GetAdminPendingWithdrawalsQuery QueryWithInvalidPagination() => new()
+        {
+            PageNumber = -1,
+            PageSize = -5,
+            SortBy = "RequestedAt",
+            SortOrder = "desc"
+        };
+
+        /// <summary>
+        /// Query with oversized page size
+        /// </summary>
+        public static GetAdminPendingWithdrawalsQuery QueryWithOversizedPageSize() => new()
+        {
+            PageNumber = 1,
+            PageSize = 500, // Exceeds max limit
+            SortBy = "RequestedAt",
+            SortOrder = "desc"
+        };
+
+        /// <summary>
+        /// Valid pending withdrawal request DTO for response testing
+        /// </summary>
+        public static WithdrawalRequestAdminViewDto ValidPendingWithdrawalDto() => new()
+        {
+            TransactionId = 2001,
+            UserId = 123,
+            Username = "testuser123",
+            UserEmail = "testuser123@example.com",
+            Amount = 500.00m,
+            CurrencyCode = "USD",
+            Status = "PendingAdminApproval",
+            WithdrawalMethodDetails = "Bank Transfer - Account ending in 1234",
+            UserNotes = "Need funds for urgent payment",
+            RequestedAt = DateTime.UtcNow.AddHours(-6),
+            AdminNotes = null // Pending requests don't have admin notes yet
+        };
+
+        /// <summary>
+        /// List of multiple pending withdrawal requests for testing pagination
+        /// </summary>
+        public static List<WithdrawalRequestAdminViewDto> MultiplePendingWithdrawals() => new()
+        {
+            new WithdrawalRequestAdminViewDto
+            {
+                TransactionId = 2001,
+                UserId = 123,
+                Username = "user1",
+                UserEmail = "user1@example.com",
+                Amount = 500.00m,
+                CurrencyCode = "USD",
+                Status = "PendingAdminApproval",
+                WithdrawalMethodDetails = "Bank Transfer",
+                UserNotes = "Urgent payment needed",
+                RequestedAt = DateTime.UtcNow.AddHours(-1),
+                AdminNotes = null
+            },
+            new WithdrawalRequestAdminViewDto
+            {
+                TransactionId = 2002,
+                UserId = 456,
+                Username = "user2",
+                UserEmail = "user2@example.com",
+                Amount = 1000.00m,
+                CurrencyCode = "USD",
+                Status = "PendingAdminApproval",
+                WithdrawalMethodDetails = "PayPal",
+                UserNotes = "Monthly withdrawal",
+                RequestedAt = DateTime.UtcNow.AddHours(-2),
+                AdminNotes = null
+            },
+            new WithdrawalRequestAdminViewDto
+            {
+                TransactionId = 2003,
+                UserId = 789,
+                Username = "user3",
+                UserEmail = "user3@example.com",
+                Amount = 250.00m,
+                CurrencyCode = "USD",
+                Status = "PendingAdminApproval",
+                WithdrawalMethodDetails = "Wire Transfer",
+                UserNotes = null,
+                RequestedAt = DateTime.UtcNow.AddHours(-3),
+                AdminNotes = null
+            }
+        };
+
+        /// <summary>
+        /// Empty result list for testing scenarios with no pending withdrawals
+        /// </summary>
+        public static List<WithdrawalRequestAdminViewDto> EmptyWithdrawalsList() => new();
+
+        /// <summary>
+        /// Pending withdrawals with varied amounts for testing sorting
+        /// </summary>
+        public static List<WithdrawalRequestAdminViewDto> PendingWithdrawalsWithVariedAmounts() => new()
+        {
+            new WithdrawalRequestAdminViewDto
+            {
+                TransactionId = 2010,
+                UserId = 100,
+                Username = "lowamount",
+                UserEmail = "low@example.com",
+                Amount = 50.00m,
+                CurrencyCode = "USD",
+                Status = "PendingAdminApproval",
+                WithdrawalMethodDetails = "Bank Transfer",
+                UserNotes = "Small withdrawal",
+                RequestedAt = DateTime.UtcNow.AddHours(-1),
+                AdminNotes = null
+            },
+            new WithdrawalRequestAdminViewDto
+            {
+                TransactionId = 2011,
+                UserId = 200,
+                Username = "highamount",
+                UserEmail = "high@example.com",
+                Amount = 5000.00m,
+                CurrencyCode = "USD",
+                Status = "PendingAdminApproval",
+                WithdrawalMethodDetails = "Wire Transfer",
+                UserNotes = "Large withdrawal",
+                RequestedAt = DateTime.UtcNow.AddHours(-2),
+                AdminNotes = null
+            },
+            new WithdrawalRequestAdminViewDto
+            {
+                TransactionId = 2012,
+                UserId = 300,
+                Username = "mediumamount",
+                UserEmail = "medium@example.com",
+                Amount = 1000.00m,
+                CurrencyCode = "USD",
+                Status = "PendingAdminApproval",
+                WithdrawalMethodDetails = "PayPal",
+                UserNotes = "Medium withdrawal",
+                RequestedAt = DateTime.UtcNow.AddHours(-3),
+                AdminNotes = null
+            }
+        };
+
+        /// <summary>
+        /// Custom withdrawal request DTO
+        /// </summary>
+        public static WithdrawalRequestAdminViewDto CustomWithdrawalDto(
+            long transactionId,
+            int userId,
+            string username,
+            string email,
+            decimal amount,
+            string status = "PendingAdminApproval") => new()
+        {
+            TransactionId = transactionId,
+            UserId = userId,
+            Username = username,
+            UserEmail = email,
+            Amount = amount,
+            CurrencyCode = "USD",
+            Status = status,
+            WithdrawalMethodDetails = "Bank Transfer",
+            UserNotes = $"Withdrawal for user {username}",
+            RequestedAt = DateTime.UtcNow.AddHours(-1),
+            AdminNotes = null
+        };
+    }
 } 
