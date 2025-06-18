@@ -505,4 +505,407 @@ public class AdminControllerTests : TestBase
     }
 
     #endregion
+
+    #region SCRUM-75: Cancel Initial Offering Endpoint Tests
+
+    #region Happy Path Tests - Cancel Initial Offering
+
+    /// <summary>
+    /// Test: Valid offering cancellation should return OK with cancelled offering
+    /// Verifies the happy path scenario works correctly for active offerings
+    /// </summary>
+    [Fact]
+    public async Task CancelInitialShareOffering_WithValidActiveOffering_ShouldReturnOkWithCancelledOffering()
+    {
+        // Arrange
+        const int accountId = 1;
+        const int offeringId = 1;
+        var request = TestDataBuilder.InitialShareOfferings.ValidCancelRequest();
+        var expectedOffering = TestDataBuilder.InitialShareOfferings.CancelledOfferingResponse();
+
+        _mockTradingAccountService.Setup(x => x.CancelInitialShareOfferingAsync(
+                accountId, offeringId, request, It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedOffering, null));
+
+        // Act
+        var result = await _adminController.CancelInitialShareOffering(accountId, offeringId, request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        var offering = okResult!.Value as InitialShareOfferingDto;
+
+        offering.Should().NotBeNull();
+        offering!.OfferingId.Should().Be(1);
+        offering.Status.Should().Be("Cancelled");
+        offering.SharesOffered.Should().Be(10000);
+        offering.SharesSold.Should().Be(0);
+    }
+
+    /// <summary>
+    /// Test: Cancellation without admin notes should succeed
+    /// Verifies that admin notes are optional for cancellation
+    /// </summary>
+    [Fact]
+    public async Task CancelInitialShareOffering_WithoutAdminNotes_ShouldReturnOkWithCancelledOffering()
+    {
+        // Arrange
+        const int accountId = 1;
+        const int offeringId = 1;
+        var request = TestDataBuilder.InitialShareOfferings.ValidCancelRequestWithoutNotes();
+        var expectedOffering = TestDataBuilder.InitialShareOfferings.CancelledOfferingResponse();
+
+        _mockTradingAccountService.Setup(x => x.CancelInitialShareOfferingAsync(
+                accountId, offeringId, request, It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedOffering, null));
+
+        // Act
+        var result = await _adminController.CancelInitialShareOffering(accountId, offeringId, request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        var offering = okResult!.Value as InitialShareOfferingDto;
+
+        offering.Should().NotBeNull();
+        offering!.Status.Should().Be("Cancelled");
+    }
+
+    /// <summary>
+    /// Test: Active offering with sales should be cancelled successfully
+    /// Verifies that offerings with partial sales can still be cancelled
+    /// </summary>
+    [Fact]
+    public async Task CancelInitialShareOffering_WithActiveOfferingHavingSales_ShouldReturnOkWithCancelledOffering()
+    {
+        // Arrange
+        const int accountId = 1;
+        const int offeringId = 2;
+        var request = TestDataBuilder.InitialShareOfferings.ValidCancelRequest();
+        var expectedOffering = TestDataBuilder.InitialShareOfferings.CancelledOfferingResponse();
+        expectedOffering.OfferingId = 2;
+        expectedOffering.SharesSold = 2500;
+
+        _mockTradingAccountService.Setup(x => x.CancelInitialShareOfferingAsync(
+                accountId, offeringId, request, It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedOffering, null));
+
+        // Act
+        var result = await _adminController.CancelInitialShareOffering(accountId, offeringId, request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        var offering = okResult!.Value as InitialShareOfferingDto;
+
+        offering.Should().NotBeNull();
+        offering!.Status.Should().Be("Cancelled");
+        offering.SharesSold.Should().Be(2500);
+    }
+
+    #endregion
+
+    #region Authorization Tests - Cancel Initial Offering
+
+    /// <summary>
+    /// Test: Unauthenticated request should return Unauthorized
+    /// Verifies that unauthenticated users cannot cancel offerings
+    /// </summary>
+    [Fact]
+    public async Task CancelInitialShareOffering_WithUnauthenticatedUser_ShouldReturnInternalServerError()
+    {
+        // Arrange
+        const int accountId = 1;
+        const int offeringId = 1;
+        var request = TestDataBuilder.InitialShareOfferings.ValidCancelRequest();
+
+        // Remove authentication
+        _adminController.ControllerContext.HttpContext = new DefaultHttpContext();
+
+        _mockTradingAccountService.Setup(x => x.CancelInitialShareOfferingAsync(
+                accountId, offeringId, request, It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((null, "Admin user not authenticated."));
+
+        // Act
+        var result = await _adminController.CancelInitialShareOffering(accountId, offeringId, request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<ObjectResult>()
+            .Which.StatusCode.Should().Be(StatusCodes.Status500InternalServerError);
+        var objectResult = result as ObjectResult;
+        objectResult!.Value.Should().BeEquivalentTo(new { Message = "Admin user not authenticated." });
+    }
+
+    /// <summary>
+    /// Test: Non-admin user should not have access
+    /// Note: This is enforced by the [Authorize(Roles = "Admin")] attribute
+    /// The actual test would be handled by the authorization middleware
+    /// </summary>
+    [Fact]
+    public void CancelInitialShareOffering_WithNonAdminUser_ShouldBeHandledByAuthorization()
+    {
+        // This test verifies that the endpoint has proper authorization attributes
+        // The actual authorization is handled by ASP.NET Core's authorization middleware
+        
+        // Arrange & Assert
+        var controllerType = typeof(AdminController);
+        var authorizeAttribute = controllerType.GetCustomAttributes(typeof(Microsoft.AspNetCore.Authorization.AuthorizeAttribute), false);
+        authorizeAttribute.Should().NotBeEmpty("AdminController should require authorization");
+        
+        var attribute = authorizeAttribute[0] as Microsoft.AspNetCore.Authorization.AuthorizeAttribute;
+        attribute!.Roles.Should().Be("Admin", "AdminController should require Admin role");
+    }
+
+    #endregion
+
+    #region Validation Tests - Cancel Initial Offering
+
+    /// <summary>
+    /// Test: Invalid account ID should return NotFound
+    /// Verifies that non-existent account IDs are handled properly
+    /// </summary>
+    [Fact]
+    public async Task CancelInitialShareOffering_WithInvalidAccountId_ShouldReturnNotFound()
+    {
+        // Arrange
+        const int invalidAccountId = 999;
+        const int offeringId = 1;
+        var request = TestDataBuilder.InitialShareOfferings.ValidCancelRequest();
+
+        _mockTradingAccountService.Setup(x => x.CancelInitialShareOfferingAsync(
+                invalidAccountId, offeringId, request, It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((null, "Trading account not found"));
+
+        // Act
+        var result = await _adminController.CancelInitialShareOffering(invalidAccountId, offeringId, request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<NotFoundObjectResult>();
+        var notFoundResult = result as NotFoundObjectResult;
+        notFoundResult!.Value.Should().BeEquivalentTo(new { Message = "Trading account not found" });
+    }
+
+    /// <summary>
+    /// Test: Invalid offering ID should return NotFound
+    /// Verifies that non-existent offering IDs are handled properly
+    /// </summary>
+    [Fact]
+    public async Task CancelInitialShareOffering_WithInvalidOfferingId_ShouldReturnNotFound()
+    {
+        // Arrange
+        const int accountId = 1;
+        const int invalidOfferingId = 999;
+        var request = TestDataBuilder.InitialShareOfferings.ValidCancelRequest();
+
+        _mockTradingAccountService.Setup(x => x.CancelInitialShareOfferingAsync(
+                accountId, invalidOfferingId, request, It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((null, $"Initial share offering with ID {invalidOfferingId} not found for trading account {accountId}."));
+
+        // Act
+        var result = await _adminController.CancelInitialShareOffering(accountId, invalidOfferingId, request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<NotFoundObjectResult>();
+        var notFoundResult = result as NotFoundObjectResult;
+        notFoundResult!.Value.Should().BeEquivalentTo(new { Message = $"Initial share offering with ID {invalidOfferingId} not found for trading account {accountId}." });
+    }
+
+    /// <summary>
+    /// Test: Non-existent offering should return NotFound
+    /// Verifies that requesting cancellation of non-existent offerings returns proper error
+    /// </summary>
+    [Fact]
+    public async Task CancelInitialShareOffering_WithNonExistentOffering_ShouldReturnNotFound()
+    {
+        // Arrange
+        const int accountId = 1;
+        const int offeringId = 999;
+        var request = TestDataBuilder.InitialShareOfferings.ValidCancelRequest();
+
+        _mockTradingAccountService.Setup(x => x.CancelInitialShareOfferingAsync(
+                accountId, offeringId, request, It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((null, "Initial share offering with ID 999 not found for trading account 1."));
+
+        // Act
+        var result = await _adminController.CancelInitialShareOffering(accountId, offeringId, request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<NotFoundObjectResult>();
+    }
+
+    /// <summary>
+    /// Test: Cancellation reason too long should return InternalServerError
+    /// Verifies that admin notes exceeding 500 characters are handled properly
+    /// Note: This validation would typically happen in the service layer or via model validation
+    /// </summary>
+    [Fact]
+    public async Task CancelInitialShareOffering_WithAdminNotesTooLong_ShouldReturnInternalServerError()
+    {
+        // Arrange
+        const int accountId = 1;
+        const int offeringId = 1;
+        var request = TestDataBuilder.InitialShareOfferings.InvalidCancelRequestTooLongNotes();
+
+        _mockTradingAccountService.Setup(x => x.CancelInitialShareOfferingAsync(
+                accountId, offeringId, request, It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((null, "Admin notes cannot exceed 500 characters."));
+
+        // Act
+        var result = await _adminController.CancelInitialShareOffering(accountId, offeringId, request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<ObjectResult>()
+            .Which.StatusCode.Should().Be(StatusCodes.Status500InternalServerError);
+        var objectResult = result as ObjectResult;
+        objectResult!.Value.Should().BeEquivalentTo(new { Message = "Admin notes cannot exceed 500 characters." });
+    }
+
+    #endregion
+
+    #region Business Logic Tests - Cancel Initial Offering
+
+    /// <summary>
+    /// Test: Cancel completed offering should return BadRequest
+    /// Verifies business rule that completed offerings cannot be cancelled
+    /// </summary>
+    [Fact]
+    public async Task CancelInitialShareOffering_WithCompletedOffering_ShouldReturnBadRequest()
+    {
+        // Arrange
+        const int accountId = 1;
+        const int offeringId = 3;
+        var request = TestDataBuilder.InitialShareOfferings.ValidCancelRequest();
+
+        _mockTradingAccountService.Setup(x => x.CancelInitialShareOfferingAsync(
+                accountId, offeringId, request, It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((null, "Only 'Active' offerings can be cancelled. Current status is 'Completed'."));
+
+        // Act
+        var result = await _adminController.CancelInitialShareOffering(accountId, offeringId, request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+        var badRequestResult = result as BadRequestObjectResult;
+        badRequestResult!.Value.Should().BeEquivalentTo(new { Message = "Only 'Active' offerings can be cancelled. Current status is 'Completed'." });
+    }
+
+    /// <summary>
+    /// Test: Cancel already cancelled offering should return BadRequest
+    /// Verifies business rule that already cancelled offerings cannot be cancelled again
+    /// </summary>
+    [Fact]
+    public async Task CancelInitialShareOffering_WithAlreadyCancelledOffering_ShouldReturnBadRequest()
+    {
+        // Arrange
+        const int accountId = 1;
+        const int offeringId = 4;
+        var request = TestDataBuilder.InitialShareOfferings.ValidCancelRequest();
+
+        _mockTradingAccountService.Setup(x => x.CancelInitialShareOfferingAsync(
+                accountId, offeringId, request, It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((null, "Only 'Active' offerings can be cancelled. Current status is 'Cancelled'."));
+
+        // Act
+        var result = await _adminController.CancelInitialShareOffering(accountId, offeringId, request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+        var badRequestResult = result as BadRequestObjectResult;
+        badRequestResult!.Value.Should().BeEquivalentTo(new { Message = "Only 'Active' offerings can be cancelled. Current status is 'Cancelled'." });
+    }
+
+    #endregion
+
+    #region Technical Tests - Cancel Initial Offering
+
+    /// <summary>
+    /// Test: Service should be called with correct parameters
+    /// Verifies proper parameter passing and response handling
+    /// </summary>
+    [Fact]
+    public async Task CancelInitialShareOffering_ShouldCallServiceWithCorrectParameters()
+    {
+        // Arrange
+        const int accountId = 1;
+        const int offeringId = 1;
+        var request = TestDataBuilder.InitialShareOfferings.ValidCancelRequest();
+        var expectedOffering = TestDataBuilder.InitialShareOfferings.CancelledOfferingResponse();
+        var cancellationToken = new CancellationToken();
+
+        _mockTradingAccountService.Setup(x => x.CancelInitialShareOfferingAsync(
+                accountId, offeringId, request, It.IsAny<ClaimsPrincipal>(), cancellationToken))
+            .ReturnsAsync((expectedOffering, null));
+
+        // Act
+        var result = await _adminController.CancelInitialShareOffering(accountId, offeringId, request, cancellationToken);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        _mockTradingAccountService.Verify(x => x.CancelInitialShareOfferingAsync(
+            accountId, 
+            offeringId, 
+            It.Is<CancelInitialShareOfferingRequest>(r => r == request),
+            It.IsAny<ClaimsPrincipal>(),
+            cancellationToken), Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Null request body should be handled gracefully
+    /// Verifies that missing request body doesn't cause errors
+    /// </summary>
+    [Fact]
+    public async Task CancelInitialShareOffering_WithNullRequestBody_ShouldCreateEmptyRequest()
+    {
+        // Arrange
+        const int accountId = 1;
+        const int offeringId = 1;
+        CancelInitialShareOfferingRequest? request = null;
+        var expectedOffering = TestDataBuilder.InitialShareOfferings.CancelledOfferingResponse();
+
+        _mockTradingAccountService.Setup(x => x.CancelInitialShareOfferingAsync(
+                accountId, offeringId, It.IsAny<CancelInitialShareOfferingRequest>(), It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((expectedOffering, null));
+
+        // Act
+        var result = await _adminController.CancelInitialShareOffering(accountId, offeringId, request!, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        _mockTradingAccountService.Verify(x => x.CancelInitialShareOfferingAsync(
+            accountId, 
+            offeringId, 
+            It.Is<CancelInitialShareOfferingRequest>(r => r != null),
+            It.IsAny<ClaimsPrincipal>(),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Server error should return InternalServerError
+    /// Verifies proper error handling for unexpected errors
+    /// </summary>
+    [Fact]
+    public async Task CancelInitialShareOffering_WithServerError_ShouldReturnInternalServerError()
+    {
+        // Arrange
+        const int accountId = 1;
+        const int offeringId = 1;
+        var request = TestDataBuilder.InitialShareOfferings.ValidCancelRequest();
+
+        _mockTradingAccountService.Setup(x => x.CancelInitialShareOfferingAsync(
+                accountId, offeringId, request, It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((null, "An error occurred while cancelling the offering."));
+
+        // Act
+        var result = await _adminController.CancelInitialShareOffering(accountId, offeringId, request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<ObjectResult>()
+            .Which.StatusCode.Should().Be(StatusCodes.Status500InternalServerError);
+        var objectResult = result as ObjectResult;
+        objectResult!.Value.Should().BeEquivalentTo(new { Message = "An error occurred while cancelling the offering." });
+    }
+
+    #endregion
+
+    #endregion
 } 
