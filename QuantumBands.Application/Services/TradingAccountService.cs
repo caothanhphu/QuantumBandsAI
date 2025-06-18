@@ -1231,4 +1231,217 @@ public class TradingAccountService : ITradingAccountService
         
         return Math.Round(priceDifference / pipSize, 2);
     }
+
+    public async Task<(OpenPositionsRealtimeDto? Positions, string? ErrorMessage)> GetOpenPositionsRealtimeAsync(
+        int accountId, 
+        bool includeMetrics, 
+        string? symbols, 
+        bool refresh, 
+        int userId, 
+        bool isAdmin, 
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            _logger.LogInformation("Getting real-time open positions for account {AccountId}, user {UserId}, includeMetrics {IncludeMetrics}, symbols {Symbols}, refresh {Refresh}", 
+                accountId, userId, includeMetrics, symbols, refresh);
+
+            // Authorization check - same as other methods
+            if (!isAdmin)
+            {
+                var accountOwner = await _unitOfWork.TradingAccounts.Query()
+                    .Where(ta => ta.TradingAccountId == accountId)
+                    .Select(ta => ta.CreatedByUserId)
+                    .FirstOrDefaultAsync(cancellationToken);
+
+                if (accountOwner != userId)
+                {
+                    return (null, "Unauthorized access to this trading account");
+                }
+            }
+
+            // Get trading account with current data
+            var tradingAccount = await _unitOfWork.TradingAccounts.Query()
+                .FirstOrDefaultAsync(ta => ta.TradingAccountId == accountId, cancellationToken);
+
+            if (tradingAccount == null)
+            {
+                return (null, $"Trading account with ID {accountId} not found");
+            }
+
+            // Build query for open positions
+            var positionsQuery = _unitOfWork.EAOpenPositions.Query()
+                .Where(op => op.TradingAccountId == accountId);
+
+            // Apply symbol filter if provided
+            if (!string.IsNullOrWhiteSpace(symbols))
+            {
+                var symbolList = symbols.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                                       .Select(s => s.Trim().ToUpper())
+                                       .ToList();
+                positionsQuery = positionsQuery.Where(op => symbolList.Contains(op.Symbol.ToUpper()));
+            }
+
+            // Get open positions
+            var openPositions = await positionsQuery
+                .OrderByDescending(op => op.OpenTime)
+                .ToListAsync(cancellationToken);
+
+            // Map to detailed DTOs with calculations
+            var positionDetails = openPositions.Select(op => MapToOpenPositionDetailDto(op)).ToList();
+
+            // Calculate summary metrics
+            var summary = CalculatePositionsSummary(positionDetails, tradingAccount, includeMetrics);
+
+            // Calculate market data
+            var marketData = CalculateMarketData(openPositions, tradingAccount);
+
+            var result = new OpenPositionsRealtimeDto
+            {
+                Positions = positionDetails,
+                Summary = summary,
+                MarketData = marketData,
+                LastUpdated = DateTime.UtcNow
+            };
+
+            _logger.LogInformation("Real-time open positions retrieved successfully for account {AccountId}, {PositionCount} positions", 
+                accountId, positionDetails.Count);
+
+            return (result, null);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting real-time open positions for account {AccountId}", accountId);
+            return (null, "An error occurred while retrieving real-time open positions");
+        }
+    }
+
+    private OpenPositionDetailDto MapToOpenPositionDetailDto(EaopenPosition position)
+    {
+        var currentMarketPrice = position.CurrentMarketPrice;
+        var unrealizedPnL = CalculateUnrealizedPnL(position, currentMarketPrice);
+        var marginRequired = CalculateMarginRequired(position);
+        var percentageReturn = CalculatePercentageReturn(position, unrealizedPnL);
+        var daysOpen = (int)(DateTime.UtcNow - position.OpenTime).TotalDays;
+
+        return new OpenPositionDetailDto
+        {
+            OpenPositionId = position.OpenPositionId,
+            EaTicketId = position.EaticketId,
+            Symbol = position.Symbol,
+            TradeType = position.TradeType,
+            VolumeLots = position.VolumeLots,
+            OpenPrice = position.OpenPrice,
+            OpenTime = position.OpenTime,
+            CurrentMarketPrice = currentMarketPrice,
+            UnrealizedPnL = unrealizedPnL,
+            Swap = position.Swap ?? 0,
+            Commission = position.Commission ?? 0,
+            MarginRequired = marginRequired,
+            PercentageReturn = percentageReturn,
+            DaysOpen = daysOpen,
+            LastUpdateTime = position.LastUpdateTime
+        };
+    }
+
+    private decimal CalculateUnrealizedPnL(EaopenPosition position, decimal currentMarketPrice)
+    {
+        // Use existing FloatingPandL if available
+        return position.FloatingPandL;
+    }
+
+    private decimal CalculateMarginRequired(EaopenPosition position)
+    {
+        // Simplified margin calculation - should be enhanced with actual leverage and symbol specifications
+        var contractSize = GetContractSize(position.Symbol);
+        var leverage = 100; // Default leverage, should come from account settings
+        
+        return Math.Round((position.OpenPrice * position.VolumeLots * contractSize) / leverage, 2);
+    }
+
+    private decimal CalculatePercentageReturn(EaopenPosition position, decimal unrealizedPnL)
+    {
+        var marginRequired = CalculateMarginRequired(position);
+        return marginRequired > 0 ? Math.Round((unrealizedPnL / marginRequired) * 100, 2) : 0;
+    }
+
+    private decimal GetContractSize(string symbol)
+    {
+        // Simplified contract size mapping - should be enhanced with actual symbol specifications
+        return symbol.Contains("JPY") ? 1000 : 100000;
+    }
+
+    private PositionsSummaryDto CalculatePositionsSummary(
+        List<OpenPositionDetailDto> positions, 
+        TradingAccount tradingAccount, 
+        bool includeMetrics)
+    {
+        var longPositions = positions.Where(p => p.TradeType.ToUpper() == "BUY").ToList();
+        var shortPositions = positions.Where(p => p.TradeType.ToUpper() == "SELL").ToList();
+        
+        var totalUnrealizedPnL = positions.Sum(p => p.UnrealizedPnL);
+        var totalMarginUsed = positions.Sum(p => p.MarginRequired);
+        var accountEquity = tradingAccount.CurrentNetAssetValue;
+        var freeMargin = Math.Max(0, accountEquity - totalMarginUsed);
+        var marginLevel = totalMarginUsed > 0 ? (accountEquity / totalMarginUsed) * 100 : 0;
+
+        var summary = new PositionsSummaryDto
+        {
+            TotalPositions = positions.Count,
+            TotalUnrealizedPnL = totalUnrealizedPnL,
+            TotalMarginUsed = totalMarginUsed,
+            FreeMargin = freeMargin,
+            MarginLevel = marginLevel,
+            TotalVolume = positions.Sum(p => p.VolumeLots),
+            LongPositions = longPositions.Count,
+            ShortPositions = shortPositions.Count,
+            LongVolume = longPositions.Sum(p => p.VolumeLots),
+            ShortVolume = shortPositions.Sum(p => p.VolumeLots),
+            DailyPnL = 0, // Would require additional calculation
+            WeeklyPnL = 0, // Would require additional calculation
+            MonthlyPnL = 0 // Would require additional calculation
+        };
+
+        return summary;
+    }
+
+    private MarketDataDto CalculateMarketData(
+        List<EaopenPosition> positions, 
+        TradingAccount tradingAccount)
+    {
+        var uniqueSymbols = positions.Select(p => p.Symbol).Distinct().ToList();
+        var quotes = new List<SymbolQuoteDto>();
+
+        // Generate mock quotes for each symbol (in real implementation, this would fetch from market data provider)
+        foreach (var symbol in uniqueSymbols)
+        {
+            var lastPrice = positions.Where(p => p.Symbol == symbol)
+                                   .Select(p => p.CurrentMarketPrice)
+                                   .FirstOrDefault();
+
+            quotes.Add(new SymbolQuoteDto
+            {
+                Symbol = symbol,
+                Bid = lastPrice - 0.0001m, // Mock spread
+                Ask = lastPrice + 0.0001m,
+                Spread = 0.0002m,
+                DailyChange = 0, // Would require historical data
+                DailyChangePercent = 0, // Would require historical data
+                LastUpdate = DateTime.UtcNow
+            });
+        }
+
+        var accountEquity = tradingAccount.CurrentNetAssetValue;
+        var accountBalance = tradingAccount.InitialCapital; // Simplified - should be current balance
+        var drawdownPercent = accountBalance > 0 ? Math.Max(0, ((accountBalance - accountEquity) / accountBalance) * 100) : 0;
+
+        return new MarketDataDto
+        {
+            LastPriceUpdate = DateTime.UtcNow,
+            Quotes = quotes,
+            AccountEquity = accountEquity,
+            AccountBalance = accountBalance,
+            DrawdownPercent = drawdownPercent
+        };
+    }
 }
