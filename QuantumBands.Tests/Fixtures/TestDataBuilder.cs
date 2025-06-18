@@ -3978,6 +3978,133 @@ public static class TestDataBuilder
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
+
+        // SCRUM-75: Test data for cancel initial offering endpoint testing
+        /// <summary>
+        /// Valid cancel request with admin notes
+        /// </summary>
+        public static CancelInitialShareOfferingRequest ValidCancelRequest() => new()
+        {
+            AdminNotes = "Market conditions changed, cancelling offering"
+        };
+
+        /// <summary>
+        /// Valid cancel request without admin notes
+        /// </summary>
+        public static CancelInitialShareOfferingRequest ValidCancelRequestWithoutNotes() => new();
+
+        /// <summary>
+        /// Cancel request with admin notes exceeding maximum length (500 chars)
+        /// </summary>
+        public static CancelInitialShareOfferingRequest InvalidCancelRequestTooLongNotes() => new()
+        {
+            AdminNotes = new string('A', 501) // 501 characters - exceeds limit
+        };
+
+        /// <summary>
+        /// Active offering that can be cancelled
+        /// </summary>
+        public static InitialShareOfferingDto ActiveOfferingForCancellation() => new()
+        {
+            OfferingId = 1,
+            TradingAccountId = 1,
+            AdminUserId = 1,
+            AdminUsername = "admin",
+            SharesOffered = 10000,
+            SharesSold = 0,
+            OfferingPricePerShare = 25.00m,
+            FloorPricePerShare = 20.00m,
+            CeilingPricePerShare = 30.00m,
+            OfferingStartDate = DateTime.UtcNow.AddDays(-1),
+            OfferingEndDate = DateTime.UtcNow.AddDays(30),
+            Status = "Active",
+            CreatedAt = DateTime.UtcNow.AddDays(-1),
+            UpdatedAt = DateTime.UtcNow.AddDays(-1)
+        };
+
+        /// <summary>
+        /// Active offering with sales that can be cancelled
+        /// </summary>
+        public static InitialShareOfferingDto ActiveOfferingWithSalesForCancellation() => new()
+        {
+            OfferingId = 2,
+            TradingAccountId = 1,
+            AdminUserId = 1,
+            AdminUsername = "admin",
+            SharesOffered = 10000,
+            SharesSold = 2500,
+            OfferingPricePerShare = 25.00m,
+            FloorPricePerShare = 20.00m,
+            CeilingPricePerShare = 30.00m,
+            OfferingStartDate = DateTime.UtcNow.AddDays(-1),
+            OfferingEndDate = DateTime.UtcNow.AddDays(30),
+            Status = "Active",
+            CreatedAt = DateTime.UtcNow.AddDays(-1),
+            UpdatedAt = DateTime.UtcNow.AddDays(-1)
+        };
+
+        /// <summary>
+        /// Completed offering that cannot be cancelled
+        /// </summary>
+        public static InitialShareOfferingDto CompletedOfferingForCancellation() => new()
+        {
+            OfferingId = 3,
+            TradingAccountId = 1,
+            AdminUserId = 1,
+            AdminUsername = "admin",
+            SharesOffered = 10000,
+            SharesSold = 10000,
+            OfferingPricePerShare = 25.00m,
+            FloorPricePerShare = 20.00m,
+            CeilingPricePerShare = 30.00m,
+            OfferingStartDate = DateTime.UtcNow.AddDays(-5),
+            OfferingEndDate = DateTime.UtcNow.AddDays(-1),
+            Status = "Completed",
+            CreatedAt = DateTime.UtcNow.AddDays(-5),
+            UpdatedAt = DateTime.UtcNow.AddDays(-1)
+        };
+
+        /// <summary>
+        /// Already cancelled offering that cannot be cancelled again
+        /// </summary>
+        public static InitialShareOfferingDto CancelledOfferingForCancellation() => new()
+        {
+            OfferingId = 4,
+            TradingAccountId = 1,
+            AdminUserId = 1,
+            AdminUsername = "admin",
+            SharesOffered = 10000,
+            SharesSold = 0,
+            OfferingPricePerShare = 25.00m,
+            FloorPricePerShare = 20.00m,
+            CeilingPricePerShare = 30.00m,
+            OfferingStartDate = DateTime.UtcNow.AddDays(-3),
+            OfferingEndDate = DateTime.UtcNow.AddDays(30),
+            Status = "Cancelled",
+            CreatedAt = DateTime.UtcNow.AddDays(-3),
+            UpdatedAt = DateTime.UtcNow.AddDays(-2)
+        };
+
+        /// <summary>
+        /// Successfully cancelled offering response
+        /// </summary>
+        public static InitialShareOfferingDto CancelledOfferingResponse() => new()
+        {
+            OfferingId = 1,
+            TradingAccountId = 1,
+            AdminUserId = 1,
+            AdminUsername = "admin",
+            SharesOffered = 10000,
+            SharesSold = 0,
+            OfferingPricePerShare = 25.00m,
+            FloorPricePerShare = 20.00m,
+            CeilingPricePerShare = 30.00m,
+            OfferingStartDate = DateTime.UtcNow.AddDays(-1),
+            OfferingEndDate = DateTime.UtcNow.AddDays(30),
+            Status = "Cancelled",
+            CreatedAt = DateTime.UtcNow.AddDays(-1),
+            UpdatedAt = DateTime.UtcNow
+        };
     }
 
     // SCRUM-57: Test data for GET /exchange/orders/my endpoint testing
