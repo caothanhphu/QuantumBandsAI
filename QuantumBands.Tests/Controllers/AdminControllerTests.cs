@@ -4,11 +4,15 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Moq;
 using QuantumBands.API.Controllers;
+using QuantumBands.Application.Common.Models;
 using QuantumBands.Application.Features.Admin.TradingAccounts.Commands;
 using QuantumBands.Application.Features.Admin.TradingAccounts.Dtos;
+using QuantumBands.Application.Features.Wallets.Dtos;
+using QuantumBands.Application.Features.Wallets.Queries.GetTransactions;
 using QuantumBands.Application.Interfaces;
 using QuantumBands.Tests.Common;
 using QuantumBands.Tests.Fixtures;
+using System.Linq;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
@@ -903,6 +907,467 @@ public class AdminControllerTests : TestBase
             .Which.StatusCode.Should().Be(StatusCodes.Status500InternalServerError);
         var objectResult = result as ObjectResult;
         objectResult!.Value.Should().BeEquivalentTo(new { Message = "An error occurred while cancelling the offering." });
+    }
+
+    #endregion
+
+    #endregion
+
+    #region SCRUM-76: Get Pending Bank Deposits Endpoint Tests
+
+    #region Happy Path Tests - Get Pending Bank Deposits
+
+    /// <summary>
+    /// Test: Valid request should return OK with pending deposits list
+    /// Verifies the happy path scenario works correctly
+    /// </summary>
+    [Fact]
+    public async Task GetPendingBankDeposits_WithValidRequest_ShouldReturnOkWithPendingDeposits()
+    {
+        // Arrange
+        var query = TestDataBuilder.AdminPendingBankDeposits.ValidQuery();
+        var expectedDeposits = TestDataBuilder.AdminPendingBankDeposits.ValidPendingDepositsResponse();
+        var paginatedResult = new PaginatedList<AdminPendingBankDepositDto>(expectedDeposits, 2, 1, 10);
+
+        _mockWalletService.Setup(x => x.GetAdminPendingBankDepositsAsync(
+                It.IsAny<ClaimsPrincipal>(), query, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(paginatedResult);
+
+        // Act
+        var result = await _adminController.GetPendingBankDeposits(query, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        var deposits = okResult!.Value as PaginatedList<AdminPendingBankDepositDto>;
+
+        deposits.Should().NotBeNull();
+        deposits!.Items.Should().HaveCount(2);
+        deposits.TotalCount.Should().Be(2);
+        deposits.Items.First().TransactionId.Should().Be(1001);
+        deposits.Items.First().Username.Should().Be("testuser123");
+        deposits.Items.First().AmountUSD.Should().Be(1000.00m);
+        deposits.Items.First().Status.Should().Be("Pending");
+    }
+
+    /// <summary>
+    /// Test: Pagination support should work correctly
+    /// Verifies that pagination parameters are handled properly
+    /// </summary>
+    [Fact]
+    public async Task GetPendingBankDeposits_WithPagination_ShouldReturnCorrectPage()
+    {
+        // Arrange
+        var query = TestDataBuilder.AdminPendingBankDeposits.ValidQuery();
+        query.PageNumber = 2;
+        query.PageSize = 5;
+
+        var expectedDeposits = TestDataBuilder.AdminPendingBankDeposits.SinglePendingDepositResponse();
+        var paginatedResult = new PaginatedList<AdminPendingBankDepositDto>(expectedDeposits, 11, 2, 5);
+
+        _mockWalletService.Setup(x => x.GetAdminPendingBankDepositsAsync(
+                It.IsAny<ClaimsPrincipal>(), query, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(paginatedResult);
+
+        // Act
+        var result = await _adminController.GetPendingBankDeposits(query, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        var deposits = okResult!.Value as PaginatedList<AdminPendingBankDepositDto>;
+
+        deposits.Should().NotBeNull();
+        deposits!.PageNumber.Should().Be(2);
+        deposits.PageSize.Should().Be(5);
+        deposits.TotalCount.Should().Be(11);
+        deposits.TotalPages.Should().Be(3);
+    }
+
+    /// <summary>
+    /// Test: Date range filtering should work correctly
+    /// Verifies that date filtering is applied properly
+    /// </summary>
+    [Fact]
+    public async Task GetPendingBankDeposits_WithDateRangeFiltering_ShouldReturnFilteredResults()
+    {
+        // Arrange
+        var query = TestDataBuilder.AdminPendingBankDeposits.QueryWithDateRange();
+        var expectedDeposits = TestDataBuilder.AdminPendingBankDeposits.ValidPendingDepositsResponse();
+        var paginatedResult = new PaginatedList<AdminPendingBankDepositDto>(expectedDeposits, 2, 1, 10);
+
+        _mockWalletService.Setup(x => x.GetAdminPendingBankDepositsAsync(
+                It.IsAny<ClaimsPrincipal>(), query, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(paginatedResult);
+
+        // Act
+        var result = await _adminController.GetPendingBankDeposits(query, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        var deposits = okResult!.Value as PaginatedList<AdminPendingBankDepositDto>;
+
+        deposits.Should().NotBeNull();
+        deposits!.Items.Should().NotBeEmpty();
+        // Verify service was called with date filtering parameters
+        _mockWalletService.Verify(x => x.GetAdminPendingBankDepositsAsync(
+            It.IsAny<ClaimsPrincipal>(),
+            It.Is<GetAdminPendingBankDepositsQuery>(q => q.DateFrom.HasValue && q.DateTo.HasValue),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Complete deposit information should be displayed correctly
+    /// Verifies all required deposit details are included in response
+    /// </summary>
+    [Fact]
+    public async Task GetPendingBankDeposits_ShouldDisplayCompleteDepositInformation()
+    {
+        // Arrange
+        var query = TestDataBuilder.AdminPendingBankDeposits.ValidQuery();
+        var expectedDeposits = TestDataBuilder.AdminPendingBankDeposits.ValidPendingDepositsResponse();
+        var paginatedResult = new PaginatedList<AdminPendingBankDepositDto>(expectedDeposits, 2, 1, 10);
+
+        _mockWalletService.Setup(x => x.GetAdminPendingBankDepositsAsync(
+                It.IsAny<ClaimsPrincipal>(), query, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(paginatedResult);
+
+        // Act
+        var result = await _adminController.GetPendingBankDeposits(query, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        var deposits = okResult!.Value as PaginatedList<AdminPendingBankDepositDto>;
+
+        deposits.Should().NotBeNull();
+        var firstDeposit = deposits!.Items.First();
+
+        // Verify user information display
+        firstDeposit.UserId.Should().Be(1);
+        firstDeposit.Username.Should().Be("testuser123");
+        firstDeposit.UserEmail.Should().Be("test@example.com");
+
+        // Verify amount and currency
+        firstDeposit.AmountUSD.Should().Be(1000.00m);
+        firstDeposit.CurrencyCode.Should().Be("USD");
+        firstDeposit.AmountVND.Should().Be(24000000m);
+        firstDeposit.ExchangeRate.Should().Be(24000m);
+
+        // Verify reference codes
+        firstDeposit.ReferenceCode.Should().Be("DEP001");
+        firstDeposit.PaymentMethod.Should().Be("Bank Transfer");
+
+        // Verify status and dates
+        firstDeposit.Status.Should().Be("Pending");
+        firstDeposit.TransactionDate.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromHours(3));
+        firstDeposit.UpdatedAt.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromHours(3));
+    }
+
+    #endregion
+
+    #region Authorization Tests - Get Pending Bank Deposits
+
+    /// <summary>
+    /// Test: Admin role verification should work
+    /// Verifies only admin users can access the endpoint
+    /// Note: This is enforced by the [Authorize(Roles = "Admin")] attribute on the controller
+    /// </summary>
+    [Fact]
+    public async Task GetPendingBankDeposits_WithAdminRole_ShouldAllowAccess()
+    {
+        // Arrange
+        var query = TestDataBuilder.AdminPendingBankDeposits.ValidQuery();
+        var expectedDeposits = TestDataBuilder.AdminPendingBankDeposits.ValidPendingDepositsResponse();
+        var paginatedResult = new PaginatedList<AdminPendingBankDepositDto>(expectedDeposits, 2, 1, 10);
+
+        _mockWalletService.Setup(x => x.GetAdminPendingBankDepositsAsync(
+                It.IsAny<ClaimsPrincipal>(), query, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(paginatedResult);
+
+        // Act
+        var result = await _adminController.GetPendingBankDeposits(query, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        _mockWalletService.Verify(x => x.GetAdminPendingBankDepositsAsync(
+            It.IsAny<ClaimsPrincipal>(), query, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    #endregion
+
+    #region Filter Tests - Get Pending Bank Deposits
+
+    /// <summary>
+    /// Test: User filtering should work correctly
+    /// Verifies that user ID and username/email filters are applied
+    /// </summary>
+    [Fact]
+    public async Task GetPendingBankDeposits_WithUserFiltering_ShouldReturnFilteredResults()
+    {
+        // Arrange
+        var query = TestDataBuilder.AdminPendingBankDeposits.QueryWithUserFilter();
+        var expectedDeposits = TestDataBuilder.AdminPendingBankDeposits.SinglePendingDepositResponse();
+        var paginatedResult = new PaginatedList<AdminPendingBankDepositDto>(expectedDeposits, 1, 1, 10);
+
+        _mockWalletService.Setup(x => x.GetAdminPendingBankDepositsAsync(
+                It.IsAny<ClaimsPrincipal>(), query, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(paginatedResult);
+
+        // Act
+        var result = await _adminController.GetPendingBankDeposits(query, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        var deposits = okResult!.Value as PaginatedList<AdminPendingBankDepositDto>;
+
+        deposits.Should().NotBeNull();
+        deposits!.Items.Should().HaveCount(1);
+        _mockWalletService.Verify(x => x.GetAdminPendingBankDepositsAsync(
+            It.IsAny<ClaimsPrincipal>(),
+            It.Is<GetAdminPendingBankDepositsQuery>(q => q.UserId.HasValue && !string.IsNullOrEmpty(q.UsernameOrEmail)),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Amount range filtering should work correctly
+    /// Verifies that min/max amount filters are applied
+    /// </summary>
+    [Fact]
+    public async Task GetPendingBankDeposits_WithAmountFiltering_ShouldReturnFilteredResults()
+    {
+        // Arrange
+        var query = TestDataBuilder.AdminPendingBankDeposits.QueryWithAmountFilter();
+        var expectedDeposits = TestDataBuilder.AdminPendingBankDeposits.PendingDepositsWithVariedAmounts();
+        var paginatedResult = new PaginatedList<AdminPendingBankDepositDto>(expectedDeposits, 2, 1, 10);
+
+        _mockWalletService.Setup(x => x.GetAdminPendingBankDepositsAsync(
+                It.IsAny<ClaimsPrincipal>(), query, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(paginatedResult);
+
+        // Act
+        var result = await _adminController.GetPendingBankDeposits(query, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        var deposits = okResult!.Value as PaginatedList<AdminPendingBankDepositDto>;
+
+        deposits.Should().NotBeNull();
+        deposits!.Items.Should().NotBeEmpty();
+        _mockWalletService.Verify(x => x.GetAdminPendingBankDepositsAsync(
+            It.IsAny<ClaimsPrincipal>(),
+            It.Is<GetAdminPendingBankDepositsQuery>(q => q.MinAmountUSD.HasValue && q.MaxAmountUSD.HasValue),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Reference code filtering should work correctly
+    /// Verifies that reference code filter is applied
+    /// </summary>
+    [Fact]
+    public async Task GetPendingBankDeposits_WithReferenceCodeFiltering_ShouldReturnFilteredResults()
+    {
+        // Arrange
+        var query = TestDataBuilder.AdminPendingBankDeposits.QueryWithReferenceFilter();
+        var expectedDeposits = TestDataBuilder.AdminPendingBankDeposits.SinglePendingDepositResponse();
+        var paginatedResult = new PaginatedList<AdminPendingBankDepositDto>(expectedDeposits, 1, 1, 10);
+
+        _mockWalletService.Setup(x => x.GetAdminPendingBankDepositsAsync(
+                It.IsAny<ClaimsPrincipal>(), query, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(paginatedResult);
+
+        // Act
+        var result = await _adminController.GetPendingBankDeposits(query, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        var deposits = okResult!.Value as PaginatedList<AdminPendingBankDepositDto>;
+
+        deposits.Should().NotBeNull();
+        deposits!.Items.Should().HaveCount(1);
+        _mockWalletService.Verify(x => x.GetAdminPendingBankDepositsAsync(
+            It.IsAny<ClaimsPrincipal>(),
+            It.Is<GetAdminPendingBankDepositsQuery>(q => !string.IsNullOrEmpty(q.ReferenceCode)),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Combined filters should work correctly
+    /// Verifies that multiple filters can be applied simultaneously
+    /// </summary>
+    [Fact]
+    public async Task GetPendingBankDeposits_WithCombinedFilters_ShouldReturnFilteredResults()
+    {
+        // Arrange
+        var query = TestDataBuilder.AdminPendingBankDeposits.ValidQuery();
+        query.DateFrom = DateTime.UtcNow.AddDays(-7);
+        query.DateTo = DateTime.UtcNow;
+        query.MinAmountUSD = 500.00m;
+        query.MaxAmountUSD = 3000.00m;
+        query.UsernameOrEmail = "test";
+
+        var expectedDeposits = TestDataBuilder.AdminPendingBankDeposits.ValidPendingDepositsResponse();
+        var paginatedResult = new PaginatedList<AdminPendingBankDepositDto>(expectedDeposits, 2, 1, 10);
+
+        _mockWalletService.Setup(x => x.GetAdminPendingBankDepositsAsync(
+                It.IsAny<ClaimsPrincipal>(), query, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(paginatedResult);
+
+        // Act
+        var result = await _adminController.GetPendingBankDeposits(query, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        var deposits = okResult!.Value as PaginatedList<AdminPendingBankDepositDto>;
+
+        deposits.Should().NotBeNull();
+        deposits!.Items.Should().NotBeEmpty();
+        _mockWalletService.Verify(x => x.GetAdminPendingBankDepositsAsync(
+            It.IsAny<ClaimsPrincipal>(),
+            It.Is<GetAdminPendingBankDepositsQuery>(q => 
+                q.DateFrom.HasValue && 
+                q.DateTo.HasValue && 
+                q.MinAmountUSD.HasValue && 
+                q.MaxAmountUSD.HasValue && 
+                !string.IsNullOrEmpty(q.UsernameOrEmail)),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Empty results handling should work correctly
+    /// Verifies that empty results are handled properly
+    /// </summary>
+    [Fact]
+    public async Task GetPendingBankDeposits_WithNoMatchingResults_ShouldReturnEmptyList()
+    {
+        // Arrange
+        var query = TestDataBuilder.AdminPendingBankDeposits.ValidQuery();
+        var emptyResult = new PaginatedList<AdminPendingBankDepositDto>(new List<AdminPendingBankDepositDto>(), 0, 1, 10);
+
+        _mockWalletService.Setup(x => x.GetAdminPendingBankDepositsAsync(
+                It.IsAny<ClaimsPrincipal>(), query, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(emptyResult);
+
+        // Act
+        var result = await _adminController.GetPendingBankDeposits(query, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        var deposits = okResult!.Value as PaginatedList<AdminPendingBankDepositDto>;
+
+        deposits.Should().NotBeNull();
+        deposits!.Items.Should().BeEmpty();
+        deposits.TotalCount.Should().Be(0);
+        deposits.PageNumber.Should().Be(1);
+        deposits.TotalPages.Should().Be(0);
+    }
+
+    #endregion
+
+    #region Technical Tests - Get Pending Bank Deposits
+
+    /// <summary>
+    /// Test: Service should be called with correct parameters
+    /// Verifies proper parameter passing and response handling
+    /// </summary>
+    [Fact]
+    public async Task GetPendingBankDeposits_ShouldCallServiceWithCorrectParameters()
+    {
+        // Arrange
+        var query = TestDataBuilder.AdminPendingBankDeposits.ValidQuery();
+        var expectedDeposits = TestDataBuilder.AdminPendingBankDeposits.ValidPendingDepositsResponse();
+        var paginatedResult = new PaginatedList<AdminPendingBankDepositDto>(expectedDeposits, 2, 1, 10);
+        var cancellationToken = new CancellationToken();
+
+        _mockWalletService.Setup(x => x.GetAdminPendingBankDepositsAsync(
+                It.IsAny<ClaimsPrincipal>(), query, cancellationToken))
+            .ReturnsAsync(paginatedResult);
+
+        // Act
+        var result = await _adminController.GetPendingBankDeposits(query, cancellationToken);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        _mockWalletService.Verify(x => x.GetAdminPendingBankDepositsAsync(
+            It.IsAny<ClaimsPrincipal>(),
+            It.Is<GetAdminPendingBankDepositsQuery>(q => q == query),
+            cancellationToken), Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Default query parameters should be handled correctly
+    /// Verifies that default values are applied when parameters are not provided
+    /// </summary>
+    [Fact]
+    public async Task GetPendingBankDeposits_WithDefaultParameters_ShouldUseDefaultValues()
+    {
+        // Arrange
+        var query = new GetAdminPendingBankDepositsQuery(); // Using default values
+        var expectedDeposits = TestDataBuilder.AdminPendingBankDeposits.ValidPendingDepositsResponse();
+        var paginatedResult = new PaginatedList<AdminPendingBankDepositDto>(expectedDeposits, 2, 1, 10);
+
+        _mockWalletService.Setup(x => x.GetAdminPendingBankDepositsAsync(
+                It.IsAny<ClaimsPrincipal>(), query, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(paginatedResult);
+
+        // Act
+        var result = await _adminController.GetPendingBankDeposits(query, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        var deposits = okResult!.Value as PaginatedList<AdminPendingBankDepositDto>;
+
+        deposits.Should().NotBeNull();
+        _mockWalletService.Verify(x => x.GetAdminPendingBankDepositsAsync(
+            It.IsAny<ClaimsPrincipal>(),
+            It.Is<GetAdminPendingBankDepositsQuery>(q => 
+                q.PageNumber == 1 && 
+                q.PageSize == 10 && 
+                q.SortBy == "TransactionDate" && 
+                q.SortOrder == "desc"),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Sorting should work correctly
+    /// Verifies that sorting parameters are applied
+    /// </summary>
+    [Fact]
+    public async Task GetPendingBankDeposits_WithCustomSorting_ShouldApplySortingCorrectly()
+    {
+        // Arrange
+        var query = TestDataBuilder.AdminPendingBankDeposits.ValidQuery();
+        query.SortBy = "AmountUSD";
+        query.SortOrder = "asc";
+
+        var expectedDeposits = TestDataBuilder.AdminPendingBankDeposits.PendingDepositsWithVariedAmounts()
+            .OrderBy(d => d.AmountUSD).ToList();
+        var paginatedResult = new PaginatedList<AdminPendingBankDepositDto>(expectedDeposits, 2, 1, 10);
+
+        _mockWalletService.Setup(x => x.GetAdminPendingBankDepositsAsync(
+                It.IsAny<ClaimsPrincipal>(), query, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(paginatedResult);
+
+        // Act
+        var result = await _adminController.GetPendingBankDeposits(query, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        var deposits = okResult!.Value as PaginatedList<AdminPendingBankDepositDto>;
+
+        deposits.Should().NotBeNull();
+        _mockWalletService.Verify(x => x.GetAdminPendingBankDepositsAsync(
+            It.IsAny<ClaimsPrincipal>(),
+            It.Is<GetAdminPendingBankDepositsQuery>(q => q.SortBy == "AmountUSD" && q.SortOrder == "asc"),
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 
     #endregion

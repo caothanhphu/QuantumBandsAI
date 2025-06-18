@@ -5208,4 +5208,208 @@ public static class TestDataBuilder
             LastUpdatedAt = DateTime.UtcNow
         };
     }
+
+    // SCRUM-76: Test data for GET /admin/wallets/deposits/bank/pending-confirmation endpoint testing
+    public static class AdminPendingBankDeposits
+    {
+        /// <summary>
+        /// Valid query for getting pending bank deposits
+        /// </summary>
+        public static GetAdminPendingBankDepositsQuery ValidQuery() => new()
+        {
+            PageNumber = 1,
+            PageSize = 10,
+            SortBy = "TransactionDate",
+            SortOrder = "desc"
+        };
+
+        /// <summary>
+        /// Query with date range filtering
+        /// </summary>
+        public static GetAdminPendingBankDepositsQuery QueryWithDateRange() => new()
+        {
+            PageNumber = 1,
+            PageSize = 10,
+            SortBy = "TransactionDate",
+            SortOrder = "desc",
+            DateFrom = DateTime.UtcNow.AddDays(-30),
+            DateTo = DateTime.UtcNow
+        };
+
+        /// <summary>
+        /// Query with user filtering
+        /// </summary>
+        public static GetAdminPendingBankDepositsQuery QueryWithUserFilter() => new()
+        {
+            PageNumber = 1,
+            PageSize = 10,
+            SortBy = "TransactionDate",
+            SortOrder = "desc",
+            UserId = 1,
+            UsernameOrEmail = "testuser"
+        };
+
+        /// <summary>
+        /// Query with amount range filtering
+        /// </summary>
+        public static GetAdminPendingBankDepositsQuery QueryWithAmountFilter() => new()
+        {
+            PageNumber = 1,
+            PageSize = 10,
+            SortBy = "AmountUSD",
+            SortOrder = "desc",
+            MinAmountUSD = 100.00m,
+            MaxAmountUSD = 5000.00m
+        };
+
+        /// <summary>
+        /// Query with reference code filtering
+        /// </summary>
+        public static GetAdminPendingBankDepositsQuery QueryWithReferenceFilter() => new()
+        {
+            PageNumber = 1,
+            PageSize = 10,
+            SortBy = "TransactionDate",
+            SortOrder = "desc",
+            ReferenceCode = "DEP123"
+        };
+
+        /// <summary>
+        /// Valid pending bank deposit response
+        /// </summary>
+        public static List<AdminPendingBankDepositDto> ValidPendingDepositsResponse() => new()
+        {
+            new()
+            {
+                TransactionId = 1001,
+                UserId = 1,
+                Username = "testuser123",
+                UserEmail = "test@example.com",
+                AmountUSD = 1000.00m,
+                CurrencyCode = "USD",
+                AmountVND = 24000000m,
+                ExchangeRate = 24000m,
+                ReferenceCode = "DEP001",
+                PaymentMethod = "Bank Transfer",
+                Status = "Pending",
+                TransactionDate = DateTime.UtcNow.AddHours(-2),
+                UpdatedAt = DateTime.UtcNow.AddHours(-2),
+                Description = "Bank deposit via ACH transfer"
+            },
+            new()
+            {
+                TransactionId = 1002,
+                UserId = 2,
+                Username = "investor456",
+                UserEmail = "investor@example.com",
+                AmountUSD = 2500.00m,
+                CurrencyCode = "USD",
+                AmountVND = 60000000m,
+                ExchangeRate = 24000m,
+                ReferenceCode = "DEP002",
+                PaymentMethod = "Wire Transfer",
+                Status = "Pending",
+                TransactionDate = DateTime.UtcNow.AddHours(-5),
+                UpdatedAt = DateTime.UtcNow.AddHours(-5),
+                Description = "International wire transfer"
+            }
+        };
+
+        /// <summary>
+        /// Empty pending deposits response
+        /// </summary>
+        public static List<AdminPendingBankDepositDto> EmptyPendingDepositsResponse() => new();
+
+        /// <summary>
+        /// Single pending deposit response
+        /// </summary>
+        public static List<AdminPendingBankDepositDto> SinglePendingDepositResponse() => new()
+        {
+            new()
+            {
+                TransactionId = 1003,
+                UserId = 3,
+                Username = "newuser789",
+                UserEmail = "newuser@example.com",
+                AmountUSD = 500.00m,
+                CurrencyCode = "USD",
+                AmountVND = 12000000m,
+                ExchangeRate = 24000m,
+                ReferenceCode = "DEP003",
+                PaymentMethod = "Bank Transfer",
+                Status = "Pending",
+                TransactionDate = DateTime.UtcNow.AddMinutes(-30),
+                UpdatedAt = DateTime.UtcNow.AddMinutes(-30),
+                Description = "First time deposit"
+            }
+        };
+
+        /// <summary>
+        /// Pending deposits with different currencies and amounts
+        /// </summary>
+        public static List<AdminPendingBankDepositDto> PendingDepositsWithVariedAmounts() => new()
+        {
+            new()
+            {
+                TransactionId = 1004,
+                UserId = 4,
+                Username = "bigspender",
+                UserEmail = "bigspender@example.com",
+                AmountUSD = 10000.00m,
+                CurrencyCode = "USD",
+                AmountVND = 240000000m,
+                ExchangeRate = 24000m,
+                ReferenceCode = "DEP004",
+                PaymentMethod = "Wire Transfer",
+                Status = "Pending",
+                TransactionDate = DateTime.UtcNow.AddDays(-1),
+                UpdatedAt = DateTime.UtcNow.AddDays(-1),
+                Description = "Large investment deposit"
+            },
+            new()
+            {
+                TransactionId = 1005,
+                UserId = 5,
+                Username = "smallinvestor",
+                UserEmail = "small@example.com",
+                AmountUSD = 50.00m,
+                CurrencyCode = "USD",
+                AmountVND = 1200000m,
+                ExchangeRate = 24000m,
+                ReferenceCode = "DEP005",
+                PaymentMethod = "Bank Transfer",
+                Status = "Pending",
+                TransactionDate = DateTime.UtcNow.AddMinutes(-10),
+                UpdatedAt = DateTime.UtcNow.AddMinutes(-10),
+                Description = "Small test deposit"
+            }
+        };
+
+        /// <summary>
+        /// Custom pending deposit item
+        /// </summary>
+        public static AdminPendingBankDepositDto CustomPendingDeposit(
+            long transactionId,
+            int userId,
+            string username,
+            string email,
+            decimal amountUSD,
+            string referenceCode) => new()
+        {
+            TransactionId = transactionId,
+            UserId = userId,
+            Username = username,
+            UserEmail = email,
+            AmountUSD = amountUSD,
+            CurrencyCode = "USD",
+            AmountVND = amountUSD * 24000,
+            ExchangeRate = 24000m,
+            ReferenceCode = referenceCode,
+            PaymentMethod = "Bank Transfer",
+            Status = "Pending",
+            TransactionDate = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+            Description = "Custom test deposit"
+        };
+    }
 } 
