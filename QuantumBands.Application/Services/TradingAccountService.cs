@@ -1643,4 +1643,321 @@ public class TradingAccountService : ITradingAccountService
 
         return tradingDays;
     }
+
+    public async Task<(AccountActivityDto? Activity, string? ErrorMessage)> GetActivityAsync(int accountId, GetActivityQuery query, int userId, bool isAdmin, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            // Authorization check
+            var tradingAccount = await _unitOfWork.TradingAccounts
+                .GetByIdAsync(accountId);
+
+            if (tradingAccount == null)
+            {
+                return (null, $"Trading account with ID {accountId} not found");
+            }
+
+            // Check authorization
+            if (!isAdmin && tradingAccount.CreatedByUserId != userId)
+            {
+                return (null, "You don't have permission to view this account's activity");
+            }
+
+            // Get activities from different sources
+            var activities = new List<ActivityDto>();
+
+            // Get wallet activities (deposits/withdrawals)
+            if (query.Type == ActivityType.All || query.Type == ActivityType.Deposits || query.Type == ActivityType.Withdrawals)
+            {
+                var walletActivities = await GetWalletActivitiesAsync(accountId, query, cancellationToken);
+                activities.AddRange(walletActivities);
+            }
+
+            // Get trading activities
+            if (query.Type == ActivityType.All || query.Type == ActivityType.Trades)
+            {
+                var tradingActivities = await GetTradingActivitiesAsync(accountId, query, cancellationToken);
+                activities.AddRange(tradingActivities);
+            }
+
+            // Get login activities (for demonstration - would need actual user session tracking)
+            if (query.Type == ActivityType.All || query.Type == ActivityType.Logins)
+            {
+                var loginActivities = await GetLoginActivitiesAsync(accountId, query, cancellationToken);
+                activities.AddRange(loginActivities);
+            }
+
+            // Get configuration activities (for demonstration)
+            if (query.Type == ActivityType.All || query.Type == ActivityType.Configs)
+            {
+                var configActivities = await GetConfigActivitiesAsync(accountId, query, cancellationToken);
+                activities.AddRange(configActivities);
+            }
+
+            // Apply date filtering
+            if (query.StartDate.HasValue)
+            {
+                activities = activities.Where(a => a.Timestamp >= query.StartDate.Value).ToList();
+            }
+            if (query.EndDate.HasValue)
+            {
+                activities = activities.Where(a => a.Timestamp <= query.EndDate.Value.AddDays(1).AddTicks(-1)).ToList();
+            }
+
+            // Apply sorting
+            activities = query.SortBy switch
+            {
+                ActivitySortBy.Timestamp => query.SortOrder == SortOrder.Desc 
+                    ? activities.OrderByDescending(a => a.Timestamp).ToList()
+                    : activities.OrderBy(a => a.Timestamp).ToList(),
+                ActivitySortBy.Type => query.SortOrder == SortOrder.Desc
+                    ? activities.OrderByDescending(a => a.Type).ToList()
+                    : activities.OrderBy(a => a.Type).ToList(),
+                ActivitySortBy.Amount => query.SortOrder == SortOrder.Desc
+                    ? activities.OrderByDescending(a => a.Details.Amount ?? 0).ToList()
+                    : activities.OrderBy(a => a.Details.Amount ?? 0).ToList(),
+                _ => activities.OrderByDescending(a => a.Timestamp).ToList()
+            };
+
+            // Calculate pagination
+            var totalItems = activities.Count;
+            var totalPages = (int)Math.Ceiling((double)totalItems / query.PageSize);
+            var skip = (query.Page - 1) * query.PageSize;
+            var pagedActivities = activities.Skip(skip).Take(query.PageSize).ToList();
+
+            // Generate summary
+            var summary = GenerateActivitySummary(activities);
+
+            var result = new AccountActivityDto
+            {
+                Pagination = new PaginationDto
+                {
+                    CurrentPage = query.Page,
+                    PageSize = query.PageSize,
+                    TotalPages = totalPages,
+                    TotalItems = totalItems,
+                    HasNextPage = query.Page < totalPages,
+                    HasPreviousPage = query.Page > 1
+                },
+                Filters = new ActivityFiltersDto
+                {
+                    Type = query.Type.ToString().ToLower(),
+                    DateRange = query.StartDate.HasValue || query.EndDate.HasValue 
+                        ? new DateRangeDto
+                        {
+                            StartDate = query.StartDate ?? DateTime.MinValue,
+                            EndDate = query.EndDate ?? DateTime.MaxValue,
+                            TotalDays = (int)((query.EndDate ?? DateTime.UtcNow) - (query.StartDate ?? tradingAccount.CreatedAt)).TotalDays,
+                            TradingDays = CalculateTradingDays(query.StartDate ?? tradingAccount.CreatedAt, query.EndDate ?? DateTime.UtcNow)
+                        }
+                        : null,
+                    IncludeSystem = query.IncludeSystem
+                },
+                Activities = pagedActivities,
+                Summary = summary
+            };
+
+            return (result, null);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving activity for account {AccountId}", accountId);
+            return (null, "An error occurred while retrieving account activity");
+        }
+    }
+
+    private async Task<List<ActivityDto>> GetWalletActivitiesAsync(int accountId, GetActivityQuery query, CancellationToken cancellationToken)
+    {
+        // This is a simplified implementation - in reality, you'd need actual wallet transaction data
+        var activities = new List<ActivityDto>();
+
+        // Simulate deposit activity
+        activities.Add(new ActivityDto
+        {
+            ActivityId = "wallet_deposit_001",
+            Timestamp = DateTime.UtcNow.AddDays(-10),
+            Type = "DEPOSIT",
+            Category = "FINANCIAL",
+            Description = "Initial deposit via bank transfer",
+            Details = new ActivityDetailsDto
+            {
+                Amount = 10000m,
+                Currency = "USD"
+            },
+            Status = "COMPLETED",
+            InitiatedBy = new InitiatedByDto
+            {
+                UserId = accountId,
+                UserName = "User",
+                Role = "USER",
+                IsSystemGenerated = false
+            },
+            RelatedEntities = new RelatedEntitiesDto
+            {
+                TransactionId = "TXN001"
+            },
+            BalanceAfter = 10000m,
+            Metadata = new ActivityMetadataDto
+            {
+                Source = "WEB",
+                Version = "1.0"
+            }
+        });
+
+        return activities;
+    }
+
+    private async Task<List<ActivityDto>> GetTradingActivitiesAsync(int accountId, GetActivityQuery query, CancellationToken cancellationToken)
+    {
+        var activities = new List<ActivityDto>();
+
+        // Get closed trades for trading activities
+        var closedTrades = await _unitOfWork.EAClosedTrades
+            .FindAsync(ct => ct.TradingAccountId == accountId, cancellationToken);
+
+        foreach (var trade in closedTrades.OrderByDescending(ct => ct.CloseTime).Take(50)) // Limit for performance
+        {
+            activities.Add(new ActivityDto
+            {
+                ActivityId = $"trade_{trade.EaticketId}",
+                Timestamp = trade.CloseTime,
+                Type = "TRADE_CLOSED",
+                Category = "TRADING",
+                Description = $"Closed {trade.TradeType} {trade.VolumeLots} {trade.Symbol} at {trade.ClosePrice}",
+                Details = new ActivityDetailsDto
+                {
+                    Amount = trade.RealizedPandL
+                },
+                Status = "COMPLETED",
+                InitiatedBy = new InitiatedByDto
+                {
+                    Role = "SYSTEM",
+                    IsSystemGenerated = true
+                },
+                RelatedEntities = new RelatedEntitiesDto
+                {
+                    TradeTicket = int.TryParse(trade.EaticketId, out var ticketId) ? ticketId : null
+                },
+                Metadata = new ActivityMetadataDto
+                {
+                    Source = "MT5"
+                }
+            });
+        }
+
+        return activities;
+    }
+
+    private async Task<List<ActivityDto>> GetLoginActivitiesAsync(int accountId, GetActivityQuery query, CancellationToken cancellationToken)
+    {
+        // This is a simplified implementation - would need actual login tracking
+        var activities = new List<ActivityDto>();
+
+        // Simulate login activity
+        activities.Add(new ActivityDto
+        {
+            ActivityId = "login_001",
+            Timestamp = DateTime.UtcNow.AddHours(-2),
+            Type = "LOGIN",
+            Category = "SECURITY",
+            Description = "User logged in to trading platform",
+            Details = new ActivityDetailsDto
+            {
+                IpAddress = "192.168.1.xxx",
+                Location = "Vietnam"
+            },
+            Status = "COMPLETED",
+            InitiatedBy = new InitiatedByDto
+            {
+                UserId = accountId,
+                Role = "USER",
+                IsSystemGenerated = false
+            },
+            RelatedEntities = new RelatedEntitiesDto(),
+            Metadata = new ActivityMetadataDto
+            {
+                Source = "WEB",
+                SessionId = "sess_123"
+            }
+        });
+
+        return activities;
+    }
+
+    private async Task<List<ActivityDto>> GetConfigActivitiesAsync(int accountId, GetActivityQuery query, CancellationToken cancellationToken)
+    {
+        // This is a simplified implementation - would need actual configuration change tracking
+        var activities = new List<ActivityDto>();
+
+        // Simulate configuration change
+        activities.Add(new ActivityDto
+        {
+            ActivityId = "config_001",
+            Timestamp = DateTime.UtcNow.AddDays(-5),
+            Type = "LEVERAGE_CHANGE",
+            Category = "CONFIGURATION",
+            Description = "Leverage setting changed",
+            Details = new ActivityDetailsDto
+            {
+                FromValue = "1:100",
+                ToValue = "1:200"
+            },
+            Status = "COMPLETED",
+            InitiatedBy = new InitiatedByDto
+            {
+                UserId = accountId,
+                Role = "USER",
+                IsSystemGenerated = false
+            },
+            RelatedEntities = new RelatedEntitiesDto
+            {
+                ConfigurationId = "CFG001"
+            },
+            Metadata = new ActivityMetadataDto
+            {
+                Source = "WEB"
+            }
+        });
+
+        return activities;
+    }
+
+    private static ActivitySummaryDto GenerateActivitySummary(List<ActivityDto> activities)
+    {
+        var totalByType = activities
+            .GroupBy(a => a.Type)
+            .ToDictionary(
+                g => g.Key,
+                g => new ActivityTypeCountDto
+                {
+                    Count = g.Count(),
+                    TotalAmount = g.Sum(a => a.Details.Amount)
+                });
+
+        var financialActivities = activities.Where(a => a.Category == "FINANCIAL").ToList();
+        var deposits = financialActivities.Where(a => a.Type == "DEPOSIT").Sum(a => a.Details.Amount ?? 0);
+        var withdrawals = financialActivities.Where(a => a.Type == "WITHDRAWAL").Sum(a => a.Details.Amount ?? 0);
+
+        var securityActivities = activities.Where(a => a.Category == "SECURITY").ToList();
+
+        return new ActivitySummaryDto
+        {
+            TotalByType = totalByType,
+            FinancialSummary = new FinancialSummaryDto
+            {
+                TotalDeposits = deposits,
+                TotalWithdrawals = Math.Abs(withdrawals),
+                NetFlow = deposits - Math.Abs(withdrawals),
+                PendingTransactions = activities.Count(a => a.Status == "PENDING")
+            },
+            SecurityEvents = new SecurityEventsDto
+            {
+                LoginAttempts = securityActivities.Count(a => a.Type == "LOGIN"),
+                FailedLogins = securityActivities.Count(a => a.Type == "LOGIN" && a.Status == "FAILED"),
+                PasswordChanges = securityActivities.Count(a => a.Type == "PASSWORD_CHANGE"),
+                SuspiciousActivity = 0
+            },
+            LastActivity = activities.Any() ? activities.Max(a => a.Timestamp) : DateTime.MinValue
+        };
+    }
 }
