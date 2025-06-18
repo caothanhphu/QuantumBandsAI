@@ -3837,6 +3837,40 @@ public static class TestDataBuilder
         );
 
         /// <summary>
+        /// Valid update offering request for SCRUM-74 tests
+        /// </summary>
+        public static UpdateInitialShareOfferingRequest ValidUpdateOfferingRequest() => new()
+        {
+            SharesOffered = 5000,
+            OfferingPricePerShare = 25.00m,
+            FloorPricePerShare = 20.00m,
+            CeilingPricePerShare = 30.00m,
+            OfferingEndDate = DateTime.UtcNow.AddDays(30),
+            Status = "Active"
+        };
+
+        /// <summary>
+        /// Valid initial offering DTO for SCRUM-74 tests
+        /// </summary>
+        public static InitialShareOfferingDto ValidInitialOfferingDto() => new()
+        {
+            OfferingId = 1,
+            TradingAccountId = 1,
+            AdminUserId = 1,
+            AdminUsername = "admin",
+            SharesOffered = 5000,
+            SharesSold = 0,
+            OfferingPricePerShare = 25.00m,
+            FloorPricePerShare = 20.00m,
+            CeilingPricePerShare = 30.00m,
+            OfferingStartDate = DateTime.UtcNow.AddDays(-1),
+            OfferingEndDate = DateTime.UtcNow.AddDays(30),
+            Status = "Active",
+            CreatedAt = DateTime.UtcNow.AddDays(-1),
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        /// <summary>
         /// Valid request without optional fields
         /// </summary>
         public static CreateInitialShareOfferingRequest ValidMinimalRequest() => new(

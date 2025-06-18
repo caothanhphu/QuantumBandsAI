@@ -395,7 +395,13 @@ public class AdminController : ControllerBase
             if (errorMessage != null)
             {
                 if (errorMessage.Contains("not found")) return NotFound(new { Message = errorMessage });
-                if (errorMessage.Contains("Cannot change") || errorMessage.Contains("less than shares sold") || errorMessage.Contains("in the future"))
+                if (errorMessage.Contains("Cannot change") || 
+                    errorMessage.Contains("less than shares sold") || 
+                    errorMessage.Contains("in the future") ||
+                    errorMessage.Contains("must be greater than") ||
+                    errorMessage.Contains("Ceiling price must be greater than floor price") ||
+                    errorMessage.Contains("Shares offered must be greater than 0") ||
+                    errorMessage.Contains("Offering price per share must be greater than 0"))
                     return BadRequest(new { Message = errorMessage });
             }
             return StatusCode(StatusCodes.Status500InternalServerError, new { Message = errorMessage ?? "Failed to update initial share offering." });

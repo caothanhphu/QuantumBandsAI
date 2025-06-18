@@ -618,6 +618,21 @@ public class TradingAccountService : ITradingAccountService
         var adminUserId = GetUserIdFromPrincipal(adminUserPrincipal);
         if (!adminUserId.HasValue) return (null, "Admin user not authenticated.");
 
+        // Validate request inputs first
+        if (request.SharesOffered.HasValue && request.SharesOffered.Value <= 0)
+        {
+            return (null, "Shares offered must be greater than 0");
+        }
+        if (request.OfferingPricePerShare.HasValue && request.OfferingPricePerShare.Value <= 0)
+        {
+            return (null, "Offering price per share must be greater than 0");
+        }
+        if (request.FloorPricePerShare.HasValue && request.CeilingPricePerShare.HasValue && 
+            request.FloorPricePerShare.Value > request.CeilingPricePerShare.Value)
+        {
+            return (null, "Ceiling price must be greater than floor price");
+        }
+
         _logger.LogInformation("Admin {AdminUserId} attempting to update InitialShareOfferingID: {OfferingId} for TradingAccountID: {TradingAccountId}",
                                adminUserId.Value, offeringId, tradingAccountId);
 
@@ -630,6 +645,16 @@ public class TradingAccountService : ITradingAccountService
         {
             _logger.LogWarning("InitialShareOfferingID {OfferingId} for TradingAccountID {TradingAccountId} not found.", offeringId, tradingAccountId);
             return (null, $"Initial share offering with ID {offeringId} not found for trading account {tradingAccountId}.");
+        }
+
+        // Check if offering can be updated based on current status
+        if (offering.Status == nameof(OfferingStatus.Completed))
+        {
+            return (null, "Cannot change offering status from Completed");
+        }
+        if (offering.Status == nameof(OfferingStatus.Cancelled))
+        {
+            return (null, "Cannot change offering status from Cancelled");
         }
 
         // Kiểm tra các điều kiện nghiệp vụ trước khi cập nhật
