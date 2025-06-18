@@ -99,6 +99,9 @@ public partial class FinixAIDbContext : DbContext
             entity.HasOne(d => d.TradingAccount).WithMany(p => p.InitialShareOfferings)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_InitialShareOfferings_TradingAccountID");
+
+            // Configure to handle database triggers
+            entity.ToTable(tb => tb.HasTrigger("TR_InitialShareOfferings_UpdatedAt"));
         });
 
         modelBuilder.Entity<ProfitDistributionLog>(entity =>
@@ -151,6 +154,9 @@ public partial class FinixAIDbContext : DbContext
             entity.HasOne(d => d.User).WithMany(p => p.ShareOrders)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_ShareOrders_UserID");
+
+            // Configure to handle database triggers
+            entity.ToTable(tb => tb.HasTrigger("TR_ShareOrders_UpdatedAt"));
         });
 
         modelBuilder.Entity<ShareOrderSide>(entity =>
@@ -238,6 +244,9 @@ public partial class FinixAIDbContext : DbContext
             entity.HasOne(d => d.CreatedByUser).WithMany(p => p.TradingAccounts)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_TradingAccounts_CreatedByUserID");
+
+            // Configure to handle database triggers
+            entity.ToTable(tb => tb.HasTrigger("TR_TradingAccounts_UpdatedAt"));
         });
 
         modelBuilder.Entity<TradingAccountSnapshot>(entity =>
@@ -267,6 +276,9 @@ public partial class FinixAIDbContext : DbContext
             entity.HasOne(d => d.Role).WithMany(p => p.Users)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_Users_RoleID");
+
+            // Configure to handle database triggers by disabling OUTPUT clause
+            entity.ToTable(tb => tb.HasTrigger("TR_Users_UpdatedAt"));
         });
 
         modelBuilder.Entity<UserRole>(entity =>
@@ -285,6 +297,9 @@ public partial class FinixAIDbContext : DbContext
             entity.HasOne(d => d.User).WithOne(p => p.Wallet)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_Wallets_UserID");
+
+            // Configure to handle database triggers
+            entity.ToTable(tb => tb.HasTrigger("TR_Wallets_UpdatedAt"));
         });
 
         modelBuilder.Entity<WalletTransaction>(entity =>
@@ -304,6 +319,9 @@ public partial class FinixAIDbContext : DbContext
             entity.HasOne(d => d.Wallet).WithMany(p => p.WalletTransactions)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_WalletTransactions_WalletID");
+
+            // Configure to handle database triggers
+            entity.ToTable(tb => tb.HasTrigger("TR_WalletTransactions_UpdatedAt"));
         });
 
         OnModelCreatingPartial(modelBuilder);

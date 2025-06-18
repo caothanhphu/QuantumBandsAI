@@ -30,7 +30,9 @@
       "Bash(gh pr create:*)",
       "Bash(dotnet clean:*)",
       "Bash(git commit:*)",
-      "Bash(verbosity=minimal)"
+      "Bash(verbosity=minimal)",
+      "Bash(sudo fuser:*)",
+      "Bash(rm:*)"
     ],
     "deny": []
   }
