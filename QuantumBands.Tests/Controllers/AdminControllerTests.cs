@@ -81,8 +81,8 @@ public class AdminControllerTests : TestBase
         // Arrange
         const int accountId = 1;
         const int offeringId = 1;
-        var request = TestDataBuilder.TradingAccounts.ValidUpdateOfferingRequest();
-        var expectedOffering = TestDataBuilder.TradingAccounts.ValidInitialOfferingDto();
+        var request = TestDataBuilder.InitialShareOfferings.ValidUpdateOfferingRequest();
+        var expectedOffering = TestDataBuilder.InitialShareOfferings.ValidInitialOfferingDto();
 
         _mockTradingAccountService.Setup(x => x.UpdateInitialShareOfferingAsync(
                 accountId, offeringId, request, It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()))
@@ -113,10 +113,10 @@ public class AdminControllerTests : TestBase
         // Arrange
         const int accountId = 1;
         const int offeringId = 1;
-        var request = TestDataBuilder.TradingAccounts.ValidUpdateOfferingRequest();
+        var request = TestDataBuilder.InitialShareOfferings.ValidUpdateOfferingRequest();
         request.SharesOffered = 20000; // Increased shares
 
-        var expectedOffering = TestDataBuilder.TradingAccounts.ValidInitialOfferingDto();
+        var expectedOffering = TestDataBuilder.InitialShareOfferings.ValidInitialOfferingDto();
         expectedOffering.SharesOffered = 20000;
 
         _mockTradingAccountService.Setup(x => x.UpdateInitialShareOfferingAsync(
@@ -144,10 +144,10 @@ public class AdminControllerTests : TestBase
         // Arrange
         const int accountId = 1;
         const int offeringId = 1;
-        var request = TestDataBuilder.TradingAccounts.ValidUpdateOfferingRequest();
+        var request = TestDataBuilder.InitialShareOfferings.ValidUpdateOfferingRequest();
         request.OfferingPricePerShare = 15.75m; // New price
 
-        var expectedOffering = TestDataBuilder.TradingAccounts.ValidInitialOfferingDto();
+        var expectedOffering = TestDataBuilder.InitialShareOfferings.ValidInitialOfferingDto();
         expectedOffering.OfferingPricePerShare = 15.75m;
 
         _mockTradingAccountService.Setup(x => x.UpdateInitialShareOfferingAsync(
@@ -175,11 +175,11 @@ public class AdminControllerTests : TestBase
         // Arrange
         const int accountId = 1;
         const int offeringId = 1;
-        var request = TestDataBuilder.TradingAccounts.ValidUpdateOfferingRequest();
+        var request = TestDataBuilder.InitialShareOfferings.ValidUpdateOfferingRequest();
         var newEndDate = DateTime.UtcNow.AddMonths(2);
         request.OfferingEndDate = newEndDate;
 
-        var expectedOffering = TestDataBuilder.TradingAccounts.ValidInitialOfferingDto();
+        var expectedOffering = TestDataBuilder.InitialShareOfferings.ValidInitialOfferingDto();
         expectedOffering.OfferingEndDate = newEndDate;
 
         _mockTradingAccountService.Setup(x => x.UpdateInitialShareOfferingAsync(
@@ -211,8 +211,8 @@ public class AdminControllerTests : TestBase
         // Arrange
         const int accountId = 1;
         const int offeringId = 1;
-        var request = TestDataBuilder.TradingAccounts.ValidUpdateOfferingRequest();
-        var expectedOffering = TestDataBuilder.TradingAccounts.ValidInitialOfferingDto();
+        var request = TestDataBuilder.InitialShareOfferings.ValidUpdateOfferingRequest();
+        var expectedOffering = TestDataBuilder.InitialShareOfferings.ValidInitialOfferingDto();
 
         _mockTradingAccountService.Setup(x => x.UpdateInitialShareOfferingAsync(
                 accountId, offeringId, request, It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()))
@@ -241,7 +241,7 @@ public class AdminControllerTests : TestBase
         // Arrange
         const int invalidAccountId = 999;
         const int offeringId = 1;
-        var request = TestDataBuilder.TradingAccounts.ValidUpdateOfferingRequest();
+        var request = TestDataBuilder.InitialShareOfferings.ValidUpdateOfferingRequest();
 
         _mockTradingAccountService.Setup(x => x.UpdateInitialShareOfferingAsync(
                 invalidAccountId, offeringId, request, It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()))
@@ -267,7 +267,7 @@ public class AdminControllerTests : TestBase
         // Arrange
         const int accountId = 1;
         const int invalidOfferingId = 999;
-        var request = TestDataBuilder.TradingAccounts.ValidUpdateOfferingRequest();
+        var request = TestDataBuilder.InitialShareOfferings.ValidUpdateOfferingRequest();
 
         _mockTradingAccountService.Setup(x => x.UpdateInitialShareOfferingAsync(
                 accountId, invalidOfferingId, request, It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()))
@@ -290,7 +290,7 @@ public class AdminControllerTests : TestBase
         // Arrange
         const int accountId = 1;
         const int offeringId = 999;
-        var request = TestDataBuilder.TradingAccounts.ValidUpdateOfferingRequest();
+        var request = TestDataBuilder.InitialShareOfferings.ValidUpdateOfferingRequest();
 
         _mockTradingAccountService.Setup(x => x.UpdateInitialShareOfferingAsync(
                 accountId, offeringId, request, It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()))
@@ -313,7 +313,7 @@ public class AdminControllerTests : TestBase
         // Arrange
         const int accountId = 1;
         const int offeringId = 1;
-        var request = TestDataBuilder.TradingAccounts.ValidUpdateOfferingRequest();
+        var request = TestDataBuilder.InitialShareOfferings.ValidUpdateOfferingRequest();
         request.SharesOffered = 0; // Invalid shares
 
         _mockTradingAccountService.Setup(x => x.UpdateInitialShareOfferingAsync(
@@ -337,7 +337,7 @@ public class AdminControllerTests : TestBase
         // Arrange
         const int accountId = 1;
         const int offeringId = 1;
-        var request = TestDataBuilder.TradingAccounts.ValidUpdateOfferingRequest();
+        var request = TestDataBuilder.InitialShareOfferings.ValidUpdateOfferingRequest();
         request.OfferingPricePerShare = -5.0m; // Invalid price
 
         _mockTradingAccountService.Setup(x => x.UpdateInitialShareOfferingAsync(
@@ -365,7 +365,7 @@ public class AdminControllerTests : TestBase
         // Arrange
         const int accountId = 1;
         const int offeringId = 1;
-        var request = TestDataBuilder.TradingAccounts.ValidUpdateOfferingRequest();
+        var request = TestDataBuilder.InitialShareOfferings.ValidUpdateOfferingRequest();
 
         _mockTradingAccountService.Setup(x => x.UpdateInitialShareOfferingAsync(
                 accountId, offeringId, request, It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()))
@@ -388,7 +388,7 @@ public class AdminControllerTests : TestBase
         // Arrange
         const int accountId = 1;
         const int offeringId = 1;
-        var request = TestDataBuilder.TradingAccounts.ValidUpdateOfferingRequest();
+        var request = TestDataBuilder.InitialShareOfferings.ValidUpdateOfferingRequest();
 
         _mockTradingAccountService.Setup(x => x.UpdateInitialShareOfferingAsync(
                 accountId, offeringId, request, It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()))
@@ -411,8 +411,8 @@ public class AdminControllerTests : TestBase
         // Arrange
         const int accountId = 1;
         const int offeringId = 1;
-        var request = TestDataBuilder.TradingAccounts.ValidUpdateOfferingRequest();
-        var expectedOffering = TestDataBuilder.TradingAccounts.ValidInitialOfferingDto();
+        var request = TestDataBuilder.InitialShareOfferings.ValidUpdateOfferingRequest();
+        var expectedOffering = TestDataBuilder.InitialShareOfferings.ValidInitialOfferingDto();
         expectedOffering.Status = "Active";
 
         _mockTradingAccountService.Setup(x => x.UpdateInitialShareOfferingAsync(
@@ -439,7 +439,7 @@ public class AdminControllerTests : TestBase
         // Arrange
         const int accountId = 1;
         const int offeringId = 1;
-        var request = TestDataBuilder.TradingAccounts.ValidUpdateOfferingRequest();
+        var request = TestDataBuilder.InitialShareOfferings.ValidUpdateOfferingRequest();
         request.FloorPricePerShare = 15.0m;
         request.CeilingPricePerShare = 10.0m; // Invalid: ceiling < floor
 
@@ -485,8 +485,8 @@ public class AdminControllerTests : TestBase
         // Arrange
         const int accountId = 1;
         const int offeringId = 1;
-        var request = TestDataBuilder.TradingAccounts.ValidUpdateOfferingRequest();
-        var expectedOffering = TestDataBuilder.TradingAccounts.ValidInitialOfferingDto();
+        var request = TestDataBuilder.InitialShareOfferings.ValidUpdateOfferingRequest();
+        var expectedOffering = TestDataBuilder.InitialShareOfferings.ValidInitialOfferingDto();
 
         _mockTradingAccountService.Setup(x => x.UpdateInitialShareOfferingAsync(
                 accountId, offeringId, request, It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()))
