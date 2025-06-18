@@ -401,4 +401,60 @@ public class TradingAccountsController : ControllerBase
 
         return Ok(activity);
     }
+
+    /// <summary>
+    /// Exports trading account data in various formats (CSV, Excel, PDF).
+    /// Supports exporting trading history, statistics, performance reports, and risk reports.
+    /// Includes filtering by date range and symbols, with authorization controls.
+    /// </summary>
+    /// <param name="accountId">The unique identifier of the trading account</param>
+    /// <param name="query">Export parameters including type, format, and filters</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>File download with appropriate content type and headers</returns>
+    [HttpGet("{accountId}/export")]
+    [ProducesResponseType(typeof(FileContentResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> ExportData(
+        int accountId,
+        [FromQuery] ExportDataQuery query,
+        CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Request received for data export for TradingAccountID: {AccountId} with query: {@Query}", accountId, query);
+
+        // Get current user info
+        var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier || c.Type == "uid" || c.Type == JwtRegisteredClaimNames.Sub)?.Value;
+        if (!int.TryParse(userIdClaim, out var userId))
+        {
+            return Unauthorized(new { Message = "Invalid user authentication" });
+        }
+
+        var isAdmin = User.IsInRole("Admin");
+
+        var (exportResult, errorMessage) = await _tradingAccountService.ExportDataAsync(accountId, query, userId, isAdmin, cancellationToken);
+
+        if (exportResult == null)
+        {
+            _logger.LogWarning("Failed to export data for TradingAccountID {AccountId}. Error: {ErrorMessage}", accountId, errorMessage);
+
+            if (errorMessage != null && errorMessage.Contains("permission"))
+            {
+                return Forbid();
+            }
+            if (errorMessage != null && errorMessage.Contains("not found"))
+            {
+                return NotFound(new { Message = errorMessage });
+            }
+            return StatusCode(StatusCodes.Status500InternalServerError, new { Message = errorMessage ?? $"An unexpected error occurred while exporting data for trading account ID {accountId}." });
+        }
+
+        // Return file download
+        return File(
+            exportResult.Data,
+            exportResult.ContentType,
+            exportResult.FileName);
+    }
 }
