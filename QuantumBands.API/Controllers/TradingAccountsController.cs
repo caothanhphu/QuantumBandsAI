@@ -349,4 +349,56 @@ public class TradingAccountsController : ControllerBase
 
         return Ok(statistics);
     }
+
+    /// <summary>
+    /// Gets comprehensive activity & audit trail for a specific trading account.
+    /// Includes deposits, withdrawals, logins, configuration changes, trading activities, and system events.
+    /// Supports filtering by activity type, date range, and pagination.
+    /// </summary>
+    /// <param name="accountId">The unique identifier of the trading account</param>
+    /// <param name="query">Query parameters for filtering and pagination</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Paginated list of account activities with comprehensive details and summary</returns>
+    [HttpGet("{accountId}/activity")]
+    [ProducesResponseType(typeof(AccountActivityDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> GetActivity(
+        int accountId,
+        [FromQuery] GetActivityQuery query,
+        CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Request received for account activity for TradingAccountID: {AccountId} with query: {@Query}", accountId, query);
+
+        // Get current user info
+        var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier || c.Type == "uid" || c.Type == JwtRegisteredClaimNames.Sub)?.Value;
+        if (!int.TryParse(userIdClaim, out var userId))
+        {
+            return Unauthorized(new { Message = "Invalid user authentication" });
+        }
+
+        var isAdmin = User.IsInRole("Admin");
+
+        var (activity, errorMessage) = await _tradingAccountService.GetActivityAsync(accountId, query, userId, isAdmin, cancellationToken);
+
+        if (activity == null)
+        {
+            _logger.LogWarning("Failed to retrieve account activity for TradingAccountID {AccountId}. Error: {ErrorMessage}", accountId, errorMessage);
+
+            if (errorMessage != null && errorMessage.Contains("permission"))
+            {
+                return Forbid();
+            }
+            if (errorMessage != null && errorMessage.Contains("not found"))
+            {
+                return NotFound(new { Message = errorMessage });
+            }
+            return StatusCode(StatusCodes.Status500InternalServerError, new { Message = errorMessage ?? $"An unexpected error occurred while retrieving activity for trading account ID {accountId}." });
+        }
+
+        return Ok(activity);
+    }
 }

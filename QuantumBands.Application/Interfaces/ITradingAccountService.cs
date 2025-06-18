@@ -25,4 +25,5 @@ public interface ITradingAccountService
     Task<(PaginatedTradingHistoryDto? History, string? ErrorMessage)> GetTradingHistoryAsync(int accountId, GetTradingHistoryQuery query, int userId, bool isAdmin, CancellationToken cancellationToken = default);
     Task<(OpenPositionsRealtimeDto? Positions, string? ErrorMessage)> GetOpenPositionsRealtimeAsync(int accountId, bool includeMetrics, string? symbols, bool refresh, int userId, bool isAdmin, CancellationToken cancellationToken = default);
     Task<(TradingStatisticsDto? Statistics, string? ErrorMessage)> GetStatisticsAsync(int accountId, GetStatisticsQuery query, int userId, bool isAdmin, CancellationToken cancellationToken = default);
+    Task<(AccountActivityDto? Activity, string? ErrorMessage)> GetActivityAsync(int accountId, GetActivityQuery query, int userId, bool isAdmin, CancellationToken cancellationToken = default);
 }
