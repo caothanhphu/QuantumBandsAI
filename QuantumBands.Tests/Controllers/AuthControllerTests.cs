@@ -15,6 +15,7 @@ using QuantumBands.Application.Interfaces;
 using QuantumBands.Tests.Common;
 using QuantumBands.Tests.Fixtures;
 using static QuantumBands.Tests.Fixtures.AuthenticationTestDataBuilder;
+using static QuantumBands.Tests.Fixtures.UsersTestDataBuilder;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
@@ -50,7 +51,7 @@ public class AuthControllerTests : TestBase
     {
         // Arrange
         var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
-        var expectedUserDto = TestDataBuilder.UserDtos.ValidUserDto();
+        var expectedUserDto = UsersTestDataBuilder.UserDtos.ValidUserDto();
 
         _mockAuthService.Setup(x => x.RegisterUserAsync(command, It.IsAny<CancellationToken>()))
             .ReturnsAsync((expectedUserDto, (string?)null));
@@ -72,7 +73,7 @@ public class AuthControllerTests : TestBase
     {
         // Arrange
         var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommandWithoutFullName();
-        var expectedUserDto = TestDataBuilder.UserDtos.ValidUserDto();
+        var expectedUserDto = UsersTestDataBuilder.UserDtos.ValidUserDto();
 
         _mockAuthService.Setup(x => x.RegisterUserAsync(command, It.IsAny<CancellationToken>()))
             .ReturnsAsync((expectedUserDto, (string?)null));
@@ -92,7 +93,7 @@ public class AuthControllerTests : TestBase
     {
         // Arrange
         var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
-        var expectedUserDto = TestDataBuilder.UserDtos.ValidUserDto();
+        var expectedUserDto = UsersTestDataBuilder.UserDtos.ValidUserDto();
 
         _mockAuthService.Setup(x => x.RegisterUserAsync(It.IsAny<RegisterUserCommand>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((expectedUserDto, null));
@@ -324,7 +325,7 @@ public class AuthControllerTests : TestBase
     {
         // Arrange
         var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
-        var expectedUserDto = TestDataBuilder.UserDtos.ValidUserDto();
+        var expectedUserDto = UsersTestDataBuilder.UserDtos.ValidUserDto();
 
         _mockAuthService.Setup(x => x.RegisterUserAsync(command, It.IsAny<CancellationToken>()))
             .ReturnsAsync((expectedUserDto, (string?)null));
@@ -380,7 +381,7 @@ public class AuthControllerTests : TestBase
     {
         // Arrange
         var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
-        var expectedUserDto = TestDataBuilder.UserDtos.ValidUserDto();
+        var expectedUserDto = UsersTestDataBuilder.UserDtos.ValidUserDto();
 
         _mockAuthService.Setup(x => x.RegisterUserAsync(command, It.IsAny<CancellationToken>()))
             .ReturnsAsync((expectedUserDto, (string?)null));
@@ -5046,3 +5047,7 @@ public class AuthControllerTests : TestBase
 
     #endregion
 } 
+
+
+
+

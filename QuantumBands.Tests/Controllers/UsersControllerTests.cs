@@ -29,6 +29,7 @@ using QuantumBands.Application.Features.Users.Commands.Disable2FA;
 using QuantumBands.Application.Interfaces;
 using QuantumBands.Tests.Common;
 using QuantumBands.Tests.Fixtures;
+using static QuantumBands.Tests.Fixtures.UsersTestDataBuilder;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
@@ -109,7 +110,7 @@ public class UsersControllerTests : TestBase
     public async Task GetMyProfile_WithValidAuthenticatedUser_ShouldReturnUserProfile()
     {
         // Arrange
-        var expectedProfile = TestDataBuilder.UserProfile.ValidUserProfile();
+        var expectedProfile = UsersTestDataBuilder.UserProfile.ValidUserProfile();
         var authenticatedUser = CreateAuthenticatedUser(expectedProfile.UserId, expectedProfile.Username);
         _usersController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -134,7 +135,7 @@ public class UsersControllerTests : TestBase
     public async Task GetMyProfile_WithAdminUser_ShouldReturnAdminProfile()
     {
         // Arrange
-        var expectedProfile = TestDataBuilder.UserProfile.AdminUserProfile();
+        var expectedProfile = UsersTestDataBuilder.UserProfile.AdminUserProfile();
         var authenticatedUser = CreateAuthenticatedUser(expectedProfile.UserId, expectedProfile.Username);
         _usersController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -157,7 +158,7 @@ public class UsersControllerTests : TestBase
     public async Task GetMyProfile_WithUserWithoutFullName_ShouldReturnProfileWithNullFullName()
     {
         // Arrange
-        var expectedProfile = TestDataBuilder.UserProfile.UserProfileWithoutFullName();
+        var expectedProfile = UsersTestDataBuilder.UserProfile.UserProfileWithoutFullName();
         var authenticatedUser = CreateAuthenticatedUser(expectedProfile.UserId, expectedProfile.Username);
         _usersController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -182,7 +183,7 @@ public class UsersControllerTests : TestBase
     public async Task GetMyProfile_WithUnverifiedUser_ShouldReturnUnverifiedProfile()
     {
         // Arrange
-        var expectedProfile = TestDataBuilder.UserProfile.UnverifiedUserProfile();
+        var expectedProfile = UsersTestDataBuilder.UserProfile.UnverifiedUserProfile();
         var authenticatedUser = CreateAuthenticatedUser(expectedProfile.UserId, expectedProfile.Username);
         _usersController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -207,7 +208,7 @@ public class UsersControllerTests : TestBase
     public async Task GetMyProfile_WithUserWith2FAEnabled_ShouldReturnProfileWith2FA()
     {
         // Arrange
-        var expectedProfile = TestDataBuilder.UserProfile.UserWith2FAEnabled();
+        var expectedProfile = UsersTestDataBuilder.UserProfile.UserWith2FAEnabled();
         var authenticatedUser = CreateAuthenticatedUser(expectedProfile.UserId, expectedProfile.Username);
         _usersController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -333,7 +334,7 @@ public class UsersControllerTests : TestBase
     public async Task GetMyProfile_ShouldCallUserServiceWithCorrectParameters()
     {
         // Arrange
-        var expectedProfile = TestDataBuilder.UserProfile.ValidUserProfile();
+        var expectedProfile = UsersTestDataBuilder.UserProfile.ValidUserProfile();
         var authenticatedUser = CreateAuthenticatedUser(expectedProfile.UserId, expectedProfile.Username);
         _usersController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -356,7 +357,7 @@ public class UsersControllerTests : TestBase
     public async Task GetMyProfile_WithCancellationToken_ShouldPassTokenToService()
     {
         // Arrange
-        var expectedProfile = TestDataBuilder.UserProfile.ValidUserProfile();
+        var expectedProfile = UsersTestDataBuilder.UserProfile.ValidUserProfile();
         var authenticatedUser = CreateAuthenticatedUser(expectedProfile.UserId, expectedProfile.Username);
         var cancellationToken = new CancellationToken();
         _usersController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
@@ -436,7 +437,7 @@ public class UsersControllerTests : TestBase
     public async Task GetMyProfile_ShouldLogInformationAtStart()
     {
         // Arrange
-        var expectedProfile = TestDataBuilder.UserProfile.ValidUserProfile();
+        var expectedProfile = UsersTestDataBuilder.UserProfile.ValidUserProfile();
         var authenticatedUser = CreateAuthenticatedUser(expectedProfile.UserId, expectedProfile.Username);
         _usersController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -495,7 +496,7 @@ public class UsersControllerTests : TestBase
     public async Task GetMyProfile_ShouldReturnCorrectUserProfileStructure()
     {
         // Arrange
-        var expectedProfile = TestDataBuilder.UserProfile.ValidUserProfile();
+        var expectedProfile = UsersTestDataBuilder.UserProfile.ValidUserProfile();
         var authenticatedUser = CreateAuthenticatedUser(expectedProfile.UserId, expectedProfile.Username);
         _usersController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -565,7 +566,7 @@ public class UsersControllerTests : TestBase
     public async Task GetMyProfile_ShouldNotExposePasswordHash()
     {
         // Arrange
-        var expectedProfile = TestDataBuilder.UserProfile.ValidUserProfile();
+        var expectedProfile = UsersTestDataBuilder.UserProfile.ValidUserProfile();
         var authenticatedUser = CreateAuthenticatedUser(expectedProfile.UserId, expectedProfile.Username);
         _usersController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -592,7 +593,7 @@ public class UsersControllerTests : TestBase
     public async Task GetMyProfile_ShouldOnlyReturnUserOwnProfile()
     {
         // Arrange - User trying to access their own profile
-        var expectedProfile = TestDataBuilder.UserProfile.ValidUserProfile();
+        var expectedProfile = UsersTestDataBuilder.UserProfile.ValidUserProfile();
         var authenticatedUser = CreateAuthenticatedUser(expectedProfile.UserId, expectedProfile.Username);
         _usersController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -649,8 +650,8 @@ public class UsersControllerTests : TestBase
     public async Task UpdateMyProfile_WithValidRequest_ShouldReturnUpdatedProfile()
     {
         // Arrange
-        var updateRequest = TestDataBuilder.UpdateUserProfile.ValidUpdateRequest();
-        var expectedProfile = TestDataBuilder.UserProfile.ValidUserProfile();
+        var updateRequest = UsersTestDataBuilder.UpdateUserProfile.ValidUpdateRequest();
+        var expectedProfile = UsersTestDataBuilder.UserProfile.ValidUserProfile();
         expectedProfile.FullName = updateRequest.FullName; // Update with new name
         var authenticatedUser = CreateAuthenticatedUser(expectedProfile.UserId, expectedProfile.Username);
         _usersController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
@@ -679,8 +680,8 @@ public class UsersControllerTests : TestBase
     public async Task UpdateMyProfile_WithNullFullName_ShouldClearFullNameAndReturnProfile()
     {
         // Arrange
-        var updateRequest = TestDataBuilder.UpdateUserProfile.UpdateWithNullFullName();
-        var expectedProfile = TestDataBuilder.UserProfile.ValidUserProfile();
+        var updateRequest = UsersTestDataBuilder.UpdateUserProfile.UpdateWithNullFullName();
+        var expectedProfile = UsersTestDataBuilder.UserProfile.ValidUserProfile();
         expectedProfile.FullName = null; // Cleared full name
         var authenticatedUser = CreateAuthenticatedUser(expectedProfile.UserId, expectedProfile.Username);
         _usersController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
@@ -709,8 +710,8 @@ public class UsersControllerTests : TestBase
     public async Task UpdateMyProfile_WithSameFullName_ShouldReturnCurrentProfile()
     {
         // Arrange
-        var updateRequest = TestDataBuilder.UpdateUserProfile.UpdateWithSameFullName();
-        var expectedProfile = TestDataBuilder.UserProfile.ValidUserProfile();
+        var updateRequest = UsersTestDataBuilder.UpdateUserProfile.UpdateWithSameFullName();
+        var expectedProfile = UsersTestDataBuilder.UserProfile.ValidUserProfile();
         var authenticatedUser = CreateAuthenticatedUser(expectedProfile.UserId, expectedProfile.Username);
         _usersController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -736,8 +737,8 @@ public class UsersControllerTests : TestBase
     public async Task UpdateMyProfile_WithSpecialCharacters_ShouldUpdateSuccessfully()
     {
         // Arrange
-        var updateRequest = TestDataBuilder.UpdateUserProfile.UpdateWithSpecialCharacters();
-        var expectedProfile = TestDataBuilder.UserProfile.ValidUserProfile();
+        var updateRequest = UsersTestDataBuilder.UpdateUserProfile.UpdateWithSpecialCharacters();
+        var expectedProfile = UsersTestDataBuilder.UserProfile.ValidUserProfile();
         expectedProfile.FullName = updateRequest.FullName;
         var authenticatedUser = CreateAuthenticatedUser(expectedProfile.UserId, expectedProfile.Username);
         _usersController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
@@ -765,8 +766,8 @@ public class UsersControllerTests : TestBase
     public async Task UpdateMyProfile_WithMaxValidLength_ShouldUpdateSuccessfully()
     {
         // Arrange
-        var updateRequest = TestDataBuilder.UpdateUserProfile.UpdateWithMaxValidLength();
-        var expectedProfile = TestDataBuilder.UserProfile.ValidUserProfile();
+        var updateRequest = UsersTestDataBuilder.UpdateUserProfile.UpdateWithMaxValidLength();
+        var expectedProfile = UsersTestDataBuilder.UserProfile.ValidUserProfile();
         expectedProfile.FullName = updateRequest.FullName;
         var authenticatedUser = CreateAuthenticatedUser(expectedProfile.UserId, expectedProfile.Username);
         _usersController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
@@ -795,7 +796,7 @@ public class UsersControllerTests : TestBase
     public async Task UpdateMyProfile_WithUnauthenticatedUser_ShouldReturnNotFound()
     {
         // Arrange
-        var updateRequest = TestDataBuilder.UpdateUserProfile.ValidUpdateRequest();
+        var updateRequest = UsersTestDataBuilder.UpdateUserProfile.ValidUpdateRequest();
         var unauthenticatedUser = CreateUnauthenticatedUser();
         _usersController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -822,7 +823,7 @@ public class UsersControllerTests : TestBase
     public async Task UpdateMyProfile_WithInvalidClaims_ShouldReturnNotFound()
     {
         // Arrange
-        var updateRequest = TestDataBuilder.UpdateUserProfile.ValidUpdateRequest();
+        var updateRequest = UsersTestDataBuilder.UpdateUserProfile.ValidUpdateRequest();
         var userWithInvalidClaims = CreateUserWithInvalidClaims();
         _usersController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -849,7 +850,7 @@ public class UsersControllerTests : TestBase
     public async Task UpdateMyProfile_WithNonExistentUser_ShouldReturnNotFound()
     {
         // Arrange
-        var updateRequest = TestDataBuilder.UpdateUserProfile.ValidUpdateRequest();
+        var updateRequest = UsersTestDataBuilder.UpdateUserProfile.ValidUpdateRequest();
         var authenticatedUser = CreateAuthenticatedUser(999, "nonexistentuser");
         _usersController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -876,7 +877,7 @@ public class UsersControllerTests : TestBase
     public async Task UpdateMyProfile_WithUserWithoutRole_ShouldReturnInternalServerError()
     {
         // Arrange
-        var updateRequest = TestDataBuilder.UpdateUserProfile.ValidUpdateRequest();
+        var updateRequest = UsersTestDataBuilder.UpdateUserProfile.ValidUpdateRequest();
         var authenticatedUser = CreateAuthenticatedUser(3, "noroleuser");
         _usersController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -904,7 +905,7 @@ public class UsersControllerTests : TestBase
     public async Task UpdateMyProfile_WithConcurrencyConflict_ShouldReturnConflict()
     {
         // Arrange
-        var updateRequest = TestDataBuilder.UpdateUserProfile.ValidUpdateRequest();
+        var updateRequest = UsersTestDataBuilder.UpdateUserProfile.ValidUpdateRequest();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _usersController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -931,7 +932,7 @@ public class UsersControllerTests : TestBase
     public async Task UpdateMyProfile_WithDatabaseError_ShouldReturnInternalServerError()
     {
         // Arrange
-        var updateRequest = TestDataBuilder.UpdateUserProfile.ValidUpdateRequest();
+        var updateRequest = UsersTestDataBuilder.UpdateUserProfile.ValidUpdateRequest();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _usersController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -959,7 +960,7 @@ public class UsersControllerTests : TestBase
     public async Task UpdateMyProfile_WithNullErrorMessage_ShouldReturnGenericError()
     {
         // Arrange
-        var updateRequest = TestDataBuilder.UpdateUserProfile.ValidUpdateRequest();
+        var updateRequest = UsersTestDataBuilder.UpdateUserProfile.ValidUpdateRequest();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _usersController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -987,8 +988,8 @@ public class UsersControllerTests : TestBase
     public async Task UpdateMyProfile_ShouldCallServiceWithCorrectParameters()
     {
         // Arrange
-        var updateRequest = TestDataBuilder.UpdateUserProfile.ValidUpdateRequest();
-        var expectedProfile = TestDataBuilder.UserProfile.ValidUserProfile();
+        var updateRequest = UsersTestDataBuilder.UpdateUserProfile.ValidUpdateRequest();
+        var expectedProfile = UsersTestDataBuilder.UserProfile.ValidUserProfile();
         var authenticatedUser = CreateAuthenticatedUser(expectedProfile.UserId, expectedProfile.Username);
         _usersController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -1015,8 +1016,8 @@ public class UsersControllerTests : TestBase
     public async Task UpdateMyProfile_WithCancellationToken_ShouldPassTokenToService()
     {
         // Arrange
-        var updateRequest = TestDataBuilder.UpdateUserProfile.ValidUpdateRequest();
-        var expectedProfile = TestDataBuilder.UserProfile.ValidUserProfile();
+        var updateRequest = UsersTestDataBuilder.UpdateUserProfile.ValidUpdateRequest();
+        var expectedProfile = UsersTestDataBuilder.UserProfile.ValidUserProfile();
         var authenticatedUser = CreateAuthenticatedUser(expectedProfile.UserId, expectedProfile.Username);
         var cancellationToken = new CancellationToken();
         _usersController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
@@ -1044,8 +1045,8 @@ public class UsersControllerTests : TestBase
     public async Task UpdateMyProfile_ShouldLogInformationAtStart()
     {
         // Arrange
-        var updateRequest = TestDataBuilder.UpdateUserProfile.ValidUpdateRequest();
-        var expectedProfile = TestDataBuilder.UserProfile.ValidUserProfile();
+        var updateRequest = UsersTestDataBuilder.UpdateUserProfile.ValidUpdateRequest();
+        var expectedProfile = UsersTestDataBuilder.UserProfile.ValidUserProfile();
         var authenticatedUser = CreateAuthenticatedUser(expectedProfile.UserId, expectedProfile.Username);
         _usersController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -1076,7 +1077,7 @@ public class UsersControllerTests : TestBase
     public async Task UpdateMyProfile_WithError_ShouldLogWarning()
     {
         // Arrange
-        var updateRequest = TestDataBuilder.UpdateUserProfile.ValidUpdateRequest();
+        var updateRequest = UsersTestDataBuilder.UpdateUserProfile.ValidUpdateRequest();
         var authenticatedUser = CreateAuthenticatedUser(999, "nonexistentuser");
         _usersController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -1107,7 +1108,7 @@ public class UsersControllerTests : TestBase
     public async Task UpdateMyProfile_ShouldReturnCompleteUserProfileStructure()
     {
         // Arrange
-        var updateRequest = TestDataBuilder.UpdateUserProfile.ValidUpdateRequest();
+        var updateRequest = UsersTestDataBuilder.UpdateUserProfile.ValidUpdateRequest();
         var expectedProfile = new UserProfileDto
         {
             UserId = 123,
@@ -1154,8 +1155,8 @@ public class UsersControllerTests : TestBase
     public async Task UpdateMyProfile_ShouldNotExposeSensitiveInformation()
     {
         // Arrange
-        var updateRequest = TestDataBuilder.UpdateUserProfile.ValidUpdateRequest();
-        var expectedProfile = TestDataBuilder.UserProfile.ValidUserProfile();
+        var updateRequest = UsersTestDataBuilder.UpdateUserProfile.ValidUpdateRequest();
+        var expectedProfile = UsersTestDataBuilder.UserProfile.ValidUserProfile();
         expectedProfile.FullName = updateRequest.FullName;
         var authenticatedUser = CreateAuthenticatedUser(expectedProfile.UserId, expectedProfile.Username);
         _usersController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
@@ -1187,8 +1188,8 @@ public class UsersControllerTests : TestBase
     public async Task UpdateMyProfile_ShouldOnlyAllowUserToUpdateOwnProfile()
     {
         // Arrange
-        var updateRequest = TestDataBuilder.UpdateUserProfile.ValidUpdateRequest();
-        var expectedProfile = TestDataBuilder.UserProfile.ValidUserProfile();
+        var updateRequest = UsersTestDataBuilder.UpdateUserProfile.ValidUpdateRequest();
+        var expectedProfile = UsersTestDataBuilder.UserProfile.ValidUserProfile();
         expectedProfile.FullName = updateRequest.FullName;
         var authenticatedUser = CreateAuthenticatedUser(expectedProfile.UserId, expectedProfile.Username);
         _usersController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
@@ -1229,7 +1230,7 @@ public class UsersControllerTests : TestBase
     public async Task ChangePassword_WithValidRequest_ShouldReturnSuccess()
     {
         // Arrange
-        var changePasswordRequest = TestDataBuilder.ChangePassword.ValidChangePasswordRequest();
+        var changePasswordRequest = UsersTestDataBuilder.ChangePassword.ValidChangePasswordRequest();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _usersController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -1256,7 +1257,7 @@ public class UsersControllerTests : TestBase
     public async Task ChangePassword_WithServiceAuthError_ShouldReturnBadRequest()
     {
         // Arrange
-        var changePasswordRequest = TestDataBuilder.ChangePassword.ValidChangePasswordRequest();
+        var changePasswordRequest = UsersTestDataBuilder.ChangePassword.ValidChangePasswordRequest();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _usersController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -1284,7 +1285,7 @@ public class UsersControllerTests : TestBase
     public async Task ChangePassword_WithServiceAuthIssues_ShouldReturnInternalServerError()
     {
         // Arrange
-        var changePasswordRequest = TestDataBuilder.ChangePassword.ValidChangePasswordRequest();
+        var changePasswordRequest = UsersTestDataBuilder.ChangePassword.ValidChangePasswordRequest();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _usersController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -1312,7 +1313,7 @@ public class UsersControllerTests : TestBase
     public async Task ChangePassword_WithIncorrectCurrentPassword_ShouldReturnBadRequest()
     {
         // Arrange
-        var changePasswordRequest = TestDataBuilder.ChangePassword.RequestWithWrongCurrentPassword();
+        var changePasswordRequest = UsersTestDataBuilder.ChangePassword.RequestWithWrongCurrentPassword();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _usersController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -1339,7 +1340,7 @@ public class UsersControllerTests : TestBase
     public async Task ChangePassword_WithNonExistentUser_ShouldReturnBadRequest()
     {
         // Arrange
-        var changePasswordRequest = TestDataBuilder.ChangePassword.ValidChangePasswordRequest();
+        var changePasswordRequest = UsersTestDataBuilder.ChangePassword.ValidChangePasswordRequest();
         var authenticatedUser = CreateAuthenticatedUser(999, "nonexistentuser");
         _usersController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -1366,7 +1367,7 @@ public class UsersControllerTests : TestBase
     public async Task ChangePassword_WithDatabaseError_ShouldReturnInternalServerError()
     {
         // Arrange
-        var changePasswordRequest = TestDataBuilder.ChangePassword.ValidChangePasswordRequest();
+        var changePasswordRequest = UsersTestDataBuilder.ChangePassword.ValidChangePasswordRequest();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _usersController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -1394,7 +1395,7 @@ public class UsersControllerTests : TestBase
     public async Task ChangePassword_ShouldCallServiceWithCorrectParameters()
     {
         // Arrange
-        var changePasswordRequest = TestDataBuilder.ChangePassword.ValidChangePasswordRequest();
+        var changePasswordRequest = UsersTestDataBuilder.ChangePassword.ValidChangePasswordRequest();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _usersController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -1424,7 +1425,7 @@ public class UsersControllerTests : TestBase
     public async Task ChangePassword_WithCancellationToken_ShouldPassTokenToService()
     {
         // Arrange
-        var changePasswordRequest = TestDataBuilder.ChangePassword.ValidChangePasswordRequest();
+        var changePasswordRequest = UsersTestDataBuilder.ChangePassword.ValidChangePasswordRequest();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         var cancellationToken = new CancellationToken();
         _usersController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
@@ -1452,7 +1453,7 @@ public class UsersControllerTests : TestBase
     public async Task ChangePassword_ShouldLogInformationAtStart()
     {
         // Arrange
-        var changePasswordRequest = TestDataBuilder.ChangePassword.ValidChangePasswordRequest();
+        var changePasswordRequest = UsersTestDataBuilder.ChangePassword.ValidChangePasswordRequest();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _usersController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -1483,7 +1484,7 @@ public class UsersControllerTests : TestBase
     public async Task ChangePassword_WithError_ShouldLogWarning()
     {
         // Arrange
-        var changePasswordRequest = TestDataBuilder.ChangePassword.ValidChangePasswordRequest();
+        var changePasswordRequest = UsersTestDataBuilder.ChangePassword.ValidChangePasswordRequest();
         var authenticatedUser = CreateAuthenticatedUser(999, "nonexistentuser");
         _usersController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -1514,7 +1515,7 @@ public class UsersControllerTests : TestBase
     public async Task ChangePassword_ShouldNotLogSensitiveInformation()
     {
         // Arrange
-        var changePasswordRequest = TestDataBuilder.ChangePassword.ValidChangePasswordRequest();
+        var changePasswordRequest = UsersTestDataBuilder.ChangePassword.ValidChangePasswordRequest();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _usersController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -1547,7 +1548,7 @@ public class UsersControllerTests : TestBase
     public async Task ChangePassword_WithWeakNewPassword_ShouldReturnBadRequest()
     {
         // Arrange
-        var changePasswordRequest = TestDataBuilder.ChangePassword.RequestWithWeakNewPassword();
+        var changePasswordRequest = UsersTestDataBuilder.ChangePassword.RequestWithWeakNewPassword();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _usersController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -1575,7 +1576,7 @@ public class UsersControllerTests : TestBase
     public async Task ChangePassword_WithNonMatchingNewPasswords_ShouldReturnBadRequest()
     {
         // Arrange
-        var changePasswordRequest = TestDataBuilder.ChangePassword.RequestWithPasswordMismatch();
+        var changePasswordRequest = UsersTestDataBuilder.ChangePassword.RequestWithPasswordMismatch();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _usersController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -1603,7 +1604,7 @@ public class UsersControllerTests : TestBase
     public async Task ChangePassword_WithSameCurrentAndNewPassword_ShouldReturnBadRequest()
     {
         // Arrange
-        var changePasswordRequest = TestDataBuilder.ChangePassword.RequestWithSamePassword();
+        var changePasswordRequest = UsersTestDataBuilder.ChangePassword.RequestWithSamePassword();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _usersController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -1631,7 +1632,7 @@ public class UsersControllerTests : TestBase
     public async Task ChangePassword_WithEmptyPasswords_ShouldReturnBadRequest()
     {
         // Arrange
-        var changePasswordRequest = TestDataBuilder.ChangePassword.RequestWithEmptyCurrentPassword();
+        var changePasswordRequest = UsersTestDataBuilder.ChangePassword.RequestWithEmptyCurrentPassword();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _usersController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -1659,7 +1660,7 @@ public class UsersControllerTests : TestBase
     public async Task ChangePassword_OnSuccess_ShouldInvalidateRefreshTokens()
     {
         // Arrange
-        var changePasswordRequest = TestDataBuilder.ChangePassword.ValidChangePasswordRequest();
+        var changePasswordRequest = UsersTestDataBuilder.ChangePassword.ValidChangePasswordRequest();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _usersController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -1730,7 +1731,7 @@ public class UsersControllerTests : TestBase
     public async Task ChangePassword_ShouldOnlyAllowUserToChangeOwnPassword()
     {
         // Arrange
-        var changePasswordRequest = TestDataBuilder.ChangePassword.ValidChangePasswordRequest();
+        var changePasswordRequest = UsersTestDataBuilder.ChangePassword.ValidChangePasswordRequest();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _usersController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -4186,3 +4187,6 @@ public class UsersControllerTests : TestBase
 
     #endregion
 }
+
+
+

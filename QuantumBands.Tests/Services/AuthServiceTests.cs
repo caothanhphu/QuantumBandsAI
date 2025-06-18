@@ -11,6 +11,7 @@ using QuantumBands.Domain.Entities;
 using QuantumBands.Tests.Common;
 using QuantumBands.Tests.Fixtures;
 using static QuantumBands.Tests.Fixtures.AuthenticationTestDataBuilder;
+using static QuantumBands.Tests.Fixtures.UsersTestDataBuilder;
 using System.Linq.Expressions;
 using Xunit;
 
@@ -70,7 +71,7 @@ public class AuthServiceTests : TestBase
     {
         // Arrange
         var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
-        var expectedUser = TestDataBuilder.Users.ValidUser();
+        var expectedUser = UsersTestDataBuilder.Users.ValidUser();
         var expectedWallet = TestDataBuilder.Wallets.ValidWallet(expectedUser.UserId);
 
         SetupSuccessfulRegistration(expectedUser, expectedWallet);
@@ -93,7 +94,7 @@ public class AuthServiceTests : TestBase
     {
         // Arrange
         var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommandWithoutFullName();
-        var expectedUser = TestDataBuilder.Users.ValidUser();
+        var expectedUser = UsersTestDataBuilder.Users.ValidUser();
         expectedUser.FullName = null;
         var expectedWallet = TestDataBuilder.Wallets.ValidWallet(expectedUser.UserId);
 
@@ -115,7 +116,7 @@ public class AuthServiceTests : TestBase
     {
         // Arrange
         var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
-        var expectedUser = TestDataBuilder.Users.ValidUser();
+        var expectedUser = UsersTestDataBuilder.Users.ValidUser();
         var expectedWallet = TestDataBuilder.Wallets.ValidWallet(expectedUser.UserId);
 
         SetupSuccessfulRegistration(expectedUser, expectedWallet);
@@ -138,7 +139,7 @@ public class AuthServiceTests : TestBase
     {
         // Arrange
         var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
-        var expectedUser = TestDataBuilder.Users.ValidUser();
+        var expectedUser = UsersTestDataBuilder.Users.ValidUser();
         var expectedWallet = TestDataBuilder.Wallets.ValidWallet(expectedUser.UserId);
 
         SetupSuccessfulRegistration(expectedUser, expectedWallet);
@@ -214,7 +215,7 @@ public class AuthServiceTests : TestBase
             // Arrange
             SetupDefaultRole();
             var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
-            var existingUser = TestDataBuilder.Users.ValidUser();
+            var existingUser = UsersTestDataBuilder.Users.ValidUser();
             existingUser.Username = command.Username;
 
             _mockUserRepository.Setup(x => x.FindAsync(
@@ -236,7 +237,7 @@ public class AuthServiceTests : TestBase
             // Arrange
             SetupDefaultRole();
             var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
-            var existingUser = TestDataBuilder.Users.ValidUser();
+            var existingUser = UsersTestDataBuilder.Users.ValidUser();
             existingUser.Email = command.Email;
 
             // Setup to return empty for username check, user for email check
@@ -289,7 +290,7 @@ public class AuthServiceTests : TestBase
     {
         // Arrange
         var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
-        var expectedUser = TestDataBuilder.Users.ValidUser();
+        var expectedUser = UsersTestDataBuilder.Users.ValidUser();
         var expectedWallet = TestDataBuilder.Wallets.ValidWallet(expectedUser.UserId);
 
         SetupSuccessfulRegistration(expectedUser, expectedWallet);
@@ -316,7 +317,7 @@ public class AuthServiceTests : TestBase
     {
         // Arrange
         var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
-        var expectedUser = TestDataBuilder.Users.ValidUser();
+        var expectedUser = UsersTestDataBuilder.Users.ValidUser();
         var expectedWallet = TestDataBuilder.Wallets.ValidWallet(expectedUser.UserId);
 
         SetupSuccessfulRegistration(expectedUser, expectedWallet);
@@ -338,7 +339,7 @@ public class AuthServiceTests : TestBase
     {
         // Arrange
         var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
-        var expectedUser = TestDataBuilder.Users.ValidUser();
+        var expectedUser = UsersTestDataBuilder.Users.ValidUser();
         var expectedWallet = TestDataBuilder.Wallets.ValidWallet(expectedUser.UserId);
 
         SetupSuccessfulRegistration(expectedUser, expectedWallet);
@@ -360,7 +361,7 @@ public class AuthServiceTests : TestBase
     {
         // Arrange
         var command = AuthenticationTestDataBuilder.RegisterUser.ValidCommand();
-        var expectedUser = TestDataBuilder.Users.ValidUser();
+        var expectedUser = UsersTestDataBuilder.Users.ValidUser();
         var expectedWallet = TestDataBuilder.Wallets.ValidWallet(expectedUser.UserId);
 
         SetupSuccessfulRegistration(expectedUser, expectedWallet);
@@ -426,3 +427,7 @@ public class AuthServiceTests : TestBase
 
     #endregion
 } 
+
+
+
+
