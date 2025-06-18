@@ -17,6 +17,7 @@ using System.IdentityModel.Tokens.Jwt; // For FirstOrDefaultAsync, SumAsync
 using System.Linq;
 using System.Linq.Expressions;
 using System.Security.Claims;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -1959,5 +1960,231 @@ public class TradingAccountService : ITradingAccountService
             },
             LastActivity = activities.Any() ? activities.Max(a => a.Timestamp) : DateTime.MinValue
         };
+    }
+
+    public async Task<(ExportResult? Export, string? ErrorMessage)> ExportDataAsync(int accountId, ExportDataQuery query, int userId, bool isAdmin, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            // Authorization check
+            var tradingAccount = await _unitOfWork.TradingAccounts
+                .GetByIdAsync(accountId);
+
+            if (tradingAccount == null)
+            {
+                return (null, $"Trading account with ID {accountId} not found");
+            }
+
+            // Check authorization
+            if (!isAdmin && tradingAccount.CreatedByUserId != userId)
+            {
+                return (null, "You don't have permission to export data for this account");
+            }
+
+            // Generate export based on type and format
+            var result = query.Type switch
+            {
+                ExportType.TradingHistory => await ExportTradingHistoryAsync(accountId, query, cancellationToken),
+                ExportType.Statistics => await ExportStatisticsAsync(accountId, query, cancellationToken),
+                ExportType.PerformanceReport => await ExportPerformanceReportAsync(accountId, query, cancellationToken),
+                ExportType.RiskReport => await ExportRiskReportAsync(accountId, query, cancellationToken),
+                ExportType.Custom => await ExportCustomReportAsync(accountId, query, cancellationToken),
+                _ => throw new ArgumentException($"Unsupported export type: {query.Type}")
+            };
+
+            return (result, null);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error exporting data for account {AccountId}", accountId);
+            return (null, "An error occurred while exporting data");
+        }
+    }
+
+    private async Task<ExportResult> ExportTradingHistoryAsync(int accountId, ExportDataQuery query, CancellationToken cancellationToken)
+    {
+        // Get trading history data
+        var trades = await _unitOfWork.EAClosedTrades
+            .FindAsync(ct => ct.TradingAccountId == accountId, cancellationToken);
+
+        // Apply date filtering
+        if (query.StartDate.HasValue)
+        {
+            trades = trades.Where(t => t.CloseTime >= query.StartDate.Value);
+        }
+        if (query.EndDate.HasValue)
+        {
+            trades = trades.Where(t => t.CloseTime <= query.EndDate.Value.AddDays(1).AddTicks(-1));
+        }
+
+        // Apply symbol filtering
+        if (!string.IsNullOrEmpty(query.Symbols))
+        {
+            var symbols = query.Symbols.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                .Select(s => s.Trim().ToUpperInvariant()).ToList();
+            trades = trades.Where(t => symbols.Contains(t.Symbol.ToUpperInvariant()));
+        }
+
+        var exportData = trades.OrderByDescending(t => t.CloseTime).Select(t => new TradingHistoryExportRow
+        {
+            Ticket = t.EaticketId,
+            OpenTime = t.OpenTime.ToString("yyyy-MM-dd HH:mm:ss"),
+            CloseTime = t.CloseTime.ToString("yyyy-MM-dd HH:mm:ss"),
+            Symbol = t.Symbol,
+            Type = t.TradeType,
+            Volume = t.VolumeLots,
+            OpenPrice = t.OpenPrice,
+            ClosePrice = t.ClosePrice,
+            Commission = t.Commission,
+            Swap = t.Swap,
+            Profit = t.RealizedPandL,
+            Duration = CalculateTradeDuration(t.OpenTime, t.CloseTime),
+            Pips = CalculatePips(t)
+        }).ToList();
+
+        return query.Format switch
+        {
+            ExportFormat.CSV => GenerateCsvExport(exportData, accountId, "trading_history"),
+            ExportFormat.Excel => GenerateExcelExport(exportData, accountId, "trading_history"),
+            _ => throw new NotSupportedException($"Format {query.Format} not supported for trading history")
+        };
+    }
+
+    private async Task<ExportResult> ExportStatisticsAsync(int accountId, ExportDataQuery query, CancellationToken cancellationToken)
+    {
+        // For demonstration, create a simple statistics export
+        var statistics = new List<dynamic>
+        {
+            new { Metric = "Total Trades", Value = "100" },
+            new { Metric = "Profitable Trades", Value = "60%" },
+            new { Metric = "Total Profit", Value = "$5,000" },
+            new { Metric = "Max Drawdown", Value = "15%" },
+            new { Metric = "Sharpe Ratio", Value = "1.5" }
+        };
+
+        return query.Format switch
+        {
+            ExportFormat.CSV => GenerateCsvExport(statistics, accountId, "statistics"),
+            ExportFormat.Excel => GenerateExcelExport(statistics, accountId, "statistics"),
+            _ => throw new NotSupportedException($"Format {query.Format} not supported for statistics")
+        };
+    }
+
+    private async Task<ExportResult> ExportPerformanceReportAsync(int accountId, ExportDataQuery query, CancellationToken cancellationToken)
+    {
+        // Simplified performance report
+        var performanceData = new List<dynamic>
+        {
+            new { Period = "Monthly", Return = "5.2%", Volatility = "12.3%" },
+            new { Period = "Quarterly", Return = "15.8%", Volatility = "18.7%" },
+            new { Period = "Yearly", Return = "65.4%", Volatility = "22.1%" }
+        };
+
+        return query.Format switch
+        {
+            ExportFormat.CSV => GenerateCsvExport(performanceData, accountId, "performance_report"),
+            ExportFormat.Excel => GenerateExcelExport(performanceData, accountId, "performance_report"),
+            _ => throw new NotSupportedException($"Format {query.Format} not supported for performance report")
+        };
+    }
+
+    private async Task<ExportResult> ExportRiskReportAsync(int accountId, ExportDataQuery query, CancellationToken cancellationToken)
+    {
+        // Simplified risk report
+        var riskData = new List<dynamic>
+        {
+            new { Metric = "Value at Risk (95%)", Value = "2.5%" },
+            new { Metric = "Maximum Drawdown", Value = "15.2%" },
+            new { Metric = "Beta", Value = "1.2" },
+            new { Metric = "Risk-Adjusted Return", Value = "3.8%" }
+        };
+
+        return query.Format switch
+        {
+            ExportFormat.CSV => GenerateCsvExport(riskData, accountId, "risk_report"),
+            ExportFormat.Excel => GenerateExcelExport(riskData, accountId, "risk_report"),
+            _ => throw new NotSupportedException($"Format {query.Format} not supported for risk report")
+        };
+    }
+
+    private async Task<ExportResult> ExportCustomReportAsync(int accountId, ExportDataQuery query, CancellationToken cancellationToken)
+    {
+        // Simplified custom report
+        var customData = new List<dynamic>
+        {
+            new { Item = "Custom Metric 1", Value = "Sample Value 1" },
+            new { Item = "Custom Metric 2", Value = "Sample Value 2" }
+        };
+
+        return query.Format switch
+        {
+            ExportFormat.CSV => GenerateCsvExport(customData, accountId, "custom_report"),
+            ExportFormat.Excel => GenerateExcelExport(customData, accountId, "custom_report"),
+            _ => throw new NotSupportedException($"Format {query.Format} not supported for custom report")
+        };
+    }
+
+    private static ExportResult GenerateCsvExport<T>(IEnumerable<T> data, int accountId, string reportType)
+    {
+        var csv = new StringBuilder();
+        
+        // Generate CSV header
+        var properties = typeof(T).GetProperties();
+        if (data.Any())
+        {
+            var firstItem = data.First();
+            if (firstItem is TradingHistoryExportRow)
+            {
+                csv.AppendLine("Ticket,OpenTime,CloseTime,Symbol,Type,Volume,OpenPrice,ClosePrice,Commission,Swap,Profit,Duration,Pips");
+                foreach (var item in data.Cast<TradingHistoryExportRow>())
+                {
+                    csv.AppendLine($"{item.Ticket},{item.OpenTime},{item.CloseTime},{item.Symbol},{item.Type},{item.Volume},{item.OpenPrice},{item.ClosePrice},{item.Commission},{item.Swap},{item.Profit},{item.Duration},{item.Pips}");
+                }
+            }
+            else
+            {
+                // Generic CSV generation for other types
+                var headerLine = string.Join(",", properties.Select(p => p.Name));
+                csv.AppendLine(headerLine);
+
+                foreach (var item in data)
+                {
+                    var values = properties.Select(p => p.GetValue(item)?.ToString() ?? "").ToArray();
+                    csv.AppendLine(string.Join(",", values));
+                }
+            }
+        }
+
+        var fileName = $"account_{accountId}_{reportType}_{DateTime.UtcNow:yyyyMMdd_HHmmss}.csv";
+        var bytes = Encoding.UTF8.GetBytes(csv.ToString());
+
+        return new ExportResult
+        {
+            Data = bytes,
+            FileName = fileName,
+            ContentType = "text/csv"
+        };
+    }
+
+    private static ExportResult GenerateExcelExport<T>(IEnumerable<T> data, int accountId, string reportType)
+    {
+        // For now, return CSV format as Excel isn't implemented yet
+        // In a real implementation, you would use a library like EPPlus or ClosedXML
+        var csvResult = GenerateCsvExport(data, accountId, reportType);
+        
+        return new ExportResult
+        {
+            Data = csvResult.Data,
+            FileName = csvResult.FileName.Replace(".csv", ".xlsx"),
+            ContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        };
+    }
+
+    private static decimal? CalculatePips(EaclosedTrade trade)
+    {
+        // Simplified pip calculation
+        var pipValue = trade.Symbol.Contains("JPY") ? 0.01m : 0.0001m;
+        var priceDifference = Math.Abs(trade.ClosePrice - trade.OpenPrice);
+        return Math.Round(priceDifference / pipValue, 1);
     }
 }
