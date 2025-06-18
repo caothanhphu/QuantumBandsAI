@@ -6,6 +6,7 @@ using QuantumBands.Application.Features.Admin.TradingAccounts.Commands;
 using QuantumBands.Application.Features.Admin.TradingAccounts.Dtos;
 using QuantumBands.Application.Features.TradingAccounts.Dtos;
 using QuantumBands.Application.Features.TradingAccounts.Queries;
+using QuantumBands.Application.Features.TradingAccounts.Enums;
 using QuantumBands.Application.Interfaces;
 using QuantumBands.Application.Interfaces.Repositories; // Assuming specific repositories if needed
 using QuantumBands.Application.Services;
@@ -1468,5 +1469,178 @@ public class TradingAccountService : ITradingAccountService
             AccountBalance = accountBalance,
             DrawdownPercent = drawdownPercent
         };
+    }
+
+    public async Task<(TradingStatisticsDto? Statistics, string? ErrorMessage)> GetStatisticsAsync(
+        int accountId, 
+        GetStatisticsQuery query, 
+        int userId, 
+        bool isAdmin, 
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            _logger.LogInformation("Getting statistics for account {AccountId} with query {@Query}", accountId, query);
+
+            // Verify account exists and user has access
+            var tradingAccount = await _unitOfWork.TradingAccounts
+                .GetByIdAsync(accountId);
+
+            if (tradingAccount == null)
+            {
+                return (null, $"Trading account with ID {accountId} not found");
+            }
+
+            // Check authorization
+            if (!isAdmin && tradingAccount.CreatedByUserId != userId)
+            {
+                return (null, "Unauthorized access to trading account");
+            }
+
+            // Get date range based on period
+            var (startDate, endDate) = GetDateRangeForPeriod(query.Period, tradingAccount.CreatedAt);
+
+            // Simple statistics implementation for now
+            var statistics = new TradingStatisticsDto
+            {
+                Period = query.Period.ToString(),
+                DateRange = new DateRangeDto
+                {
+                    StartDate = startDate,
+                    EndDate = endDate,
+                    TotalDays = (int)(endDate - startDate).TotalDays + 1,
+                    TradingDays = CalculateTradingDays(startDate, endDate)
+                },
+                TradingStats = new TradingStatsDto
+                {
+                    TotalTrades = 0,
+                    ProfitableTrades = new TradeCountDto { Count = 0, Percentage = 0 },
+                    LosingTrades = new TradeCountDto { Count = 0, Percentage = 0 },
+                    BreakEvenTrades = new TradeCountDto { Count = 0, Percentage = 0 },
+                    BestTrade = 0,
+                    WorstTrade = 0,
+                    AverageProfit = 0,
+                    AverageLoss = 0,
+                    LargestProfitTrade = 0,
+                    LargestLossTrade = 0,
+                    MaxConsecutiveWins = 0,
+                    MaxConsecutiveLosses = 0,
+                    AverageTradeDuration = "00:00:00",
+                    TradesPerDay = 0,
+                    TradesPerWeek = 0,
+                    TradesPerMonth = 0
+                },
+                FinancialStats = new FinancialStatsDto
+                {
+                    GrossProfit = 0,
+                    GrossLoss = 0,
+                    TotalNetProfit = 0,
+                    ProfitFactor = 0,
+                    ExpectedPayoff = 0,
+                    AverageTradeNetProfit = 0,
+                    ReturnOnInvestment = 0,
+                    AnnualizedReturn = 0,
+                    TotalCommission = 0,
+                    TotalSwap = 0,
+                    NetProfitAfterCosts = 0
+                },
+                RiskMetrics = new RiskMetricsDto
+                {
+                    MaxDrawdown = new MaxDrawdownInfoDto
+                    {
+                        Amount = 0,
+                        Percentage = 0,
+                        Date = DateTime.UtcNow,
+                        Duration = "0 days",
+                        RecoveryTime = "N/A"
+                    },
+                    AverageDrawdown = 0,
+                    CalmarRatio = 0,
+                    MaxDailyLoss = 0,
+                    MaxDailyProfit = 0,
+                    AverageDailyPL = 0,
+                    Volatility = 0,
+                    StandardDeviation = 0,
+                    DownsideDeviation = 0,
+                    RiskOfRuin = 0,
+                    WinLossRatio = 0,
+                    PayoffRatio = 0
+                },
+                AdvancedMetrics = query.IncludeAdvanced ? new AdvancedMetricsDto
+                {
+                    SharpeRatio = 0,
+                    SortinoRatio = 0,
+                    InformationRatio = 0,
+                    TreynorRatio = 0,
+                    Alpha = 0,
+                    Beta = 1,
+                    RSquared = 0,
+                    TrackingError = 0,
+                    ValueAtRisk95 = 0,
+                    ValueAtRisk99 = 0,
+                    ConditionalVaR = 0,
+                    MaxLeverageUsed = 0,
+                    AverageLeverage = 0
+                } : null,
+                SymbolBreakdown = new List<SymbolBreakdownDto>(),
+                MonthlyPerformance = new List<MonthlyPerformanceDto>()
+            };
+
+            return (statistics, null);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting statistics for account {AccountId}", accountId);
+            return (null, "An error occurred while calculating statistics");
+        }
+    }
+
+    private static (DateTime startDate, DateTime endDate) GetDateRangeForPeriod(TimePeriod period, DateTime accountCreationDate)
+    {
+        var endDate = DateTime.UtcNow.Date;
+        DateTime startDate;
+
+        switch (period)
+        {
+            case TimePeriod.OneMonth:
+                startDate = endDate.AddDays(-30);
+                break;
+            case TimePeriod.ThreeMonths:
+                startDate = endDate.AddDays(-90);
+                break;
+            case TimePeriod.SixMonths:
+                startDate = endDate.AddDays(-180);
+                break;
+            case TimePeriod.OneYear:
+                startDate = endDate.AddDays(-365);
+                break;
+            case TimePeriod.All:
+            default:
+                startDate = accountCreationDate.Date;
+                break;
+        }
+
+        // Ensure start date is not before account creation
+        startDate = startDate < accountCreationDate.Date ? accountCreationDate.Date : startDate;
+
+        return (startDate, endDate);
+    }
+
+    private static int CalculateTradingDays(DateTime startDate, DateTime endDate)
+    {
+        var tradingDays = 0;
+        var current = startDate;
+
+        while (current <= endDate)
+        {
+            // Exclude weekends (simplified - doesn't account for holidays)
+            if (current.DayOfWeek != DayOfWeek.Saturday && current.DayOfWeek != DayOfWeek.Sunday)
+            {
+                tradingDays++;
+            }
+            current = current.AddDays(1);
+        }
+
+        return tradingDays;
     }
 }
