@@ -5412,4 +5412,124 @@ public static class TestDataBuilder
             Description = "Custom test deposit"
         };
     }
+
+    // SCRUM-77: Test data for POST /admin/wallets/deposits/bank/cancel endpoint testing
+    /// <summary>
+    /// Test data builder for CancelBankDeposit functionality
+    /// Provides comprehensive test data for unit testing the bank deposit cancellation feature.
+    /// 
+    /// This class supports testing of:
+    /// - Valid cancellation requests (happy path scenarios)
+    /// - Validation error scenarios (empty notes, too long notes, invalid transaction IDs)
+    /// - Business logic scenarios (non-existent transactions, already processed deposits)
+    /// - Response DTOs for successful cancellations
+    /// 
+    /// Usage:
+    /// - TestDataBuilder.CancelBankDeposit.ValidRequest() - Returns valid cancellation request
+    /// - TestDataBuilder.CancelBankDeposit.ValidCancelledTransactionDto() - Returns expected response
+    /// - Various error scenario methods for comprehensive testing coverage
+    /// </summary>
+    public static class CancelBankDeposit
+    {
+        /// <summary>
+        /// Valid cancel bank deposit request for happy path testing
+        /// Contains valid transaction ID and admin notes within acceptable limits
+        /// </summary>
+        public static CancelBankDepositRequest ValidRequest() => new()
+        {
+            TransactionId = 1001,
+            AdminNotes = "User requested cancellation due to error in amount"
+        };
+
+        /// <summary>
+        /// Cancel request with empty admin notes (invalid)
+        /// </summary>
+        public static CancelBankDepositRequest RequestWithEmptyNotes() => new()
+        {
+            TransactionId = 1001,
+            AdminNotes = ""
+        };
+
+        /// <summary>
+        /// Cancel request with admin notes too long (invalid)
+        /// </summary>
+        public static CancelBankDepositRequest RequestWithTooLongAdminNotes() => new()
+        {
+            TransactionId = 1001,
+            AdminNotes = new string('A', 501) // 501 characters - exceeds limit
+        };
+
+        /// <summary>
+        /// Cancel request with empty admin notes (invalid)
+        /// </summary>
+        public static CancelBankDepositRequest RequestWithEmptyAdminNotes() => new()
+        {
+            TransactionId = 1001,
+            AdminNotes = ""
+        };
+
+        /// <summary>
+        /// Cancel request with invalid transaction ID
+        /// </summary>
+        public static CancelBankDepositRequest RequestWithInvalidTransactionId() => new()
+        {
+            TransactionId = 0,
+            AdminNotes = "Invalid transaction ID test"
+        };
+
+        /// <summary>
+        /// Cancel request for non-existent transaction
+        /// </summary>
+        public static CancelBankDepositRequest RequestForNonExistentTransaction() => new()
+        {
+            TransactionId = 99999,
+            AdminNotes = "Attempting to cancel non-existent transaction"
+        };
+
+        /// <summary>
+        /// Cancel request for already confirmed deposit
+        /// </summary>
+        public static CancelBankDepositRequest RequestForAlreadyConfirmedDeposit() => new()
+        {
+            TransactionId = 1002,
+            AdminNotes = "Trying to cancel already confirmed deposit"
+        };
+
+        /// <summary>
+        /// Cancel request for already cancelled deposit
+        /// </summary>
+        public static CancelBankDepositRequest RequestForAlreadyCancelledDeposit() => new()
+        {
+            TransactionId = 1003,
+            AdminNotes = "Trying to cancel already cancelled deposit"
+        };
+
+        /// <summary>
+        /// Valid cancelled transaction response
+        /// </summary>
+        public static WalletTransactionDto ValidCancelledTransactionDto() => new()
+        {
+            TransactionId = 1001,
+            TransactionTypeName = "Bank Deposit",
+            Amount = 1000.00m,
+            CurrencyCode = "USD",
+            BalanceAfter = 5000.00m,
+            ReferenceId = "DEP001",
+            PaymentMethod = "Bank Transfer",
+            ExternalTransactionId = "BANK_TXN_001",
+            Description = "Bank deposit cancelled by admin",
+            Status = "Cancelled",
+            TransactionDate = DateTime.UtcNow.AddHours(-2),
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        /// <summary>
+        /// Custom cancel request
+        /// </summary>
+        public static CancelBankDepositRequest CustomRequest(long transactionId, string adminNotes) => new()
+        {
+            TransactionId = transactionId,
+            AdminNotes = adminNotes
+        };
+    }
 } 
