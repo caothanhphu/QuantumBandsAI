@@ -13,6 +13,7 @@ using QuantumBands.Domain.Entities;
 using QuantumBands.Domain.Entities.Enums;
 using System;
 using System.IdentityModel.Tokens.Jwt; // For FirstOrDefaultAsync, SumAsync
+using System.Linq;
 using System.Linq.Expressions;
 using System.Security.Claims;
 using System.Threading;
@@ -982,5 +983,252 @@ public class TradingAccountService : ITradingAccountService
                 accountId, query.Type);
             return (null, "An error occurred while retrieving chart data");
         }
+    }
+
+    public async Task<(PaginatedTradingHistoryDto? History, string? ErrorMessage)> GetTradingHistoryAsync(
+        int accountId, 
+        GetTradingHistoryQuery query, 
+        int userId, 
+        bool isAdmin, 
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            _logger.LogInformation("Getting trading history for account {AccountId}, user {UserId}, page {Page}, pageSize {PageSize}", 
+                accountId, userId, query.ValidatedPage, query.ValidatedPageSize);
+
+            // Authorization check - same as other methods
+            if (!isAdmin)
+            {
+                var accountOwner = await _unitOfWork.TradingAccounts.Query()
+                    .Where(ta => ta.TradingAccountId == accountId)
+                    .Select(ta => ta.CreatedByUserId)
+                    .FirstOrDefaultAsync(cancellationToken);
+
+                if (accountOwner != userId)
+                {
+                    return (null, "Unauthorized access to this trading account");
+                }
+            }
+
+            // Check if account exists
+            var accountExists = await _unitOfWork.TradingAccounts.Query()
+                .AnyAsync(ta => ta.TradingAccountId == accountId, cancellationToken);
+
+            if (!accountExists)
+            {
+                return (null, $"Trading account with ID {accountId} not found");
+            }
+
+            // Build base query
+            var tradesQuery = _unitOfWork.EAClosedTrades.Query()
+                .Where(ct => ct.TradingAccountId == accountId);
+
+            // Apply filters
+            if (!string.IsNullOrWhiteSpace(query.Symbol))
+            {
+                tradesQuery = tradesQuery.Where(ct => ct.Symbol.Contains(query.Symbol));
+            }
+
+            if (!string.IsNullOrWhiteSpace(query.Type))
+            {
+                tradesQuery = tradesQuery.Where(ct => ct.TradeType.ToLower() == query.Type.ToLower());
+            }
+
+            if (query.StartDate.HasValue)
+            {
+                var startDate = query.StartDate.Value;
+                tradesQuery = tradesQuery.Where(ct => ct.CloseTime >= startDate);
+            }
+
+            if (query.EndDate.HasValue)
+            {
+                var endDate = query.EndDate.Value.AddDays(1); // Include the entire end date
+                tradesQuery = tradesQuery.Where(ct => ct.CloseTime < endDate);
+            }
+
+            if (query.MinProfit.HasValue)
+            {
+                tradesQuery = tradesQuery.Where(ct => ct.RealizedPandL >= query.MinProfit.Value);
+            }
+
+            if (query.MaxProfit.HasValue)
+            {
+                tradesQuery = tradesQuery.Where(ct => ct.RealizedPandL <= query.MaxProfit.Value);
+            }
+
+            if (query.MinVolume.HasValue)
+            {
+                tradesQuery = tradesQuery.Where(ct => ct.VolumeLots >= query.MinVolume.Value);
+            }
+
+            if (query.MaxVolume.HasValue)
+            {
+                tradesQuery = tradesQuery.Where(ct => ct.VolumeLots <= query.MaxVolume.Value);
+            }
+
+            // Apply sorting
+            tradesQuery = query.ValidatedSortBy.ToLowerInvariant() switch
+            {
+                "opentime" => query.ValidatedSortOrder == "desc" 
+                    ? tradesQuery.OrderByDescending(ct => ct.OpenTime)
+                    : tradesQuery.OrderBy(ct => ct.OpenTime),
+                "closetime" => query.ValidatedSortOrder == "desc" 
+                    ? tradesQuery.OrderByDescending(ct => ct.CloseTime)
+                    : tradesQuery.OrderBy(ct => ct.CloseTime),
+                "symbol" => query.ValidatedSortOrder == "desc" 
+                    ? tradesQuery.OrderByDescending(ct => ct.Symbol)
+                    : tradesQuery.OrderBy(ct => ct.Symbol),
+                "profit" => query.ValidatedSortOrder == "desc" 
+                    ? tradesQuery.OrderByDescending(ct => ct.RealizedPandL)
+                    : tradesQuery.OrderBy(ct => ct.RealizedPandL),
+                "volume" => query.ValidatedSortOrder == "desc" 
+                    ? tradesQuery.OrderByDescending(ct => ct.VolumeLots)
+                    : tradesQuery.OrderBy(ct => ct.VolumeLots),
+                _ => tradesQuery.OrderByDescending(ct => ct.CloseTime)
+            };
+
+            // Calculate summary statistics for filtered data
+            var summary = await CalculateTradingHistorySummaryAsync(tradesQuery, cancellationToken);
+
+            // Get total count for pagination
+            var totalItems = await tradesQuery.CountAsync(cancellationToken);
+            
+            // Calculate pagination metadata
+            var totalPages = (int)Math.Ceiling(totalItems / (double)query.ValidatedPageSize);
+            var firstItemIndex = totalItems > 0 ? ((query.ValidatedPage - 1) * query.ValidatedPageSize) + 1 : 0;
+            var lastItemIndex = Math.Min(firstItemIndex + query.ValidatedPageSize - 1, totalItems);
+
+            // Apply pagination and get results
+            var trades = await tradesQuery
+                .Skip((query.ValidatedPage - 1) * query.ValidatedPageSize)
+                .Take(query.ValidatedPageSize)
+                .Select(ct => new TradingHistoryDto
+                {
+                    ClosedTradeId = (int)ct.ClosedTradeId,
+                    EaTicketId = string.IsNullOrEmpty(ct.EaticketId) ? 0 : long.Parse(ct.EaticketId),
+                    Symbol = ct.Symbol,
+                    TradeType = ct.TradeType,
+                    VolumeLots = ct.VolumeLots,
+                    OpenPrice = ct.OpenPrice,
+                    OpenTime = ct.OpenTime,
+                    ClosePrice = ct.ClosePrice,
+                    CloseTime = ct.CloseTime,
+                    Swap = ct.Swap ?? 0,
+                    Commission = ct.Commission ?? 0,
+                    RealizedPandL = ct.RealizedPandL,
+                    RecordedAt = ct.RecordedAt,
+                    Duration = CalculateTradeDuration(ct.OpenTime, ct.CloseTime),
+                    Pips = CalculatePips(ct.Symbol, ct.OpenPrice, ct.ClosePrice, ct.TradeType),
+                    VolumeInUnits = ct.VolumeLots * 100000, // Standard lot size
+                    Comment = string.Empty, // Not available in EaclosedTrade
+                    MagicNumber = 0, // Not available in EaclosedTrade  
+                    StopLoss = null, // Not available in EaclosedTrade
+                    TakeProfit = null // Not available in EaclosedTrade
+                })
+                .ToListAsync(cancellationToken);
+
+            var result = new PaginatedTradingHistoryDto
+            {
+                Pagination = new PaginationMetadata
+                {
+                    CurrentPage = query.ValidatedPage,
+                    PageSize = query.ValidatedPageSize,
+                    TotalPages = totalPages,
+                    TotalItems = totalItems,
+                    HasNextPage = query.ValidatedPage < totalPages,
+                    HasPreviousPage = query.ValidatedPage > 1,
+                    FirstItemIndex = firstItemIndex,
+                    LastItemIndex = lastItemIndex
+                },
+                Filters = new AppliedFilters
+                {
+                    Symbol = query.Symbol,
+                    Type = query.Type,
+                    DateRange = (query.StartDate.HasValue || query.EndDate.HasValue) 
+                        ? new DateRange { StartDate = query.StartDate, EndDate = query.EndDate }
+                        : null,
+                    ProfitRange = (query.MinProfit.HasValue || query.MaxProfit.HasValue)
+                        ? new ProfitRange { MinProfit = query.MinProfit, MaxProfit = query.MaxProfit }
+                        : null,
+                    VolumeRange = (query.MinVolume.HasValue || query.MaxVolume.HasValue)
+                        ? new VolumeRange { MinVolume = query.MinVolume, MaxVolume = query.MaxVolume }
+                        : null,
+                    SortBy = query.ValidatedSortBy,
+                    SortOrder = query.ValidatedSortOrder
+                },
+                Trades = trades,
+                Summary = summary
+            };
+
+            _logger.LogInformation("Trading history retrieved successfully for account {AccountId}, {TotalItems} total items, {PageItems} items on page {Page}", 
+                accountId, totalItems, trades.Count, query.ValidatedPage);
+
+            return (result, null);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting trading history for account {AccountId}", accountId);
+            return (null, "An error occurred while retrieving trading history");
+        }
+    }
+
+    private async Task<TradingHistorySummary> CalculateTradingHistorySummaryAsync(
+        IQueryable<EaclosedTrade> query, 
+        CancellationToken cancellationToken)
+    {
+        if (!await query.AnyAsync(cancellationToken))
+        {
+            return new TradingHistorySummary();
+        }
+
+        var trades = await query.ToListAsync(cancellationToken);
+        
+        var profitableTrades = trades.Where(t => t.RealizedPandL > 0).ToList();
+        var losingTrades = trades.Where(t => t.RealizedPandL <= 0).ToList();
+
+        return new TradingHistorySummary
+        {
+            FilteredTotalProfit = trades.Sum(t => t.RealizedPandL),
+            FilteredTotalTrades = trades.Count,
+            FilteredProfitableTrades = profitableTrades.Count,
+            FilteredLosingTrades = losingTrades.Count,
+            FilteredWinRate = trades.Count > 0 ? (decimal)profitableTrades.Count / trades.Count * 100 : 0,
+            FilteredGrossProfit = profitableTrades.Sum(t => t.RealizedPandL),
+            FilteredGrossLoss = losingTrades.Sum(t => t.RealizedPandL),
+            FilteredTotalCommission = trades.Sum(t => t.Commission ?? 0),
+            FilteredTotalSwap = trades.Sum(t => t.Swap ?? 0)
+        };
+    }
+
+    private static string CalculateTradeDuration(DateTime openTime, DateTime closeTime)
+    {
+        var duration = closeTime - openTime;
+        
+        if (duration.TotalDays >= 1)
+        {
+            return $"{(int)duration.TotalDays}d {duration.Hours}h {duration.Minutes}m";
+        }
+        else if (duration.TotalHours >= 1)
+        {
+            return $"{duration.Hours}h {duration.Minutes}m";
+        }
+        else
+        {
+            return $"{duration.Minutes}m {duration.Seconds}s";
+        }
+    }
+
+    private static decimal CalculatePips(string symbol, decimal openPrice, decimal closePrice, string tradeType)
+    {
+        // Basic pip calculation - this is simplified and should be enhanced based on actual broker specs
+        var priceDifference = tradeType.ToUpper() == "BUY" 
+            ? closePrice - openPrice 
+            : openPrice - closePrice;
+
+        // For JPY pairs, pip is typically 0.01, for others 0.0001
+        var pipSize = symbol.Contains("JPY") ? 0.01m : 0.0001m;
+        
+        return Math.Round(priceDifference / pipSize, 2);
     }
 }

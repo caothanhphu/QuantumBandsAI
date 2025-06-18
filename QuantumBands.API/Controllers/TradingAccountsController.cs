@@ -188,4 +188,55 @@ public class TradingAccountsController : ControllerBase
 
         return Ok(chartData);
     }
+
+    /// <summary>
+    /// Gets paginated trading history for a specific trading account with advanced filtering and sorting.
+    /// Supports filtering by symbol, trade type, date ranges, profit ranges, and volume ranges.
+    /// Users can only access their own accounts, admins can access any account.
+    /// </summary>
+    /// <param name="accountId">Trading account identifier</param>
+    /// <param name="query">Trading history query parameters with filters and pagination</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Paginated trading history with summary statistics and applied filters</returns>
+    [HttpGet("{accountId}/trading-history")] // Endpoint: /api/v1/trading-accounts/{accountId}/trading-history
+    [ProducesResponseType(typeof(PaginatedTradingHistoryDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetTradingHistory(
+        int accountId, 
+        [FromQuery] GetTradingHistoryQuery query, 
+        CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Request received for trading history for TradingAccountID: {AccountId} with query: {@Query}", accountId, query);
+
+        // Get current user info
+        var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier || c.Type == "uid" || c.Type == JwtRegisteredClaimNames.Sub)?.Value;
+        if (!int.TryParse(userIdClaim, out var userId))
+        {
+            return Unauthorized(new { Message = "Invalid user authentication" });
+        }
+
+        var isAdmin = User.IsInRole("Admin");
+
+        var (tradingHistory, errorMessage) = await _tradingAccountService.GetTradingHistoryAsync(accountId, query, userId, isAdmin, cancellationToken);
+
+        if (tradingHistory == null)
+        {
+            _logger.LogWarning("Failed to retrieve trading history for TradingAccountID {AccountId}. Error: {ErrorMessage}", accountId, errorMessage);
+            
+            if (errorMessage != null && errorMessage.Contains("Unauthorized"))
+            {
+                return Forbid();
+            }
+            if (errorMessage != null && errorMessage.Contains("not found"))
+            {
+                return NotFound(new { Message = errorMessage });
+            }
+            return StatusCode(StatusCodes.Status500InternalServerError, new { Message = errorMessage ?? $"An unexpected error occurred while fetching trading history for trading account ID {accountId}." });
+        }
+
+        return Ok(tradingHistory);
+    }
 }
