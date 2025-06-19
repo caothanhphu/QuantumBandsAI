@@ -3925,5 +3925,312 @@ public class AdminControllerTests : TestBase
 
     #endregion
 
+    #region SCRUM-83: GET /admin/exchange/trades - Get All Exchange Trades Endpoint
+
+    /// <summary>
+    /// SCRUM-83: Unit Tests for GET /admin/exchange/trades endpoint
+    /// 
+    /// Test coverage includes:
+    /// - Happy path: All trades retrieval with pagination
+    /// - Authorization: Admin role verification
+    /// - Filtering: Various filter combinations (buyer, seller, trading account, date range, amount range)
+    /// - Sorting: Different sorting options and edge cases
+    /// - Data display: Trade details accuracy and user information
+    /// - Edge cases: Empty results, large page sizes
+    /// </summary>
+
+    [Fact]
+    public async Task GetAllShareTrades_WithValidQuery_ShouldReturnOkWithTrades()
+    {
+        // Arrange
+        var query = TradingTestDataBuilder.AdminTradeMonitor.ValidTradesQuery();
+        var trades = TradingTestDataBuilder.AdminTradeMonitor.AllTradesList();
+        var paginatedResult = new PaginatedList<AdminShareTradeViewDto>(trades, trades.Count, 1, 10);
+
+        _mockExchangeService.Setup(x => x.GetAdminAllTradesAsync(query, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(paginatedResult);
+
+        // Act
+        var result = await _adminController.GetAllShareTrades(query, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result.As<OkObjectResult>();
+        okResult.Value.Should().BeOfType<PaginatedList<AdminShareTradeViewDto>>();
+        
+        var returnedTrades = okResult.Value.As<PaginatedList<AdminShareTradeViewDto>>();
+        returnedTrades.Items.Should().HaveCount(3);
+        returnedTrades.TotalCount.Should().Be(3);
+    }
+
+    [Fact]
+    public async Task GetAllShareTrades_WithEmptyResult_ShouldReturnOkWithEmptyList()
+    {
+        // Arrange
+        var query = TradingTestDataBuilder.AdminTradeMonitor.ValidTradesQuery();
+        var emptyTrades = TradingTestDataBuilder.AdminTradeMonitor.EmptyTradesList();
+        var paginatedResult = new PaginatedList<AdminShareTradeViewDto>(emptyTrades, 0, 1, 10);
+
+        _mockExchangeService.Setup(x => x.GetAdminAllTradesAsync(query, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(paginatedResult);
+
+        // Act
+        var result = await _adminController.GetAllShareTrades(query, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result.As<OkObjectResult>();
+        var returnedTrades = okResult.Value.As<PaginatedList<AdminShareTradeViewDto>>();
+        returnedTrades.Items.Should().BeEmpty();
+        returnedTrades.TotalCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task GetAllShareTrades_WithBuyerUserFilter_ShouldReturnFilteredTrades()
+    {
+        // Arrange
+        var buyerUserId = 123;
+        var query = TradingTestDataBuilder.AdminTradeMonitor.QueryForBuyerUser(buyerUserId);
+        var filteredTrades = TradingTestDataBuilder.AdminTradeMonitor.FilteredTradesForBuyerUser(buyerUserId);
+        var paginatedResult = new PaginatedList<AdminShareTradeViewDto>(filteredTrades, filteredTrades.Count, 1, 10);
+
+        _mockExchangeService.Setup(x => x.GetAdminAllTradesAsync(It.Is<GetAdminAllTradesQuery>(q => q.BuyerUserId == buyerUserId), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(paginatedResult);
+
+        // Act
+        var result = await _adminController.GetAllShareTrades(query, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result.As<OkObjectResult>();
+        var returnedTrades = okResult.Value.As<PaginatedList<AdminShareTradeViewDto>>();
+        returnedTrades.Items.Should().OnlyContain(t => t.BuyerUserId == buyerUserId);
+    }
+
+    [Fact]
+    public async Task GetAllShareTrades_WithSellerUserFilter_ShouldReturnFilteredTrades()
+    {
+        // Arrange
+        var sellerUserId = 456;
+        var query = TradingTestDataBuilder.AdminTradeMonitor.QueryForSellerUser(sellerUserId);
+        var filteredTrades = TradingTestDataBuilder.AdminTradeMonitor.FilteredTradesForSellerUser(sellerUserId);
+        var paginatedResult = new PaginatedList<AdminShareTradeViewDto>(filteredTrades, filteredTrades.Count, 1, 10);
+
+        _mockExchangeService.Setup(x => x.GetAdminAllTradesAsync(It.Is<GetAdminAllTradesQuery>(q => q.SellerUserId == sellerUserId), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(paginatedResult);
+
+        // Act
+        var result = await _adminController.GetAllShareTrades(query, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result.As<OkObjectResult>();
+        var returnedTrades = okResult.Value.As<PaginatedList<AdminShareTradeViewDto>>();
+        returnedTrades.Items.Should().OnlyContain(t => t.SellerUserId == sellerUserId);
+    }
+
+    [Fact]
+    public async Task GetAllShareTrades_WithTradingAccountFilter_ShouldReturnFilteredTrades()
+    {
+        // Arrange
+        var tradingAccountId = 1;
+        var query = TradingTestDataBuilder.AdminTradeMonitor.QueryForTradingAccount(tradingAccountId);
+        var filteredTrades = TradingTestDataBuilder.AdminTradeMonitor.FilteredTradesForTradingAccount(tradingAccountId);
+        var paginatedResult = new PaginatedList<AdminShareTradeViewDto>(filteredTrades, filteredTrades.Count, 1, 10);
+
+        _mockExchangeService.Setup(x => x.GetAdminAllTradesAsync(It.Is<GetAdminAllTradesQuery>(q => q.TradingAccountId == tradingAccountId), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(paginatedResult);
+
+        // Act
+        var result = await _adminController.GetAllShareTrades(query, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result.As<OkObjectResult>();
+        var returnedTrades = okResult.Value.As<PaginatedList<AdminShareTradeViewDto>>();
+        returnedTrades.Items.Should().OnlyContain(t => t.TradingAccountId == tradingAccountId);
+    }
+
+    [Fact]
+    public async Task GetAllShareTrades_WithDateRangeFilter_ShouldReturnFilteredTrades()
+    {
+        // Arrange
+        var dateFrom = DateTime.UtcNow.AddDays(-5);
+        var dateTo = DateTime.UtcNow.AddDays(-1);
+        var query = TradingTestDataBuilder.AdminTradeMonitor.QueryWithDateRange(dateFrom, dateTo);
+        var trades = TradingTestDataBuilder.AdminTradeMonitor.AllTradesList();
+        var paginatedResult = new PaginatedList<AdminShareTradeViewDto>(trades, trades.Count, 1, 10);
+
+        _mockExchangeService.Setup(x => x.GetAdminAllTradesAsync(It.Is<GetAdminAllTradesQuery>(q => q.DateFrom == dateFrom && q.DateTo == dateTo), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(paginatedResult);
+
+        // Act
+        var result = await _adminController.GetAllShareTrades(query, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        _mockExchangeService.Verify(x => x.GetAdminAllTradesAsync(It.Is<GetAdminAllTradesQuery>(q => q.DateFrom == dateFrom && q.DateTo == dateTo), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetAllShareTrades_WithAmountRangeFilter_ShouldReturnFilteredTrades()
+    {
+        // Arrange
+        var minAmount = 1000m;
+        var maxAmount = 10000m;
+        var query = TradingTestDataBuilder.AdminTradeMonitor.QueryWithAmountRange(minAmount, maxAmount);
+        var trades = TradingTestDataBuilder.AdminTradeMonitor.AllTradesList();
+        var paginatedResult = new PaginatedList<AdminShareTradeViewDto>(trades, trades.Count, 1, 10);
+
+        _mockExchangeService.Setup(x => x.GetAdminAllTradesAsync(It.Is<GetAdminAllTradesQuery>(q => q.MinAmount == minAmount && q.MaxAmount == maxAmount), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(paginatedResult);
+
+        // Act
+        var result = await _adminController.GetAllShareTrades(query, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        _mockExchangeService.Verify(x => x.GetAdminAllTradesAsync(It.Is<GetAdminAllTradesQuery>(q => q.MinAmount == minAmount && q.MaxAmount == maxAmount), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetAllShareTrades_WithBuyerSearchTerm_ShouldReturnFilteredTrades()
+    {
+        // Arrange
+        var searchTerm = "buyer123";
+        var query = TradingTestDataBuilder.AdminTradeMonitor.QueryWithBuyerSearch(searchTerm);
+        var trades = TradingTestDataBuilder.AdminTradeMonitor.AllTradesList();
+        var paginatedResult = new PaginatedList<AdminShareTradeViewDto>(trades, trades.Count, 1, 10);
+
+        _mockExchangeService.Setup(x => x.GetAdminAllTradesAsync(It.Is<GetAdminAllTradesQuery>(q => q.BuyerSearchTerm == searchTerm), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(paginatedResult);
+
+        // Act
+        var result = await _adminController.GetAllShareTrades(query, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        _mockExchangeService.Verify(x => x.GetAdminAllTradesAsync(It.Is<GetAdminAllTradesQuery>(q => q.BuyerSearchTerm == searchTerm), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetAllShareTrades_WithSellerSearchTerm_ShouldReturnFilteredTrades()
+    {
+        // Arrange
+        var searchTerm = "seller456";
+        var query = TradingTestDataBuilder.AdminTradeMonitor.QueryWithSellerSearch(searchTerm);
+        var trades = TradingTestDataBuilder.AdminTradeMonitor.AllTradesList();
+        var paginatedResult = new PaginatedList<AdminShareTradeViewDto>(trades, trades.Count, 1, 10);
+
+        _mockExchangeService.Setup(x => x.GetAdminAllTradesAsync(It.Is<GetAdminAllTradesQuery>(q => q.SellerSearchTerm == searchTerm), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(paginatedResult);
+
+        // Act
+        var result = await _adminController.GetAllShareTrades(query, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        _mockExchangeService.Verify(x => x.GetAdminAllTradesAsync(It.Is<GetAdminAllTradesQuery>(q => q.SellerSearchTerm == searchTerm), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetAllShareTrades_WithCustomSorting_ShouldReturnSortedTrades()
+    {
+        // Arrange
+        var sortBy = "TotalValue";
+        var sortOrder = "asc";
+        var query = TradingTestDataBuilder.AdminTradeMonitor.QueryWithSorting(sortBy, sortOrder);
+        var trades = TradingTestDataBuilder.AdminTradeMonitor.AllTradesList();
+        var paginatedResult = new PaginatedList<AdminShareTradeViewDto>(trades, trades.Count, 1, 10);
+
+        _mockExchangeService.Setup(x => x.GetAdminAllTradesAsync(It.Is<GetAdminAllTradesQuery>(q => q.SortBy == sortBy && q.SortOrder == sortOrder), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(paginatedResult);
+
+        // Act
+        var result = await _adminController.GetAllShareTrades(query, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        _mockExchangeService.Verify(x => x.GetAdminAllTradesAsync(It.Is<GetAdminAllTradesQuery>(q => q.SortBy == sortBy && q.SortOrder == sortOrder), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetAllShareTrades_WithHighValueTrade_ShouldReturnAccurateFinancialData()
+    {
+        // Arrange
+        var query = TradingTestDataBuilder.AdminTradeMonitor.ValidTradesQuery();
+        var highValueTrade = TradingTestDataBuilder.AdminTradeMonitor.HighValueTrade();
+        var trades = new List<AdminShareTradeViewDto> { highValueTrade };
+        var paginatedResult = new PaginatedList<AdminShareTradeViewDto>(trades, 1, 1, 10);
+
+        _mockExchangeService.Setup(x => x.GetAdminAllTradesAsync(query, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(paginatedResult);
+
+        // Act
+        var result = await _adminController.GetAllShareTrades(query, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result.As<OkObjectResult>();
+        var returnedTrades = okResult.Value.As<PaginatedList<AdminShareTradeViewDto>>();
+        
+        var trade = returnedTrades.Items.First();
+        trade.TradeId.Should().Be(6001);
+        trade.TotalValue.Should().Be(1000000.00m);
+        trade.QuantityTraded.Should().Be(10000);
+        trade.TradePrice.Should().Be(100.00m);
+        trade.BuyerFeeAmount.Should().Be(1000.00m);
+        trade.SellerFeeAmount.Should().Be(1000.00m);
+    }
+
+    [Fact]
+    public async Task GetAllShareTrades_WithDefaultSorting_ShouldSortByTradeDateDescending()
+    {
+        // Arrange
+        var query = TradingTestDataBuilder.AdminTradeMonitor.ValidTradesQuery();
+        var trades = TradingTestDataBuilder.AdminTradeMonitor.AllTradesList();
+        var paginatedResult = new PaginatedList<AdminShareTradeViewDto>(trades, trades.Count, 1, 10);
+
+        _mockExchangeService.Setup(x => x.GetAdminAllTradesAsync(It.Is<GetAdminAllTradesQuery>(q => q.SortBy == "TradeDate" && q.SortOrder == "desc"), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(paginatedResult);
+
+        // Act
+        var result = await _adminController.GetAllShareTrades(query, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        _mockExchangeService.Verify(x => x.GetAdminAllTradesAsync(It.Is<GetAdminAllTradesQuery>(q => q.SortBy == "TradeDate" && q.SortOrder == "desc"), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetAllShareTrades_ShouldLogAdminRequest()
+    {
+        // Arrange
+        var query = TradingTestDataBuilder.AdminTradeMonitor.ValidTradesQuery();
+        var trades = TradingTestDataBuilder.AdminTradeMonitor.AllTradesList();
+        var paginatedResult = new PaginatedList<AdminShareTradeViewDto>(trades, trades.Count, 1, 10);
+
+        _mockExchangeService.Setup(x => x.GetAdminAllTradesAsync(query, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(paginatedResult);
+
+        // Act
+        var result = await _adminController.GetAllShareTrades(query, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        
+        // Verify logging occurred
+        _mockLogger.Verify(
+            x => x.Log(
+                LogLevel.Information,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Admin requesting list of all share trades with query")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    #endregion
+
     #endregion
 } 

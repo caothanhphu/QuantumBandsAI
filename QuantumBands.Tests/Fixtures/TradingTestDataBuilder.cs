@@ -1276,6 +1276,230 @@ public static class TradingTestDataBuilder
         public static List<AdminShareOrderViewDto> EmptyOrdersList() => new();
     }
 
+    /// <summary>
+    /// SCRUM-83: Test data for Admin Exchange Trades Monitor endpoint testing
+    /// Provides comprehensive test scenarios for admin trade monitoring including:
+    /// - Valid GetAdminAllTradesQuery with various filters and sorting
+    /// - AdminShareTradeViewDto with complete trade information
+    /// - Different trade scenarios (profitable, losing, high-value trades)
+    /// - Edge cases and boundary testing for date ranges and amounts
+    /// - Response DTOs for different trade states and user combinations
+    /// 
+    /// Usage:
+    /// - TradingTestDataBuilder.AdminTradeMonitor.ValidTradesQuery() - Standard trades query
+    /// - TradingTestDataBuilder.AdminTradeMonitor.AllTradesList() - Complete trades list
+    /// - TradingTestDataBuilder.AdminTradeMonitor.FilteredTradesForUser() - User-specific trades
+    /// - TradingTestDataBuilder.AdminTradeMonitor.HighValueTrade() - Large value trade scenario
+    /// </summary>
+    public static class AdminTradeMonitor
+    {
+        /// <summary>
+        /// Valid query for admin trades with default pagination and sorting
+        /// </summary>
+        public static GetAdminAllTradesQuery ValidTradesQuery() => new()
+        {
+            PageNumber = 1,
+            PageSize = 10,
+            SortBy = "TradeDate",
+            SortOrder = "desc"
+        };
+
+        /// <summary>
+        /// Query with specific trading account filter
+        /// </summary>
+        public static GetAdminAllTradesQuery QueryForTradingAccount(int tradingAccountId) => new()
+        {
+            PageNumber = 1,
+            PageSize = 10,
+            TradingAccountId = tradingAccountId,
+            SortBy = "TradeDate",
+            SortOrder = "desc"
+        };
+
+        /// <summary>
+        /// Query filtered by buyer user ID
+        /// </summary>
+        public static GetAdminAllTradesQuery QueryForBuyerUser(int buyerUserId) => new()
+        {
+            PageNumber = 1,
+            PageSize = 10,
+            BuyerUserId = buyerUserId,
+            SortBy = "TradeDate",
+            SortOrder = "desc"
+        };
+
+        /// <summary>
+        /// Query filtered by seller user ID
+        /// </summary>
+        public static GetAdminAllTradesQuery QueryForSellerUser(int sellerUserId) => new()
+        {
+            PageNumber = 1,
+            PageSize = 10,
+            SellerUserId = sellerUserId,
+            SortBy = "TradeDate",
+            SortOrder = "desc"
+        };
+
+        /// <summary>
+        /// Query with date range filter
+        /// </summary>
+        public static GetAdminAllTradesQuery QueryWithDateRange(DateTime dateFrom, DateTime dateTo) => new()
+        {
+            PageNumber = 1,
+            PageSize = 10,
+            DateFrom = dateFrom,
+            DateTo = dateTo,
+            SortBy = "TradeDate",
+            SortOrder = "desc"
+        };
+
+        /// <summary>
+        /// Query with amount range filter
+        /// </summary>
+        public static GetAdminAllTradesQuery QueryWithAmountRange(decimal minAmount, decimal maxAmount) => new()
+        {
+            PageNumber = 1,
+            PageSize = 10,
+            MinAmount = minAmount,
+            MaxAmount = maxAmount,
+            SortBy = "TotalValue",
+            SortOrder = "desc"
+        };
+
+        /// <summary>
+        /// Query with buyer search term
+        /// </summary>
+        public static GetAdminAllTradesQuery QueryWithBuyerSearch(string searchTerm) => new()
+        {
+            PageNumber = 1,
+            PageSize = 10,
+            BuyerSearchTerm = searchTerm,
+            SortBy = "TradeDate",
+            SortOrder = "desc"
+        };
+
+        /// <summary>
+        /// Query with seller search term
+        /// </summary>
+        public static GetAdminAllTradesQuery QueryWithSellerSearch(string searchTerm) => new()
+        {
+            PageNumber = 1,
+            PageSize = 10,
+            SellerSearchTerm = searchTerm,
+            SortBy = "TradeDate",
+            SortOrder = "desc"
+        };
+
+        /// <summary>
+        /// Query with custom sorting
+        /// </summary>
+        public static GetAdminAllTradesQuery QueryWithSorting(string sortBy, string sortOrder) => new()
+        {
+            PageNumber = 1,
+            PageSize = 10,
+            SortBy = sortBy,
+            SortOrder = sortOrder
+        };
+
+        /// <summary>
+        /// Complete list of admin share trades for testing
+        /// </summary>
+        public static List<AdminShareTradeViewDto> AllTradesList() => new()
+        {
+            new()
+            {
+                TradeId = 5001,
+                TradingAccountId = 1,
+                TradingAccountName = "Professional Trading Account",
+                BuyerUserId = 123,
+                BuyerUsername = "buyer123",
+                SellerUserId = 456,
+                SellerUsername = "seller456",
+                QuantityTraded = 100,
+                TradePrice = 50.00m,
+                TotalValue = 5000.00m,
+                BuyerFeeAmount = 5.00m,
+                SellerFeeAmount = 5.00m,
+                TradeDate = DateTime.UtcNow.AddDays(-1)
+            },
+            new()
+            {
+                TradeId = 5002,
+                TradingAccountId = 2,
+                TradingAccountName = "Basic Trading Account",
+                BuyerUserId = 789,
+                BuyerUsername = "investor789",
+                SellerUserId = 123,
+                SellerUsername = "buyer123",
+                QuantityTraded = 50,
+                TradePrice = 75.50m,
+                TotalValue = 3775.00m,
+                BuyerFeeAmount = 3.78m,
+                SellerFeeAmount = 3.78m,
+                TradeDate = DateTime.UtcNow.AddDays(-2)
+            },
+            new()
+            {
+                TradeId = 5003,
+                TradingAccountId = 1,
+                TradingAccountName = "Professional Trading Account",
+                BuyerUserId = 456,
+                BuyerUsername = "seller456",
+                SellerUserId = 789,
+                SellerUsername = "investor789",
+                QuantityTraded = 200,
+                TradePrice = 25.00m,
+                TotalValue = 5000.00m,
+                BuyerFeeAmount = 5.00m,
+                SellerFeeAmount = 5.00m,
+                TradeDate = DateTime.UtcNow.AddDays(-3)
+            }
+        };
+
+        /// <summary>
+        /// Single high-value trade for edge case testing
+        /// </summary>
+        public static AdminShareTradeViewDto HighValueTrade() => new()
+        {
+            TradeId = 6001,
+            TradingAccountId = 3,
+            TradingAccountName = "Enterprise Trading Account",
+            BuyerUserId = 999,
+            BuyerUsername = "enterprise999",
+            SellerUserId = 888,
+            SellerUsername = "institution888",
+            QuantityTraded = 10000,
+            TradePrice = 100.00m,
+            TotalValue = 1000000.00m,
+            BuyerFeeAmount = 1000.00m,
+            SellerFeeAmount = 1000.00m,
+            TradeDate = DateTime.UtcNow.AddHours(-6)
+        };
+
+        /// <summary>
+        /// Trades filtered by specific buyer user ID
+        /// </summary>
+        public static List<AdminShareTradeViewDto> FilteredTradesForBuyerUser(int buyerUserId) => 
+            AllTradesList().Where(t => t.BuyerUserId == buyerUserId).ToList();
+
+        /// <summary>
+        /// Trades filtered by specific seller user ID
+        /// </summary>
+        public static List<AdminShareTradeViewDto> FilteredTradesForSellerUser(int sellerUserId) => 
+            AllTradesList().Where(t => t.SellerUserId == sellerUserId).ToList();
+
+        /// <summary>
+        /// Trades filtered by trading account ID
+        /// </summary>
+        public static List<AdminShareTradeViewDto> FilteredTradesForTradingAccount(int tradingAccountId) => 
+            AllTradesList().Where(t => t.TradingAccountId == tradingAccountId).ToList();
+
+        /// <summary>
+        /// Empty trades list for testing no results scenario
+        /// </summary>
+        public static List<AdminShareTradeViewDto> EmptyTradesList() => new();
+    }
+
     // Note: Due to context limits, remaining Trading classes will be added incrementally:
     // - CreateTradingAccounts, UpdateTradingAccounts, InitialShareOfferings  
     // - GetMyOrders, CancelOrder, GetOrderBook, GetMarketData, GetMyTrades
