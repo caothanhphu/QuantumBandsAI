@@ -451,32 +451,36 @@ public static class TradingTestDataBuilder
                     TradingAccountId = 1,
                     AccountName = "Tech Growth Fund",
                     Description = "Focused on technology sector growth stocks",
+                    EaName = "TechGrowthEA_v1.0",
+                    BrokerPlatformIdentifier = "QB-TECH-001",
                     InitialCapital = 100000.00m,
-                    CurrentBalance = 125000.50m,
-                    TotalShares = 10000,
-                    SharesAvailable = 2500,
-                    SharePrice = 12.50m,
-                    ManagementFeePercentage = 2.0m,
+                    TotalSharesIssued = 10000,
+                    CurrentNetAssetValue = 125000.50m,
+                    CurrentSharePrice = 12.50m,
+                    ManagementFeeRate = 0.02m,
                     IsActive = true,
-                    OrderDate = DateTime.UtcNow.AddMonths(-6),
-                    UpdatedAt = DateTime.UtcNow.AddDays(-1),
-                    EaName = "TechGrowthEA_v1.0"
+                    CreatedByUserId = 1,
+                    CreatorUsername = "admin",
+                    CreatedAt = DateTime.UtcNow.AddMonths(-6),
+                    UpdatedAt = DateTime.UtcNow.AddDays(-1)
                 },
                 new()
                 {
                     TradingAccountId = 2,
                     AccountName = "Value Investment Strategy",
                     Description = "Long-term value investing approach",
+                    EaName = "ValueInvestEA_v2.1",
+                    BrokerPlatformIdentifier = "QB-VALUE-002",
                     InitialCapital = 250000.00m,
-                    CurrentBalance = 287500.75m,
-                    TotalShares = 25000,
-                    SharesAvailable = 5000,
-                    SharePrice = 11.50m,
-                    ManagementFeePercentage = 1.5m,
+                    TotalSharesIssued = 25000,
+                    CurrentNetAssetValue = 287500.75m,
+                    CurrentSharePrice = 11.50m,
+                    ManagementFeeRate = 0.015m,
                     IsActive = true,
-                    OrderDate = DateTime.UtcNow.AddMonths(-12),
-                    UpdatedAt = DateTime.UtcNow.AddHours(-3),
-                    EaName = "ValueInvestEA_v2.1"
+                    CreatedByUserId = 1,
+                    CreatorUsername = "admin",
+                    CreatedAt = DateTime.UtcNow.AddMonths(-12),
+                    UpdatedAt = DateTime.UtcNow.AddHours(-3)
                 }
             },
             2, 1, 10
@@ -497,11 +501,11 @@ public static class TradingTestDataBuilder
         /// </summary>
         public static GetTradingAccountDetailsQuery ValidDetailsQuery() => new()
         {
-            TradingAccountId = 1,
             ClosedTradesPageNumber = 1,
             ClosedTradesPageSize = 20,
             SnapshotsPageNumber = 1,
-            SnapshotsPageSize = 30
+            SnapshotsPageSize = 30,
+            OpenPositionsLimit = 20
         };
 
         /// <summary>
@@ -509,11 +513,11 @@ public static class TradingTestDataBuilder
         /// </summary>
         public static GetTradingAccountDetailsQuery CustomPaginationQuery() => new()
         {
-            TradingAccountId = 2,
             ClosedTradesPageNumber = 2,
             ClosedTradesPageSize = 10,
             SnapshotsPageNumber = 1,
-            SnapshotsPageSize = 15
+            SnapshotsPageSize = 15,
+            OpenPositionsLimit = 30
         };
 
         /// <summary>
@@ -521,11 +525,11 @@ public static class TradingTestDataBuilder
         /// </summary>
         public static GetTradingAccountDetailsQuery MaxLimitsQuery() => new()
         {
-            TradingAccountId = 1,
             ClosedTradesPageNumber = 1,
-            ClosedTradesPageSize = 100,
+            ClosedTradesPageSize = 50,
             SnapshotsPageNumber = 1,
-            SnapshotsPageSize = 100
+            SnapshotsPageSize = 30,
+            OpenPositionsLimit = 50
         };
 
         /// <summary>
@@ -536,19 +540,21 @@ public static class TradingTestDataBuilder
             TradingAccountId = 1,
             AccountName = "Tech Growth Fund",
             Description = "Focused on technology sector growth stocks with moderate risk tolerance",
-            InitialCapital = 100000.00m,
-            CurrentBalance = 125000.50m,
-            TotalShares = 10000,
-            SharesAvailable = 2500,
-            SharePrice = 12.50m,
-            ManagementFeePercentage = 2.0m,
-            IsActive = true,
-            OrderDate = DateTime.UtcNow.AddMonths(-6),
-            UpdatedAt = DateTime.UtcNow.AddDays(-1),
             EaName = "TechGrowthEA_v1.0",
+            BrokerPlatformIdentifier = "QB-TECH-001",
+            InitialCapital = 100000.00m,
+            TotalSharesIssued = 10000,
+            CurrentNetAssetValue = 125000.50m,
+            CurrentSharePrice = 12.50m,
+            ManagementFeeRate = 0.02m,
+            IsActive = true,
+            CreatedByUserId = 1,
+            CreatorUsername = "admin",
+            CreatedAt = DateTime.UtcNow.AddMonths(-6),
+            UpdatedAt = DateTime.UtcNow.AddDays(-1),
             OpenPositions = ValidOpenPositions(),
             ClosedTradesHistory = ValidClosedTradesHistory(),
-            SnapshotsHistory = ValidSnapshotsHistory()
+            DailySnapshotsInfo = ValidSnapshotsHistory()
         };
 
         /// <summary>
@@ -558,25 +564,33 @@ public static class TradingTestDataBuilder
         {
             new()
             {
-                PositionId = 1001,
+                OpenPositionId = 1001,
+                EaTicketId = "EA001",
                 Symbol = "AAPL",
-                Volume = 100.0,
-                OpenPrice = 150.25,
-                CurrentPrice = 155.50,
-                Profit = 525.00,
+                TradeType = "BUY",
+                VolumeLots = 1.0m,
+                OpenPrice = 150.25m,
                 OpenTime = DateTime.UtcNow.AddDays(-5),
-                Comment = "Tech growth position"
+                CurrentMarketPrice = 155.50m,
+                Swap = 0.0m,
+                Commission = 2.50m,
+                FloatingPAndL = 525.00m,
+                LastUpdateTime = DateTime.UtcNow.AddMinutes(-5)
             },
             new()
             {
-                PositionId = 1002,
+                OpenPositionId = 1002,
+                EaTicketId = "EA002",
                 Symbol = "GOOGL",
-                Volume = 50.0,
-                OpenPrice = 2500.00,
-                CurrentPrice = 2550.75,
-                Profit = 2537.50,
+                TradeType = "BUY",
+                VolumeLots = 0.5m,
+                OpenPrice = 2500.00m,
                 OpenTime = DateTime.UtcNow.AddDays(-10),
-                Comment = "Long-term growth"
+                CurrentMarketPrice = 2550.75m,
+                Swap = 0.0m,
+                Commission = 5.00m,
+                FloatingPAndL = 2537.50m,
+                LastUpdateTime = DateTime.UtcNow.AddMinutes(-3)
             }
         };
 
@@ -588,27 +602,35 @@ public static class TradingTestDataBuilder
             {
                 new()
                 {
-                    TradeId = 2001,
+                    ClosedTradeId = 2001,
+                    EaTicketId = "EA2001",
                     Symbol = "MSFT",
-                    Volume = 75.0,
-                    OpenPrice = 300.00,
-                    ClosePrice = 315.50,
-                    Profit = 1162.50,
+                    TradeType = "BUY",
+                    VolumeLots = 0.75m,
+                    OpenPrice = 300.00m,
                     OpenTime = DateTime.UtcNow.AddDays(-30),
+                    ClosePrice = 315.50m,
                     CloseTime = DateTime.UtcNow.AddDays(-25),
-                    Comment = "Successful tech trade"
+                    Swap = 0.0m,
+                    Commission = 3.75m,
+                    RealizedPAndL = 1162.50m,
+                    RecordedAt = DateTime.UtcNow.AddDays(-25)
                 },
                 new()
                 {
-                    TradeId = 2002,
+                    ClosedTradeId = 2002,
+                    EaTicketId = "EA2002",
                     Symbol = "TSLA",
-                    Volume = 25.0,
-                    OpenPrice = 800.00,
-                    ClosePrice = 750.25,
-                    Profit = -1243.75,
+                    TradeType = "BUY",
+                    VolumeLots = 0.25m,
+                    OpenPrice = 800.00m,
                     OpenTime = DateTime.UtcNow.AddDays(-45),
+                    ClosePrice = 750.25m,
                     CloseTime = DateTime.UtcNow.AddDays(-40),
-                    Comment = "Stop loss triggered"
+                    Swap = 0.0m,
+                    Commission = 2.00m,
+                    RealizedPAndL = -1243.75m,
+                    RecordedAt = DateTime.UtcNow.AddDays(-40)
                 }
             },
             2, 1, 20
@@ -623,22 +645,28 @@ public static class TradingTestDataBuilder
                 new()
                 {
                     SnapshotId = 3001,
-                    Balance = 125000.50m,
-                    Equity = 128537.50m,
-                    Margin = 5000.00m,
-                    FreeMargin = 123537.50m,
-                    MarginLevel = 2570.75m,
-                    SnapshotDate = DateTime.UtcNow.AddDays(-1)
+                    SnapshotDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-1)),
+                    OpeningNAV = 124000.00m,
+                    RealizedPAndLForTheDay = 800.50m,
+                    UnrealizedPAndLForTheDay = 200.00m,
+                    ManagementFeeDeducted = 25.00m,
+                    ProfitDistributed = 975.50m,
+                    ClosingNAV = 125000.50m,
+                    ClosingSharePrice = 12.50m,
+                    CreatedAt = DateTime.UtcNow.AddDays(-1)
                 },
                 new()
                 {
                     SnapshotId = 3002,
-                    Balance = 124500.25m,
-                    Equity = 127200.00m,
-                    Margin = 4800.00m,
-                    FreeMargin = 122400.00m,
-                    MarginLevel = 2650.00m,
-                    SnapshotDate = DateTime.UtcNow.AddDays(-2)
+                    SnapshotDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-2)),
+                    OpeningNAV = 123500.25m,
+                    RealizedPAndLForTheDay = 400.75m,
+                    UnrealizedPAndLForTheDay = 150.00m,
+                    ManagementFeeDeducted = 51.00m,
+                    ProfitDistributed = 499.75m,
+                    ClosingNAV = 124000.00m,
+                    ClosingSharePrice = 12.40m,
+                    CreatedAt = DateTime.UtcNow.AddDays(-2)
                 }
             },
             2, 1, 30
@@ -652,19 +680,21 @@ public static class TradingTestDataBuilder
             TradingAccountId = 999,
             AccountName = "Non-existent Account",
             Description = "",
-            InitialCapital = 0.00m,
-            CurrentBalance = 0.00m,
-            TotalShares = 0,
-            SharesAvailable = 0,
-            SharePrice = 0.00m,
-            ManagementFeePercentage = 0.0m,
-            IsActive = false,
-            OrderDate = DateTime.MinValue,
-            UpdatedAt = DateTime.MinValue,
             EaName = "",
+            BrokerPlatformIdentifier = "",
+            InitialCapital = 0.00m,
+            TotalSharesIssued = 0,
+            CurrentNetAssetValue = 0.00m,
+            CurrentSharePrice = 0.00m,
+            ManagementFeeRate = 0.0m,
+            IsActive = false,
+            CreatedByUserId = 0,
+            CreatorUsername = "Unknown",
+            CreatedAt = DateTime.MinValue,
+            UpdatedAt = DateTime.MinValue,
             OpenPositions = new List<EAOpenPositionDto>(),
             ClosedTradesHistory = new PaginatedList<EAClosedTradeDto>(new List<EAClosedTradeDto>(), 0, 1, 20),
-            SnapshotsHistory = new PaginatedList<TradingAccountSnapshotDto>(new List<TradingAccountSnapshotDto>(), 0, 1, 30)
+            DailySnapshotsInfo = new PaginatedList<TradingAccountSnapshotDto>(new List<TradingAccountSnapshotDto>(), 0, 1, 30)
         };
 
         // Initial Share Offerings
@@ -739,32 +769,34 @@ public static class TradingTestDataBuilder
                 {
                     OfferingId = 1,
                     TradingAccountId = 1,
-                    TradingAccountName = "Tech Growth Fund",
+                    AdminUserId = 1,
+                    AdminUsername = "admin",
                     SharesOffered = 2500,
                     SharesSold = 1750,
-                    OfferingPrice = 12.50m,
-                    FloorPrice = 10.00m,
-                    CeilingPrice = 15.00m,
-                    StartDate = DateTime.UtcNow.AddDays(-30),
-                    EndDate = DateTime.UtcNow.AddDays(30),
+                    OfferingPricePerShare = 12.50m,
+                    FloorPricePerShare = 10.00m,
+                    CeilingPricePerShare = 15.00m,
+                    OfferingStartDate = DateTime.UtcNow.AddDays(-30),
+                    OfferingEndDate = DateTime.UtcNow.AddDays(30),
                     Status = "Active",
-                    OrderDate = DateTime.UtcNow.AddDays(-35),
+                    CreatedAt = DateTime.UtcNow.AddDays(-35),
                     UpdatedAt = DateTime.UtcNow.AddHours(-2)
                 },
                 new()
                 {
                     OfferingId = 2,
                     TradingAccountId = 2,
-                    TradingAccountName = "Value Investment Strategy",
+                    AdminUserId = 1,
+                    AdminUsername = "admin",
                     SharesOffered = 5000,
                     SharesSold = 5000,
-                    OfferingPrice = 11.50m,
-                    FloorPrice = 9.00m,
-                    CeilingPrice = 14.00m,
-                    StartDate = DateTime.UtcNow.AddDays(-90),
-                    EndDate = DateTime.UtcNow.AddDays(-30),
+                    OfferingPricePerShare = 11.50m,
+                    FloorPricePerShare = 9.00m,
+                    CeilingPricePerShare = 14.00m,
+                    OfferingStartDate = DateTime.UtcNow.AddDays(-90),
+                    OfferingEndDate = DateTime.UtcNow.AddDays(-30),
                     Status = "Completed",
-                    OrderDate = DateTime.UtcNow.AddDays(-95),
+                    CreatedAt = DateTime.UtcNow.AddDays(-95),
                     UpdatedAt = DateTime.UtcNow.AddDays(-30)
                 }
             },
@@ -781,16 +813,17 @@ public static class TradingTestDataBuilder
                 {
                     OfferingId = 1,
                     TradingAccountId = 1,
-                    TradingAccountName = "Tech Growth Fund",
+                    AdminUserId = 1,
+                    AdminUsername = "admin",
                     SharesOffered = 2500,
                     SharesSold = 1750,
-                    OfferingPrice = 12.50m,
-                    FloorPrice = 10.00m,
-                    CeilingPrice = 15.00m,
-                    StartDate = DateTime.UtcNow.AddDays(-30),
-                    EndDate = DateTime.UtcNow.AddDays(30),
+                    OfferingPricePerShare = 12.50m,
+                    FloorPricePerShare = 10.00m,
+                    CeilingPricePerShare = 15.00m,
+                    OfferingStartDate = DateTime.UtcNow.AddDays(-30),
+                    OfferingEndDate = DateTime.UtcNow.AddDays(30),
                     Status = "Active",
-                    OrderDate = DateTime.UtcNow.AddDays(-35),
+                    CreatedAt = DateTime.UtcNow.AddDays(-35),
                     UpdatedAt = DateTime.UtcNow.AddHours(-2)
                 }
             },
