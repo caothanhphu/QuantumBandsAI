@@ -2651,8 +2651,8 @@ public class AdminControllerTests : TestBase
     public async Task RejectWithdrawal_WithValidRequest_ShouldReturnOkWithTransaction()
     {
         // Arrange
-        var request = WalletsRejectWithdrawal.ValidRequest();
-        var expectedTransaction = WalletsRejectWithdrawal.SuccessfulRejectionResponse();
+        var request = WalletsTestDataBuilder.RejectWithdrawal.ValidRequest();
+        var expectedTransaction = WalletsTestDataBuilder.RejectWithdrawal.SuccessfulRejectionResponse();
 
         _mockWalletService.Setup(x => x.RejectWithdrawalAsync(
                 It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()))
@@ -2684,8 +2684,8 @@ public class AdminControllerTests : TestBase
     public async Task RejectWithdrawal_WithDetailedRequest_ShouldReturnOkWithTransaction()
     {
         // Arrange
-        var request = WalletsRejectWithdrawal.ValidRequestDetailed();
-        var expectedTransaction = WalletsRejectWithdrawal.DetailedRejectionResponse();
+        var request = WalletsTestDataBuilder.RejectWithdrawal.ValidRequestDetailed();
+        var expectedTransaction = WalletsTestDataBuilder.RejectWithdrawal.DetailedRejectionResponse();
 
         _mockWalletService.Setup(x => x.RejectWithdrawalAsync(
                 It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()))
@@ -2715,8 +2715,8 @@ public class AdminControllerTests : TestBase
     public async Task RejectWithdrawal_WithLargeAmount_ShouldReturnOkWithTransaction()
     {
         // Arrange
-        var request = WalletsRejectWithdrawal.ValidRequestMaxNotes();
-        var expectedTransaction = WalletsRejectWithdrawal.LargeAmountRejectionResponse();
+        var request = WalletsTestDataBuilder.RejectWithdrawal.ValidRequestMaxNotes();
+        var expectedTransaction = WalletsTestDataBuilder.RejectWithdrawal.LargeAmountRejectionResponse();
 
         _mockWalletService.Setup(x => x.RejectWithdrawalAsync(
                 It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()))
@@ -2748,8 +2748,8 @@ public class AdminControllerTests : TestBase
     public async Task RejectWithdrawal_ShouldLogAdminInformation()
     {
         // Arrange
-        var request = WalletsRejectWithdrawal.ValidRequest();
-        var expectedTransaction = WalletsRejectWithdrawal.SuccessfulRejectionResponse();
+        var request = WalletsTestDataBuilder.RejectWithdrawal.ValidRequest();
+        var expectedTransaction = WalletsTestDataBuilder.RejectWithdrawal.SuccessfulRejectionResponse();
 
         _mockWalletService.Setup(x => x.RejectWithdrawalAsync(
                 It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()))
@@ -2784,7 +2784,7 @@ public class AdminControllerTests : TestBase
     public async Task RejectWithdrawal_WithNonAdminUser_ShouldBeHandledByAuthorization()
     {
         // Arrange
-        var request = WalletsRejectWithdrawal.ValidRequest();
+        var request = WalletsTestDataBuilder.RejectWithdrawal.ValidRequest();
 
         // Setup non-admin user
         var nonAdminClaims = new List<Claim>
@@ -2805,7 +2805,7 @@ public class AdminControllerTests : TestBase
             }
         };
 
-        var expectedTransaction = WalletsRejectWithdrawal.SuccessfulRejectionResponse();
+        var expectedTransaction = WalletsTestDataBuilder.RejectWithdrawal.SuccessfulRejectionResponse();
         _mockWalletService.Setup(x => x.RejectWithdrawalAsync(
                 It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()))
             .ReturnsAsync((expectedTransaction, (string?)null));
@@ -2835,7 +2835,7 @@ public class AdminControllerTests : TestBase
     public async Task RejectWithdrawal_WithNonExistentTransaction_ShouldReturnNotFound()
     {
         // Arrange
-        var request = WalletsRejectWithdrawal.NonExistentTransaction();
+        var request = WalletsTestDataBuilder.RejectWithdrawal.NonExistentTransaction();
 
         _mockWalletService.Setup(x => x.RejectWithdrawalAsync(
                 It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()))
@@ -2861,7 +2861,7 @@ public class AdminControllerTests : TestBase
     public async Task RejectWithdrawal_WithAlreadyProcessedTransaction_ShouldReturnBadRequest()
     {
         // Arrange
-        var request = WalletsRejectWithdrawal.AlreadyProcessedTransaction();
+        var request = WalletsTestDataBuilder.RejectWithdrawal.AlreadyProcessedTransaction();
 
         _mockWalletService.Setup(x => x.RejectWithdrawalAsync(
                 It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()))
@@ -2887,7 +2887,7 @@ public class AdminControllerTests : TestBase
     public async Task RejectWithdrawal_WithAlreadyCancelledTransaction_ShouldReturnBadRequest()
     {
         // Arrange
-        var request = WalletsRejectWithdrawal.AlreadyCancelledTransaction();
+        var request = WalletsTestDataBuilder.RejectWithdrawal.AlreadyCancelledTransaction();
 
         _mockWalletService.Setup(x => x.RejectWithdrawalAsync(
                 It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()))
@@ -2913,7 +2913,7 @@ public class AdminControllerTests : TestBase
     public async Task RejectWithdrawal_WithInvalidTransactionData_ShouldReturnBadRequest()
     {
         // Arrange
-        var request = WalletsRejectWithdrawal.ValidRequest();
+        var request = WalletsTestDataBuilder.RejectWithdrawal.ValidRequest();
 
         _mockWalletService.Setup(x => x.RejectWithdrawalAsync(
                 It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()))
@@ -2943,7 +2943,7 @@ public class AdminControllerTests : TestBase
         // This test verifies the service layer behavior when such a request somehow gets through
         
         // Arrange
-        var request = WalletsRejectWithdrawal.InvalidEmptyAdminNotes();
+        var request = WalletsTestDataBuilder.RejectWithdrawal.InvalidEmptyAdminNotes();
 
         _mockWalletService.Setup(x => x.RejectWithdrawalAsync(
                 It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()))
@@ -2973,7 +2973,7 @@ public class AdminControllerTests : TestBase
     public async Task RejectWithdrawal_WithServiceFailure_ShouldReturnInternalServerError()
     {
         // Arrange
-        var request = WalletsRejectWithdrawal.ValidRequest();
+        var request = WalletsTestDataBuilder.RejectWithdrawal.ValidRequest();
 
         _mockWalletService.Setup(x => x.RejectWithdrawalAsync(
                 It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()))
@@ -3000,7 +3000,7 @@ public class AdminControllerTests : TestBase
     public async Task RejectWithdrawal_WithServiceErrorWithoutMessage_ShouldReturnGenericError()
     {
         // Arrange
-        var request = WalletsRejectWithdrawal.ValidRequest();
+        var request = WalletsTestDataBuilder.RejectWithdrawal.ValidRequest();
 
         _mockWalletService.Setup(x => x.RejectWithdrawalAsync(
                 It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()))
@@ -3027,7 +3027,7 @@ public class AdminControllerTests : TestBase
     public async Task RejectWithdrawal_OnFailure_ShouldLogWarning()
     {
         // Arrange
-        var request = WalletsRejectWithdrawal.ValidRequest();
+        var request = WalletsTestDataBuilder.RejectWithdrawal.ValidRequest();
 
         _mockWalletService.Setup(x => x.RejectWithdrawalAsync(
                 It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()))
@@ -3058,8 +3058,8 @@ public class AdminControllerTests : TestBase
     public async Task RejectWithdrawal_ShouldPassCancellationTokenToService()
     {
         // Arrange
-        var request = WalletsRejectWithdrawal.ValidRequest();
-        var expectedTransaction = WalletsRejectWithdrawal.SuccessfulRejectionResponse();
+        var request = WalletsTestDataBuilder.RejectWithdrawal.ValidRequest();
+        var expectedTransaction = WalletsTestDataBuilder.RejectWithdrawal.SuccessfulRejectionResponse();
         var cancellationToken = new CancellationToken();
 
         _mockWalletService.Setup(x => x.RejectWithdrawalAsync(
@@ -3084,8 +3084,8 @@ public class AdminControllerTests : TestBase
     public async Task RejectWithdrawal_OnSuccess_ShouldRestoreBalance()
     {
         // Arrange
-        var request = WalletsRejectWithdrawal.ValidRequest();
-        var expectedTransaction = WalletsRejectWithdrawal.SuccessfulRejectionResponse();
+        var request = WalletsTestDataBuilder.RejectWithdrawal.ValidRequest();
+        var expectedTransaction = WalletsTestDataBuilder.RejectWithdrawal.SuccessfulRejectionResponse();
 
         _mockWalletService.Setup(x => x.RejectWithdrawalAsync(
                 It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()))
@@ -3118,8 +3118,8 @@ public class AdminControllerTests : TestBase
     public async Task RejectWithdrawal_ShouldProcessRejectionReasonCorrectly()
     {
         // Arrange
-        var request = WalletsRejectWithdrawal.ValidRequestDetailed();
-        var expectedTransaction = WalletsRejectWithdrawal.DetailedRejectionResponse();
+        var request = WalletsTestDataBuilder.RejectWithdrawal.ValidRequestDetailed();
+        var expectedTransaction = WalletsTestDataBuilder.RejectWithdrawal.DetailedRejectionResponse();
 
         _mockWalletService.Setup(x => x.RejectWithdrawalAsync(
                 It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()))

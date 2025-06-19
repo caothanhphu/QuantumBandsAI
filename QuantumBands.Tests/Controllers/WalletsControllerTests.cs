@@ -18,6 +18,7 @@ using QuantumBands.Application.Common.Models;
 using QuantumBands.Application.Interfaces;
 using QuantumBands.Tests.Common;
 using QuantumBands.Tests.Fixtures;
+using static QuantumBands.Tests.Fixtures.WalletsTestDataBuilder;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
@@ -105,8 +106,8 @@ public class WalletsControllerTests : TestBase
     public async Task InitiateBankDeposit_WithValidRequest_ShouldReturnBankDepositInfo()
     {
         // Arrange
-        var depositRequest = TestDataBuilder.BankDeposit.ValidInitiateBankDepositRequest();
-        var expectedResponse = TestDataBuilder.BankDeposit.ValidBankDepositInfoResponse();
+        var depositRequest = BankDeposit.ValidInitiateBankDepositRequest();
+        var expectedResponse = BankDeposit.ValidBankDepositInfoResponse();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -143,8 +144,8 @@ public class WalletsControllerTests : TestBase
     public async Task InitiateBankDeposit_WithValidRequest_ShouldGenerateUniqueReferenceCode()
     {
         // Arrange
-        var depositRequest = TestDataBuilder.BankDeposit.ValidInitiateBankDepositRequest();
-        var expectedResponse = TestDataBuilder.BankDeposit.ValidBankDepositInfoResponse();
+        var depositRequest = BankDeposit.ValidInitiateBankDepositRequest();
+        var expectedResponse = BankDeposit.ValidBankDepositInfoResponse();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -175,8 +176,8 @@ public class WalletsControllerTests : TestBase
     public async Task InitiateBankDeposit_WithValidRequest_ShouldCreateTransactionRecord()
     {
         // Arrange
-        var depositRequest = TestDataBuilder.BankDeposit.ValidInitiateBankDepositRequest();
-        var expectedResponse = TestDataBuilder.BankDeposit.ValidBankDepositInfoResponse();
+        var depositRequest = BankDeposit.ValidInitiateBankDepositRequest();
+        var expectedResponse = BankDeposit.ValidBankDepositInfoResponse();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -213,7 +214,7 @@ public class WalletsControllerTests : TestBase
     public async Task InitiateBankDeposit_WithZeroAmount_ShouldReturnBadRequest()
     {
         // Arrange
-        var depositRequest = TestDataBuilder.BankDeposit.ZeroAmountDepositRequest();
+        var depositRequest = BankDeposit.ZeroAmountDepositRequest();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -241,7 +242,7 @@ public class WalletsControllerTests : TestBase
     public async Task InitiateBankDeposit_WithNegativeAmount_ShouldReturnBadRequest()
     {
         // Arrange
-        var depositRequest = TestDataBuilder.BankDeposit.NegativeAmountDepositRequest();
+        var depositRequest = BankDeposit.NegativeAmountDepositRequest();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -269,8 +270,8 @@ public class WalletsControllerTests : TestBase
     public async Task InitiateBankDeposit_WithVeryLargeAmount_ShouldReturnAppropriateResponse()
     {
         // Arrange
-        var depositRequest = TestDataBuilder.BankDeposit.VeryLargeAmountDepositRequest();
-        var expectedResponse = TestDataBuilder.BankDeposit.LargeAmountBankDepositInfoResponse();
+        var depositRequest = BankDeposit.VeryLargeAmountDepositRequest();
+        var expectedResponse = BankDeposit.LargeAmountBankDepositInfoResponse();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -305,7 +306,7 @@ public class WalletsControllerTests : TestBase
     public async Task InitiateBankDeposit_WithNonExistentWallet_ShouldReturnBadRequest()
     {
         // Arrange
-        var depositRequest = TestDataBuilder.BankDeposit.ValidInitiateBankDepositRequest();
+        var depositRequest = BankDeposit.ValidInitiateBankDepositRequest();
         var authenticatedUser = CreateAuthenticatedUser(999, "nonexistentuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -333,7 +334,7 @@ public class WalletsControllerTests : TestBase
     public async Task InitiateBankDeposit_WithInvalidExchangeRateConfig_ShouldReturnInternalServerError()
     {
         // Arrange
-        var depositRequest = TestDataBuilder.BankDeposit.ValidInitiateBankDepositRequest();
+        var depositRequest = BankDeposit.ValidInitiateBankDepositRequest();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -362,7 +363,7 @@ public class WalletsControllerTests : TestBase
     public async Task InitiateBankDeposit_WithMissingTransactionTypeConfig_ShouldReturnInternalServerError()
     {
         // Arrange
-        var depositRequest = TestDataBuilder.BankDeposit.ValidInitiateBankDepositRequest();
+        var depositRequest = BankDeposit.ValidInitiateBankDepositRequest();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -395,7 +396,7 @@ public class WalletsControllerTests : TestBase
     public async Task InitiateBankDeposit_WithServiceAuthError_ShouldReturnBadRequest()
     {
         // Arrange
-        var depositRequest = TestDataBuilder.BankDeposit.ValidInitiateBankDepositRequest();
+        var depositRequest = BankDeposit.ValidInitiateBankDepositRequest();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -423,8 +424,8 @@ public class WalletsControllerTests : TestBase
     public async Task InitiateBankDeposit_ShouldOnlyAllowUserToInitiateOwnDeposit()
     {
         // Arrange
-        var depositRequest = TestDataBuilder.BankDeposit.ValidInitiateBankDepositRequest();
-        var expectedResponse = TestDataBuilder.BankDeposit.ValidBankDepositInfoResponse();
+        var depositRequest = BankDeposit.ValidInitiateBankDepositRequest();
+        var expectedResponse = BankDeposit.ValidBankDepositInfoResponse();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -456,8 +457,8 @@ public class WalletsControllerTests : TestBase
     public async Task InitiateBankDeposit_ShouldNotExposeSensitiveSystemInformation()
     {
         // Arrange
-        var depositRequest = TestDataBuilder.BankDeposit.ValidInitiateBankDepositRequest();
-        var expectedResponse = TestDataBuilder.BankDeposit.ValidBankDepositInfoResponse();
+        var depositRequest = BankDeposit.ValidInitiateBankDepositRequest();
+        var expectedResponse = BankDeposit.ValidBankDepositInfoResponse();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -494,8 +495,8 @@ public class WalletsControllerTests : TestBase
     public async Task InitiateBankDeposit_ShouldCallServiceWithCorrectParameters()
     {
         // Arrange
-        var depositRequest = TestDataBuilder.BankDeposit.ValidInitiateBankDepositRequest();
-        var expectedResponse = TestDataBuilder.BankDeposit.ValidBankDepositInfoResponse();
+        var depositRequest = BankDeposit.ValidInitiateBankDepositRequest();
+        var expectedResponse = BankDeposit.ValidBankDepositInfoResponse();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -523,8 +524,8 @@ public class WalletsControllerTests : TestBase
     public async Task InitiateBankDeposit_WithCancellationToken_ShouldPassTokenToService()
     {
         // Arrange
-        var depositRequest = TestDataBuilder.BankDeposit.ValidInitiateBankDepositRequest();
-        var expectedResponse = TestDataBuilder.BankDeposit.ValidBankDepositInfoResponse();
+        var depositRequest = BankDeposit.ValidInitiateBankDepositRequest();
+        var expectedResponse = BankDeposit.ValidBankDepositInfoResponse();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         var cancellationToken = new CancellationToken();
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
@@ -558,8 +559,8 @@ public class WalletsControllerTests : TestBase
     public async Task InitiateBankDeposit_ShouldLogInformationAtStart()
     {
         // Arrange
-        var depositRequest = TestDataBuilder.BankDeposit.ValidInitiateBankDepositRequest();
-        var expectedResponse = TestDataBuilder.BankDeposit.ValidBankDepositInfoResponse();
+        var depositRequest = BankDeposit.ValidInitiateBankDepositRequest();
+        var expectedResponse = BankDeposit.ValidBankDepositInfoResponse();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -591,7 +592,7 @@ public class WalletsControllerTests : TestBase
     public async Task InitiateBankDeposit_WithError_ShouldLogWarning()
     {
         // Arrange
-        var depositRequest = TestDataBuilder.BankDeposit.ValidInitiateBankDepositRequest();
+        var depositRequest = BankDeposit.ValidInitiateBankDepositRequest();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -623,8 +624,8 @@ public class WalletsControllerTests : TestBase
     public async Task InitiateBankDeposit_ShouldNotLogSensitiveInformation()
     {
         // Arrange
-        var depositRequest = TestDataBuilder.BankDeposit.ValidInitiateBankDepositRequest();
-        var expectedResponse = TestDataBuilder.BankDeposit.ValidBankDepositInfoResponse();
+        var depositRequest = BankDeposit.ValidInitiateBankDepositRequest();
+        var expectedResponse = BankDeposit.ValidBankDepositInfoResponse();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -663,7 +664,7 @@ public class WalletsControllerTests : TestBase
     public async Task InitiateBankDeposit_WithDatabaseError_ShouldReturnInternalServerError()
     {
         // Arrange
-        var depositRequest = TestDataBuilder.BankDeposit.ValidInitiateBankDepositRequest();
+        var depositRequest = BankDeposit.ValidInitiateBankDepositRequest();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -691,7 +692,7 @@ public class WalletsControllerTests : TestBase
     public async Task InitiateBankDeposit_WithNullErrorMessage_ShouldReturnGenericError()
     {
         // Arrange
-        var depositRequest = TestDataBuilder.BankDeposit.ValidInitiateBankDepositRequest();
+        var depositRequest = BankDeposit.ValidInitiateBankDepositRequest();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -722,7 +723,7 @@ public class WalletsControllerTests : TestBase
     public async Task InitiateBankDeposit_WithVariousErrors_ShouldReturnAppropriateStatusCodes(string errorMessage, int expectedStatusCode)
     {
         // Arrange
-        var depositRequest = TestDataBuilder.BankDeposit.ValidInitiateBankDepositRequest();
+        var depositRequest = BankDeposit.ValidInitiateBankDepositRequest();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -762,7 +763,7 @@ public class WalletsControllerTests : TestBase
     public async Task GetMyWallet_WithValidAuthenticatedUser_ShouldReturnWalletInfo()
     {
         // Arrange
-        var walletDto = TestDataBuilder.GetMyWallet.ValidUserWallet();
+        var walletDto = GetMyWallet.ValidUserWallet();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -795,7 +796,7 @@ public class WalletsControllerTests : TestBase
     public async Task GetMyWallet_WithBusinessUser_ShouldReturnBusinessWalletInfo()
     {
         // Arrange
-        var walletDto = TestDataBuilder.GetMyWallet.ValidBusinessUserWallet();
+        var walletDto = GetMyWallet.ValidBusinessUserWallet();
         var authenticatedUser = CreateAuthenticatedUser(2, "businessuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -825,7 +826,7 @@ public class WalletsControllerTests : TestBase
     public async Task GetMyWallet_WithZeroBalance_ShouldReturnZeroBalance()
     {
         // Arrange
-        var walletDto = TestDataBuilder.GetMyWallet.ZeroBalanceWallet();
+        var walletDto = GetMyWallet.ZeroBalanceWallet();
         var authenticatedUser = CreateAuthenticatedUser(4, "newuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -855,7 +856,7 @@ public class WalletsControllerTests : TestBase
     public async Task GetMyWallet_WithPreciseBalance_ShouldMaintainPrecision()
     {
         // Arrange
-        var walletDto = TestDataBuilder.GetMyWallet.WalletWithPreciseBalance();
+        var walletDto = GetMyWallet.WalletWithPreciseBalance();
         var authenticatedUser = CreateAuthenticatedUser(7, "precisionuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -885,7 +886,7 @@ public class WalletsControllerTests : TestBase
     public async Task GetMyWallet_WithQrCodePrefix_ShouldReturnFormattedEmail()
     {
         // Arrange
-        var walletDto = TestDataBuilder.GetMyWallet.WalletWithQrCodePrefix();
+        var walletDto = GetMyWallet.WalletWithQrCodePrefix();
         var authenticatedUser = CreateAuthenticatedUser(10, "qrcodeuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -1002,7 +1003,7 @@ public class WalletsControllerTests : TestBase
     public async Task GetMyWallet_ShouldMapWalletIdCorrectly()
     {
         // Arrange
-        var walletDto = TestDataBuilder.GetMyWallet.ValidAdminWallet();
+        var walletDto = GetMyWallet.ValidAdminWallet();
         var authenticatedUser = CreateAuthenticatedUser(3, "admin");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -1032,7 +1033,7 @@ public class WalletsControllerTests : TestBase
     public async Task GetMyWallet_ShouldReturnCorrectCurrencyCodeFormat()
     {
         // Arrange
-        var walletDto = TestDataBuilder.GetMyWallet.WalletWithDifferentCurrency();
+        var walletDto = GetMyWallet.WalletWithDifferentCurrency();
         var authenticatedUser = CreateAuthenticatedUser(9, "eurouser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -1063,7 +1064,7 @@ public class WalletsControllerTests : TestBase
     public async Task GetMyWallet_ShouldReturnFormattedEmailForQrCode()
     {
         // Arrange
-        var walletDto = TestDataBuilder.GetMyWallet.WalletWithSpecialCharacterEmail();
+        var walletDto = GetMyWallet.WalletWithSpecialCharacterEmail();
         var authenticatedUser = CreateAuthenticatedUser(8, "specialuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -1093,7 +1094,7 @@ public class WalletsControllerTests : TestBase
     public async Task GetMyWallet_ShouldIncludeUpdatedTimestamp()
     {
         // Arrange
-        var walletDto = TestDataBuilder.GetMyWallet.WalletWithRecentActivity();
+        var walletDto = GetMyWallet.WalletWithRecentActivity();
         var authenticatedUser = CreateAuthenticatedUser(15, "activeuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -1127,7 +1128,7 @@ public class WalletsControllerTests : TestBase
     public async Task GetMyWallet_WithSmallBalance_ShouldHandleCorrectly()
     {
         // Arrange
-        var walletDto = TestDataBuilder.GetMyWallet.SmallBalanceWallet();
+        var walletDto = GetMyWallet.SmallBalanceWallet();
         var authenticatedUser = CreateAuthenticatedUser(5, "smallbalanceuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -1157,7 +1158,7 @@ public class WalletsControllerTests : TestBase
     public async Task GetMyWallet_WithLargeBalance_ShouldHandleCorrectly()
     {
         // Arrange
-        var walletDto = TestDataBuilder.GetMyWallet.LargeBalanceWallet();
+        var walletDto = GetMyWallet.LargeBalanceWallet();
         var authenticatedUser = CreateAuthenticatedUser(6, "largebalanceuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -1187,7 +1188,7 @@ public class WalletsControllerTests : TestBase
     public async Task GetMyWallet_WithVipUser_ShouldReturnVipWalletInfo()
     {
         // Arrange
-        var walletDto = TestDataBuilder.GetMyWallet.WalletForVipUser();
+        var walletDto = GetMyWallet.WalletForVipUser();
         var authenticatedUser = CreateAuthenticatedUser(13, "vipuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -1222,7 +1223,7 @@ public class WalletsControllerTests : TestBase
     public async Task GetMyWallet_ShouldPassCorrectParametersToService()
     {
         // Arrange
-        var walletDto = TestDataBuilder.GetMyWallet.ValidUserWallet();
+        var walletDto = GetMyWallet.ValidUserWallet();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -1249,7 +1250,7 @@ public class WalletsControllerTests : TestBase
     public async Task GetMyWallet_ShouldForwardCancellationToken()
     {
         // Arrange
-        var walletDto = TestDataBuilder.GetMyWallet.ValidUserWallet();
+        var walletDto = GetMyWallet.ValidUserWallet();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         var cancellationToken = new CancellationToken();
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
@@ -1282,7 +1283,7 @@ public class WalletsControllerTests : TestBase
     public async Task GetMyWallet_OnSuccess_ShouldLogInformation()
     {
         // Arrange
-        var walletDto = TestDataBuilder.GetMyWallet.ValidUserWallet();
+        var walletDto = GetMyWallet.ValidUserWallet();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -1439,8 +1440,8 @@ public class WalletsControllerTests : TestBase
     public async Task GetMyWalletTransactions_WithValidRequest_ShouldReturnTransactionHistory()
     {
         // Arrange
-        var query = TestDataBuilder.GetTransactions.ValidQuery();
-        var expectedTransactions = TestDataBuilder.GetTransactions.ValidPaginatedTransactions();
+        var query = GetTransactions.ValidQuery();
+        var expectedTransactions = GetTransactions.ValidPaginatedTransactions();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -1472,8 +1473,8 @@ public class WalletsControllerTests : TestBase
     public async Task GetMyWalletTransactions_WithPagination_ShouldReturnCorrectPage()
     {
         // Arrange
-        var query = TestDataBuilder.GetTransactions.QueryWithMaxPageSize();
-        var expectedTransactions = TestDataBuilder.GetTransactions.LargePaginatedTransactions();
+        var query = GetTransactions.QueryWithMaxPageSize();
+        var expectedTransactions = GetTransactions.LargePaginatedTransactions();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -1504,8 +1505,8 @@ public class WalletsControllerTests : TestBase
     public async Task GetMyWalletTransactions_WithTransactionTypeFilter_ShouldReturnFilteredResults()
     {
         // Arrange
-        var query = TestDataBuilder.GetTransactions.QueryWithTransactionTypeFilter();
-        var expectedTransactions = TestDataBuilder.GetTransactions.ValidPaginatedTransactions();
+        var query = GetTransactions.QueryWithTransactionTypeFilter();
+        var expectedTransactions = GetTransactions.ValidPaginatedTransactions();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -1541,8 +1542,8 @@ public class WalletsControllerTests : TestBase
     public async Task GetMyWalletTransactions_WithDateRangeFilter_ShouldReturnFilteredResults()
     {
         // Arrange
-        var query = TestDataBuilder.GetTransactions.QueryWithDateRangeFilter();
-        var expectedTransactions = TestDataBuilder.GetTransactions.ValidPaginatedTransactions();
+        var query = GetTransactions.QueryWithDateRangeFilter();
+        var expectedTransactions = GetTransactions.ValidPaginatedTransactions();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -1581,8 +1582,8 @@ public class WalletsControllerTests : TestBase
     public async Task GetMyWalletTransactions_WithExcessivePageSize_ShouldLimitToMaximum()
     {
         // Arrange
-        var query = TestDataBuilder.GetTransactions.QueryWithExcessivePageSize();
-        var expectedTransactions = TestDataBuilder.GetTransactions.LargePaginatedTransactions();
+        var query = GetTransactions.QueryWithExcessivePageSize();
+        var expectedTransactions = GetTransactions.LargePaginatedTransactions();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -1613,8 +1614,8 @@ public class WalletsControllerTests : TestBase
     public async Task GetMyWalletTransactions_WithNegativePageNumber_ShouldUseValidatedPageNumber()
     {
         // Arrange
-        var query = TestDataBuilder.GetTransactions.QueryWithNegativePageNumber();
-        var expectedTransactions = TestDataBuilder.GetTransactions.ValidPaginatedTransactions();
+        var query = GetTransactions.QueryWithNegativePageNumber();
+        var expectedTransactions = GetTransactions.ValidPaginatedTransactions();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -1645,8 +1646,8 @@ public class WalletsControllerTests : TestBase
     public async Task GetMyWalletTransactions_ShouldReturnCorrectTotalCount()
     {
         // Arrange
-        var query = TestDataBuilder.GetTransactions.ValidQuery();
-        var expectedTransactions = TestDataBuilder.GetTransactions.LargePaginatedTransactions();
+        var query = GetTransactions.ValidQuery();
+        var expectedTransactions = GetTransactions.LargePaginatedTransactions();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -1677,8 +1678,8 @@ public class WalletsControllerTests : TestBase
     public async Task GetMyWalletTransactions_WithNoTransactions_ShouldReturnEmptyResult()
     {
         // Arrange
-        var query = TestDataBuilder.GetTransactions.ValidQuery();
-        var expectedTransactions = TestDataBuilder.GetTransactions.EmptyPaginatedTransactions();
+        var query = GetTransactions.ValidQuery();
+        var expectedTransactions = GetTransactions.EmptyPaginatedTransactions();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -1714,8 +1715,8 @@ public class WalletsControllerTests : TestBase
     public async Task GetMyWalletTransactions_WithCombinedFilters_ShouldApplyAllFilters()
     {
         // Arrange
-        var query = TestDataBuilder.GetTransactions.QueryWithCombinedFilters();
-        var expectedTransactions = TestDataBuilder.GetTransactions.ValidPaginatedTransactions();
+        var query = GetTransactions.QueryWithCombinedFilters();
+        var expectedTransactions = GetTransactions.ValidPaginatedTransactions();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -1760,7 +1761,7 @@ public class WalletsControllerTests : TestBase
             SortBy = "TransactionDate",
             SortOrder = "desc"
         };
-        var expectedTransactions = TestDataBuilder.GetTransactions.ValidPaginatedTransactions();
+        var expectedTransactions = GetTransactions.ValidPaginatedTransactions();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -1799,7 +1800,7 @@ public class WalletsControllerTests : TestBase
             SortBy = "TransactionDate",
             SortOrder = "desc"
         };
-        var expectedTransactions = TestDataBuilder.GetTransactions.ValidPaginatedTransactions();
+        var expectedTransactions = GetTransactions.ValidPaginatedTransactions();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -1834,8 +1835,8 @@ public class WalletsControllerTests : TestBase
     public async Task GetMyWalletTransactions_WithUnauthenticatedUser_ShouldStillCallService()
     {
         // Arrange
-        var query = TestDataBuilder.GetTransactions.ValidQuery();
-        var expectedTransactions = TestDataBuilder.GetTransactions.EmptyPaginatedTransactions();
+        var query = GetTransactions.ValidQuery();
+        var expectedTransactions = GetTransactions.EmptyPaginatedTransactions();
         var unauthenticatedUser = CreateUnauthenticatedUser();
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -1867,8 +1868,8 @@ public class WalletsControllerTests : TestBase
     public async Task GetMyWalletTransactions_ShouldOnlyReturnUserOwnTransactions()
     {
         // Arrange
-        var query = TestDataBuilder.GetTransactions.ValidQuery();
-        var expectedTransactions = TestDataBuilder.GetTransactions.ValidPaginatedTransactions();
+        var query = GetTransactions.ValidQuery();
+        var expectedTransactions = GetTransactions.ValidPaginatedTransactions();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -1903,8 +1904,8 @@ public class WalletsControllerTests : TestBase
     public async Task GetMyWalletTransactions_ShouldPassCorrectParametersToService()
     {
         // Arrange
-        var query = TestDataBuilder.GetTransactions.QueryWithCombinedFilters();
-        var expectedTransactions = TestDataBuilder.GetTransactions.ValidPaginatedTransactions();
+        var query = GetTransactions.QueryWithCombinedFilters();
+        var expectedTransactions = GetTransactions.ValidPaginatedTransactions();
         var authenticatedUser = CreateAuthenticatedUser(42, "specificuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -1942,8 +1943,8 @@ public class WalletsControllerTests : TestBase
     public async Task GetMyWalletTransactions_ShouldForwardCancellationToken()
     {
         // Arrange
-        var query = TestDataBuilder.GetTransactions.ValidQuery();
-        var expectedTransactions = TestDataBuilder.GetTransactions.ValidPaginatedTransactions();
+        var query = GetTransactions.ValidQuery();
+        var expectedTransactions = GetTransactions.ValidPaginatedTransactions();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         var cancellationToken = new CancellationToken();
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
@@ -1974,8 +1975,8 @@ public class WalletsControllerTests : TestBase
     public async Task GetMyWalletTransactions_ShouldLogInformation()
     {
         // Arrange
-        var query = TestDataBuilder.GetTransactions.ValidQuery();
-        var expectedTransactions = TestDataBuilder.GetTransactions.ValidPaginatedTransactions();
+        var query = GetTransactions.ValidQuery();
+        var expectedTransactions = GetTransactions.ValidPaginatedTransactions();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -2020,8 +2021,8 @@ public class WalletsControllerTests : TestBase
     public async Task CreateWithdrawalRequest_WithValidRequest_ShouldReturnWithdrawalRequestDto()
     {
         // Arrange
-        var request = TestDataBuilder.CreateWithdrawal.ValidRequest();
-        var expectedResponse = TestDataBuilder.CreateWithdrawal.ValidResponse();
+        var request = CreateWithdrawal.ValidRequest();
+        var expectedResponse = CreateWithdrawal.ValidResponse();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -2054,8 +2055,8 @@ public class WalletsControllerTests : TestBase
     public async Task CreateWithdrawalRequest_WithValidRequest_ShouldCreateTransactionRecord()
     {
         // Arrange
-        var request = TestDataBuilder.CreateWithdrawal.LargeAmountRequest();
-        var expectedResponse = TestDataBuilder.CreateWithdrawal.LargeAmountResponse();
+        var request = CreateWithdrawal.LargeAmountRequest();
+        var expectedResponse = CreateWithdrawal.LargeAmountResponse();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -2087,8 +2088,8 @@ public class WalletsControllerTests : TestBase
     public async Task CreateWithdrawalRequest_WithoutNotes_ShouldSucceed()
     {
         // Arrange
-        var request = TestDataBuilder.CreateWithdrawal.RequestWithoutNotes();
-        var expectedResponse = TestDataBuilder.CreateWithdrawal.ResponseWithoutNotes();
+        var request = CreateWithdrawal.RequestWithoutNotes();
+        var expectedResponse = CreateWithdrawal.ResponseWithoutNotes();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -2118,8 +2119,8 @@ public class WalletsControllerTests : TestBase
     public async Task CreateWithdrawalRequest_WithMinimumAmount_ShouldSucceed()
     {
         // Arrange
-        var request = TestDataBuilder.CreateWithdrawal.MinimumAmountRequest();
-        var expectedResponse = TestDataBuilder.CreateWithdrawal.CustomResponse(3004, 1, 0.01m);
+        var request = CreateWithdrawal.MinimumAmountRequest();
+        var expectedResponse = CreateWithdrawal.CustomResponse(3004, 1, 0.01m);
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -2152,7 +2153,7 @@ public class WalletsControllerTests : TestBase
     public async Task CreateWithdrawalRequest_WithZeroAmount_ShouldReturnBadRequest()
     {
         // Arrange
-        var request = TestDataBuilder.CreateWithdrawal.ZeroAmountRequest();
+        var request = CreateWithdrawal.ZeroAmountRequest();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -2179,7 +2180,7 @@ public class WalletsControllerTests : TestBase
     public async Task CreateWithdrawalRequest_WithNegativeAmount_ShouldReturnBadRequest()
     {
         // Arrange
-        var request = TestDataBuilder.CreateWithdrawal.NegativeAmountRequest();
+        var request = CreateWithdrawal.NegativeAmountRequest();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -2206,7 +2207,7 @@ public class WalletsControllerTests : TestBase
     public async Task CreateWithdrawalRequest_WithInvalidCurrency_ShouldReturnBadRequest()
     {
         // Arrange
-        var request = TestDataBuilder.CreateWithdrawal.InvalidCurrencyRequest();
+        var request = CreateWithdrawal.InvalidCurrencyRequest();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -2233,7 +2234,7 @@ public class WalletsControllerTests : TestBase
     public async Task CreateWithdrawalRequest_WithEmptyWithdrawalMethod_ShouldReturnBadRequest()
     {
         // Arrange
-        var request = TestDataBuilder.CreateWithdrawal.EmptyWithdrawalMethodRequest();
+        var request = CreateWithdrawal.EmptyWithdrawalMethodRequest();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -2260,7 +2261,7 @@ public class WalletsControllerTests : TestBase
     public async Task CreateWithdrawalRequest_WithTooLongWithdrawalMethod_ShouldReturnBadRequest()
     {
         // Arrange
-        var request = TestDataBuilder.CreateWithdrawal.TooLongWithdrawalMethodRequest();
+        var request = CreateWithdrawal.TooLongWithdrawalMethodRequest();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -2287,7 +2288,7 @@ public class WalletsControllerTests : TestBase
     public async Task CreateWithdrawalRequest_WithTooLongNotes_ShouldReturnBadRequest()
     {
         // Arrange
-        var request = TestDataBuilder.CreateWithdrawal.TooLongNotesRequest();
+        var request = CreateWithdrawal.TooLongNotesRequest();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -2318,7 +2319,7 @@ public class WalletsControllerTests : TestBase
     public async Task CreateWithdrawalRequest_WithAmountExceedingBalance_ShouldReturnBadRequest()
     {
         // Arrange
-        var request = TestDataBuilder.CreateWithdrawal.AmountExceedingBalanceRequest();
+        var request = CreateWithdrawal.AmountExceedingBalanceRequest();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -2345,7 +2346,7 @@ public class WalletsControllerTests : TestBase
     public async Task CreateWithdrawalRequest_WithNonExistentWallet_ShouldReturnNotFound()
     {
         // Arrange
-        var request = TestDataBuilder.CreateWithdrawal.ValidRequest();
+        var request = CreateWithdrawal.ValidRequest();
         var authenticatedUser = CreateAuthenticatedUser(999, "nonexistentuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -2372,8 +2373,8 @@ public class WalletsControllerTests : TestBase
     public async Task CreateWithdrawalRequest_ShouldValidateBalance()
     {
         // Arrange
-        var request = TestDataBuilder.CreateWithdrawal.ValidRequest();
-        var expectedResponse = TestDataBuilder.CreateWithdrawal.ValidResponse();
+        var request = CreateWithdrawal.ValidRequest();
+        var expectedResponse = CreateWithdrawal.ValidResponse();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -2404,8 +2405,8 @@ public class WalletsControllerTests : TestBase
     public async Task CreateWithdrawalRequest_ShouldSetStatusToPendingAdminApproval()
     {
         // Arrange
-        var request = TestDataBuilder.CreateWithdrawal.ValidRequest();
-        var expectedResponse = TestDataBuilder.CreateWithdrawal.ValidResponse();
+        var request = CreateWithdrawal.ValidRequest();
+        var expectedResponse = CreateWithdrawal.ValidResponse();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -2438,7 +2439,7 @@ public class WalletsControllerTests : TestBase
     public async Task CreateWithdrawalRequest_WithUnauthenticatedUser_ShouldCallServiceWithUnauthenticatedPrincipal()
     {
         // Arrange
-        var request = TestDataBuilder.CreateWithdrawal.ValidRequest();
+        var request = CreateWithdrawal.ValidRequest();
         var unauthenticatedUser = CreateUnauthenticatedUser();
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -2472,8 +2473,8 @@ public class WalletsControllerTests : TestBase
     public async Task CreateWithdrawalRequest_ShouldValidateAmount()
     {
         // Arrange
-        var request = TestDataBuilder.CreateWithdrawal.ValidRequest();
-        var expectedResponse = TestDataBuilder.CreateWithdrawal.ValidResponse();
+        var request = CreateWithdrawal.ValidRequest();
+        var expectedResponse = CreateWithdrawal.ValidResponse();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -2504,8 +2505,8 @@ public class WalletsControllerTests : TestBase
     public async Task CreateWithdrawalRequest_ShouldOnlyAllowUserOwnWithdrawal()
     {
         // Arrange
-        var request = TestDataBuilder.CreateWithdrawal.ValidRequest();
-        var expectedResponse = TestDataBuilder.CreateWithdrawal.ValidResponse();
+        var request = CreateWithdrawal.ValidRequest();
+        var expectedResponse = CreateWithdrawal.ValidResponse();
         var authenticatedUser = CreateAuthenticatedUser(42, "specificuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -2540,8 +2541,8 @@ public class WalletsControllerTests : TestBase
     public async Task CreateWithdrawalRequest_ShouldPassCorrectParametersToService()
     {
         // Arrange
-        var request = TestDataBuilder.CreateWithdrawal.LargeAmountRequest();
-        var expectedResponse = TestDataBuilder.CreateWithdrawal.LargeAmountResponse();
+        var request = CreateWithdrawal.LargeAmountRequest();
+        var expectedResponse = CreateWithdrawal.LargeAmountResponse();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -2575,8 +2576,8 @@ public class WalletsControllerTests : TestBase
     public async Task CreateWithdrawalRequest_ShouldForwardCancellationToken()
     {
         // Arrange
-        var request = TestDataBuilder.CreateWithdrawal.ValidRequest();
-        var expectedResponse = TestDataBuilder.CreateWithdrawal.ValidResponse();
+        var request = CreateWithdrawal.ValidRequest();
+        var expectedResponse = CreateWithdrawal.ValidResponse();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         var cancellationToken = new CancellationToken();
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
@@ -2607,8 +2608,8 @@ public class WalletsControllerTests : TestBase
     public async Task CreateWithdrawalRequest_ShouldLogInformation()
     {
         // Arrange
-        var request = TestDataBuilder.CreateWithdrawal.ValidRequest();
-        var expectedResponse = TestDataBuilder.CreateWithdrawal.ValidResponse();
+        var request = CreateWithdrawal.ValidRequest();
+        var expectedResponse = CreateWithdrawal.ValidResponse();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -2640,7 +2641,7 @@ public class WalletsControllerTests : TestBase
     public async Task CreateWithdrawalRequest_WithServiceError_ShouldReturnInternalServerError()
     {
         // Arrange
-        var request = TestDataBuilder.CreateWithdrawal.ValidRequest();
+        var request = CreateWithdrawal.ValidRequest();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -2668,7 +2669,7 @@ public class WalletsControllerTests : TestBase
     public async Task CreateWithdrawalRequest_WithNullErrorMessage_ShouldReturnGenericError()
     {
         // Arrange
-        var request = TestDataBuilder.CreateWithdrawal.ValidRequest();
+        var request = CreateWithdrawal.ValidRequest();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -2707,8 +2708,8 @@ public class WalletsControllerTests : TestBase
     public async Task VerifyRecipient_WithValidEmail_ShouldReturnRecipientInfo()
     {
         // Arrange
-        var request = TestDataBuilder.VerifyRecipient.ValidRequest();
-        var expectedResponse = TestDataBuilder.VerifyRecipient.ValidResponse();
+        var request = VerifyRecipient.ValidRequest();
+        var expectedResponse = VerifyRecipient.ValidResponse();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -2739,8 +2740,8 @@ public class WalletsControllerTests : TestBase
     public async Task VerifyRecipient_WithValidAlternativeEmail_ShouldReturnRecipientInfo()
     {
         // Arrange
-        var request = TestDataBuilder.VerifyRecipient.ValidAlternativeRequest();
-        var expectedResponse = TestDataBuilder.VerifyRecipient.AlternativeValidResponse();
+        var request = VerifyRecipient.ValidAlternativeRequest();
+        var expectedResponse = VerifyRecipient.AlternativeValidResponse();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -2771,8 +2772,8 @@ public class WalletsControllerTests : TestBase
     public async Task VerifyRecipient_WithRecipientWithoutFullName_ShouldReturnValidResponse()
     {
         // Arrange
-        var request = TestDataBuilder.VerifyRecipient.ValidRequest();
-        var expectedResponse = TestDataBuilder.VerifyRecipient.ResponseWithoutFullName();
+        var request = VerifyRecipient.ValidRequest();
+        var expectedResponse = VerifyRecipient.ResponseWithoutFullName();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -2803,8 +2804,8 @@ public class WalletsControllerTests : TestBase
     public async Task VerifyRecipient_WithValidRequest_ShouldReturnProperDisplayData()
     {
         // Arrange
-        var request = TestDataBuilder.VerifyRecipient.ValidRequest();
-        var expectedResponse = TestDataBuilder.VerifyRecipient.ValidResponse();
+        var request = VerifyRecipient.ValidRequest();
+        var expectedResponse = VerifyRecipient.ValidResponse();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -2839,7 +2840,7 @@ public class WalletsControllerTests : TestBase
     public async Task VerifyRecipient_WithEmptyEmail_ShouldReturnBadRequest()
     {
         // Arrange
-        var request = TestDataBuilder.VerifyRecipient.EmptyEmailRequest();
+        var request = VerifyRecipient.EmptyEmailRequest();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -2866,7 +2867,7 @@ public class WalletsControllerTests : TestBase
     public async Task VerifyRecipient_WithInvalidEmailFormat_ShouldReturnBadRequest()
     {
         // Arrange
-        var request = TestDataBuilder.VerifyRecipient.InvalidEmailFormatRequest();
+        var request = VerifyRecipient.InvalidEmailFormatRequest();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -2893,7 +2894,7 @@ public class WalletsControllerTests : TestBase
     public async Task VerifyRecipient_WithNonExistentEmail_ShouldReturnNotFound()
     {
         // Arrange
-        var request = TestDataBuilder.VerifyRecipient.NonExistentEmailRequest();
+        var request = VerifyRecipient.NonExistentEmailRequest();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -2924,7 +2925,7 @@ public class WalletsControllerTests : TestBase
     public async Task VerifyRecipient_WithSelfEmail_ShouldReturnValidResponse()
     {
         // Arrange - In the business logic, self-transfer prevention happens at the ExecuteTransfer level, not VerifyRecipient
-        var request = TestDataBuilder.VerifyRecipient.SelfEmailRequest();
+        var request = VerifyRecipient.SelfEmailRequest();
         var expectedResponse = new RecipientInfoResponse
         {
             RecipientUserId = 1, // Same as authenticated user
@@ -2959,7 +2960,7 @@ public class WalletsControllerTests : TestBase
     public async Task VerifyRecipient_WithInactiveUser_ShouldReturnNotFound()
     {
         // Arrange
-        var request = TestDataBuilder.VerifyRecipient.InactiveUserEmailRequest();
+        var request = VerifyRecipient.InactiveUserEmailRequest();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -2986,8 +2987,8 @@ public class WalletsControllerTests : TestBase
     public async Task VerifyRecipient_ShouldVerifyRecipientAccountProperly()
     {
         // Arrange
-        var request = TestDataBuilder.VerifyRecipient.ValidRequest();
-        var expectedResponse = TestDataBuilder.VerifyRecipient.ValidResponse();
+        var request = VerifyRecipient.ValidRequest();
+        var expectedResponse = VerifyRecipient.ValidResponse();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -3015,8 +3016,8 @@ public class WalletsControllerTests : TestBase
     public async Task VerifyRecipient_ShouldReturnFilteredDataForPrivacy()
     {
         // Arrange
-        var request = TestDataBuilder.VerifyRecipient.ValidRequest();
-        var expectedResponse = TestDataBuilder.VerifyRecipient.ValidResponse();
+        var request = VerifyRecipient.ValidRequest();
+        var expectedResponse = VerifyRecipient.ValidResponse();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -3052,8 +3053,8 @@ public class WalletsControllerTests : TestBase
     public async Task VerifyRecipient_WithoutAuthentication_ShouldStillCallService()
     {
         // Arrange
-        var request = TestDataBuilder.VerifyRecipient.ValidRequest();
-        var expectedResponse = TestDataBuilder.VerifyRecipient.ValidResponse();
+        var request = VerifyRecipient.ValidRequest();
+        var expectedResponse = VerifyRecipient.ValidResponse();
         var unauthenticatedUser = CreateUnauthenticatedUser();
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -3083,8 +3084,8 @@ public class WalletsControllerTests : TestBase
     public async Task VerifyRecipient_ShouldProtectUserPrivacy()
     {
         // Arrange
-        var request = TestDataBuilder.VerifyRecipient.ValidRequest();
-        var expectedResponse = TestDataBuilder.VerifyRecipient.ValidResponse();
+        var request = VerifyRecipient.ValidRequest();
+        var expectedResponse = VerifyRecipient.ValidResponse();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -3116,7 +3117,7 @@ public class WalletsControllerTests : TestBase
     public async Task VerifyRecipient_ShouldPreventInformationDisclosure()
     {
         // Arrange
-        var request = TestDataBuilder.VerifyRecipient.NonExistentEmailRequest();
+        var request = VerifyRecipient.NonExistentEmailRequest();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -3151,8 +3152,8 @@ public class WalletsControllerTests : TestBase
     public async Task VerifyRecipient_ShouldPassCorrectParametersToService()
     {
         // Arrange
-        var request = TestDataBuilder.VerifyRecipient.ValidRequest();
-        var expectedResponse = TestDataBuilder.VerifyRecipient.ValidResponse();
+        var request = VerifyRecipient.ValidRequest();
+        var expectedResponse = VerifyRecipient.ValidResponse();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -3180,8 +3181,8 @@ public class WalletsControllerTests : TestBase
     public async Task VerifyRecipient_ShouldForwardCancellationToken()
     {
         // Arrange
-        var request = TestDataBuilder.VerifyRecipient.ValidRequest();
-        var expectedResponse = TestDataBuilder.VerifyRecipient.ValidResponse();
+        var request = VerifyRecipient.ValidRequest();
+        var expectedResponse = VerifyRecipient.ValidResponse();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         var cancellationToken = new CancellationToken();
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
@@ -3210,8 +3211,8 @@ public class WalletsControllerTests : TestBase
     public async Task VerifyRecipient_ShouldLogInformation()
     {
         // Arrange
-        var request = TestDataBuilder.VerifyRecipient.ValidRequest();
-        var expectedResponse = TestDataBuilder.VerifyRecipient.ValidResponse();
+        var request = VerifyRecipient.ValidRequest();
+        var expectedResponse = VerifyRecipient.ValidResponse();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -3249,7 +3250,7 @@ public class WalletsControllerTests : TestBase
     public async Task VerifyRecipient_WithServiceError_ShouldReturnBadRequest()
     {
         // Arrange
-        var request = TestDataBuilder.VerifyRecipient.ValidRequest();
+        var request = VerifyRecipient.ValidRequest();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -3276,7 +3277,7 @@ public class WalletsControllerTests : TestBase
     public async Task VerifyRecipient_WithNullErrorMessage_ShouldReturnGenericError()
     {
         // Arrange
-        var request = TestDataBuilder.VerifyRecipient.ValidRequest();
+        var request = VerifyRecipient.ValidRequest();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -3314,8 +3315,8 @@ public class WalletsControllerTests : TestBase
     public async Task ExecuteTransfer_WithValidRequest_ShouldReturnSenderTransactionDto()
     {
         // Arrange
-        var request = TestDataBuilder.ExecuteInternalTransfer.ValidRequest();
-        var expectedResponse = TestDataBuilder.ExecuteInternalTransfer.ValidSenderTransactionResponse();
+        var request = ExecuteInternalTransfer.ValidRequest();
+        var expectedResponse = ExecuteInternalTransfer.ValidSenderTransactionResponse();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -3347,8 +3348,8 @@ public class WalletsControllerTests : TestBase
     public async Task ExecuteTransfer_WithValidRequest_ShouldDeductSenderBalance()
     {
         // Arrange
-        var request = TestDataBuilder.ExecuteInternalTransfer.ValidRequest();
-        var expectedResponse = TestDataBuilder.ExecuteInternalTransfer.ValidSenderTransactionResponse();
+        var request = ExecuteInternalTransfer.ValidRequest();
+        var expectedResponse = ExecuteInternalTransfer.ValidSenderTransactionResponse();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -3378,8 +3379,8 @@ public class WalletsControllerTests : TestBase
     public async Task ExecuteTransfer_WithLargeAmount_ShouldExecuteSuccessfully()
     {
         // Arrange
-        var request = TestDataBuilder.ExecuteInternalTransfer.LargeAmountRequest();
-        var expectedResponse = TestDataBuilder.ExecuteInternalTransfer.LargeAmountSenderTransactionResponse();
+        var request = ExecuteInternalTransfer.LargeAmountRequest();
+        var expectedResponse = ExecuteInternalTransfer.LargeAmountSenderTransactionResponse();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -3409,8 +3410,8 @@ public class WalletsControllerTests : TestBase
     public async Task ExecuteTransfer_WithValidRequest_ShouldCreateCorrectTransactionRecord()
     {
         // Arrange
-        var request = TestDataBuilder.ExecuteInternalTransfer.ValidRequest();
-        var expectedResponse = TestDataBuilder.ExecuteInternalTransfer.ValidSenderTransactionResponse();
+        var request = ExecuteInternalTransfer.ValidRequest();
+        var expectedResponse = ExecuteInternalTransfer.ValidSenderTransactionResponse();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -3443,8 +3444,8 @@ public class WalletsControllerTests : TestBase
     public async Task ExecuteTransfer_WithoutDescription_ShouldExecuteSuccessfully()
     {
         // Arrange
-        var request = TestDataBuilder.ExecuteInternalTransfer.RequestWithoutDescription();
-        var expectedResponse = TestDataBuilder.ExecuteInternalTransfer.TransactionResponseWithoutDescription();
+        var request = ExecuteInternalTransfer.RequestWithoutDescription();
+        var expectedResponse = ExecuteInternalTransfer.TransactionResponseWithoutDescription();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -3477,7 +3478,7 @@ public class WalletsControllerTests : TestBase
     public async Task ExecuteTransfer_WithInvalidRecipientId_ShouldReturnBadRequest()
     {
         // Arrange
-        var request = TestDataBuilder.ExecuteInternalTransfer.InvalidRecipientIdRequest();
+        var request = ExecuteInternalTransfer.InvalidRecipientIdRequest();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -3504,7 +3505,7 @@ public class WalletsControllerTests : TestBase
     public async Task ExecuteTransfer_WithZeroAmount_ShouldReturnBadRequest()
     {
         // Arrange
-        var request = TestDataBuilder.ExecuteInternalTransfer.ZeroAmountRequest();
+        var request = ExecuteInternalTransfer.ZeroAmountRequest();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -3531,7 +3532,7 @@ public class WalletsControllerTests : TestBase
     public async Task ExecuteTransfer_WithNegativeAmount_ShouldReturnBadRequest()
     {
         // Arrange
-        var request = TestDataBuilder.ExecuteInternalTransfer.NegativeAmountRequest();
+        var request = ExecuteInternalTransfer.NegativeAmountRequest();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -3558,7 +3559,7 @@ public class WalletsControllerTests : TestBase
     public async Task ExecuteTransfer_WithInvalidCurrency_ShouldReturnBadRequest()
     {
         // Arrange
-        var request = TestDataBuilder.ExecuteInternalTransfer.InvalidCurrencyRequest();
+        var request = ExecuteInternalTransfer.InvalidCurrencyRequest();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -3585,7 +3586,7 @@ public class WalletsControllerTests : TestBase
     public async Task ExecuteTransfer_WithTooLongDescription_ShouldReturnBadRequest()
     {
         // Arrange
-        var request = TestDataBuilder.ExecuteInternalTransfer.TooLongDescriptionRequest();
+        var request = ExecuteInternalTransfer.TooLongDescriptionRequest();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -3616,7 +3617,7 @@ public class WalletsControllerTests : TestBase
     public async Task ExecuteTransfer_WithInsufficientBalance_ShouldReturnBadRequest()
     {
         // Arrange
-        var request = TestDataBuilder.ExecuteInternalTransfer.AmountExceedingBalanceRequest();
+        var request = ExecuteInternalTransfer.AmountExceedingBalanceRequest();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -3643,7 +3644,7 @@ public class WalletsControllerTests : TestBase
     public async Task ExecuteTransfer_WithSelfTransfer_ShouldReturnBadRequest()
     {
         // Arrange
-        var request = TestDataBuilder.ExecuteInternalTransfer.SelfTransferRequest();
+        var request = ExecuteInternalTransfer.SelfTransferRequest();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -3670,7 +3671,7 @@ public class WalletsControllerTests : TestBase
     public async Task ExecuteTransfer_WithInactiveRecipient_ShouldReturnNotFound()
     {
         // Arrange
-        var request = TestDataBuilder.ExecuteInternalTransfer.TransferToInactiveUserRequest();
+        var request = ExecuteInternalTransfer.TransferToInactiveUserRequest();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -3697,8 +3698,8 @@ public class WalletsControllerTests : TestBase
     public async Task ExecuteTransfer_ShouldExecuteAtomicallyAtServiceLevel()
     {
         // Arrange
-        var request = TestDataBuilder.ExecuteInternalTransfer.ValidRequest();
-        var expectedResponse = TestDataBuilder.ExecuteInternalTransfer.ValidSenderTransactionResponse();
+        var request = ExecuteInternalTransfer.ValidRequest();
+        var expectedResponse = ExecuteInternalTransfer.ValidSenderTransactionResponse();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -3727,8 +3728,8 @@ public class WalletsControllerTests : TestBase
     public async Task ExecuteTransfer_ShouldHandleDoubleEntryBookkeeping()
     {
         // Arrange
-        var request = TestDataBuilder.ExecuteInternalTransfer.ValidRequest();
-        var expectedResponse = TestDataBuilder.ExecuteInternalTransfer.ValidSenderTransactionResponse();
+        var request = ExecuteInternalTransfer.ValidRequest();
+        var expectedResponse = ExecuteInternalTransfer.ValidSenderTransactionResponse();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -3764,8 +3765,8 @@ public class WalletsControllerTests : TestBase
     public async Task ExecuteTransfer_WithoutAuthentication_ShouldStillCallService()
     {
         // Arrange
-        var request = TestDataBuilder.ExecuteInternalTransfer.ValidRequest();
-        var expectedResponse = TestDataBuilder.ExecuteInternalTransfer.ValidSenderTransactionResponse();
+        var request = ExecuteInternalTransfer.ValidRequest();
+        var expectedResponse = ExecuteInternalTransfer.ValidSenderTransactionResponse();
         var unauthenticatedUser = CreateUnauthenticatedUser();
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -3793,8 +3794,8 @@ public class WalletsControllerTests : TestBase
     public async Task ExecuteTransfer_ShouldValidateAmount()
     {
         // Arrange
-        var request = TestDataBuilder.ExecuteInternalTransfer.ValidRequest();
-        var expectedResponse = TestDataBuilder.ExecuteInternalTransfer.ValidSenderTransactionResponse();
+        var request = ExecuteInternalTransfer.ValidRequest();
+        var expectedResponse = ExecuteInternalTransfer.ValidSenderTransactionResponse();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -3823,8 +3824,8 @@ public class WalletsControllerTests : TestBase
     public async Task ExecuteTransfer_ShouldVerifyRecipient()
     {
         // Arrange
-        var request = TestDataBuilder.ExecuteInternalTransfer.ValidRequest();
-        var expectedResponse = TestDataBuilder.ExecuteInternalTransfer.ValidSenderTransactionResponse();
+        var request = ExecuteInternalTransfer.ValidRequest();
+        var expectedResponse = ExecuteInternalTransfer.ValidSenderTransactionResponse();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -3853,8 +3854,8 @@ public class WalletsControllerTests : TestBase
     public async Task ExecuteTransfer_ShouldMaintainTransactionIntegrity()
     {
         // Arrange
-        var request = TestDataBuilder.ExecuteInternalTransfer.ValidRequest();
-        var expectedResponse = TestDataBuilder.ExecuteInternalTransfer.ValidSenderTransactionResponse();
+        var request = ExecuteInternalTransfer.ValidRequest();
+        var expectedResponse = ExecuteInternalTransfer.ValidSenderTransactionResponse();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -3890,8 +3891,8 @@ public class WalletsControllerTests : TestBase
     public async Task ExecuteTransfer_ShouldPassCorrectParametersToService()
     {
         // Arrange
-        var request = TestDataBuilder.ExecuteInternalTransfer.ValidRequest();
-        var expectedResponse = TestDataBuilder.ExecuteInternalTransfer.ValidSenderTransactionResponse();
+        var request = ExecuteInternalTransfer.ValidRequest();
+        var expectedResponse = ExecuteInternalTransfer.ValidSenderTransactionResponse();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -3924,8 +3925,8 @@ public class WalletsControllerTests : TestBase
     public async Task ExecuteTransfer_ShouldForwardCancellationToken()
     {
         // Arrange
-        var request = TestDataBuilder.ExecuteInternalTransfer.ValidRequest();
-        var expectedResponse = TestDataBuilder.ExecuteInternalTransfer.ValidSenderTransactionResponse();
+        var request = ExecuteInternalTransfer.ValidRequest();
+        var expectedResponse = ExecuteInternalTransfer.ValidSenderTransactionResponse();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         var cancellationToken = new CancellationToken();
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
@@ -3955,8 +3956,8 @@ public class WalletsControllerTests : TestBase
     public async Task ExecuteTransfer_ShouldLogInformation()
     {
         // Arrange
-        var request = TestDataBuilder.ExecuteInternalTransfer.ValidRequest();
-        var expectedResponse = TestDataBuilder.ExecuteInternalTransfer.ValidSenderTransactionResponse();
+        var request = ExecuteInternalTransfer.ValidRequest();
+        var expectedResponse = ExecuteInternalTransfer.ValidSenderTransactionResponse();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -3994,7 +3995,7 @@ public class WalletsControllerTests : TestBase
     public async Task ExecuteTransfer_WithServiceError_ShouldReturnInternalServerError()
     {
         // Arrange
-        var request = TestDataBuilder.ExecuteInternalTransfer.ValidRequest();
+        var request = ExecuteInternalTransfer.ValidRequest();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -4022,7 +4023,7 @@ public class WalletsControllerTests : TestBase
     public async Task ExecuteTransfer_WithNullErrorMessage_ShouldReturnGenericError()
     {
         // Arrange
-        var request = TestDataBuilder.ExecuteInternalTransfer.ValidRequest();
+        var request = ExecuteInternalTransfer.ValidRequest();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _walletsController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {

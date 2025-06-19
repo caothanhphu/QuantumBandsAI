@@ -1415,7 +1415,7 @@ public static class WalletsTestDataBuilder
         public static CancelBankDepositRequest RequestWithEmptyNotes() => new()
         {
             TransactionId = 1001,
-            Description = ""
+            AdminNotes = ""
         };
 
         /// <summary>
@@ -1433,7 +1433,7 @@ public static class WalletsTestDataBuilder
         public static CancelBankDepositRequest RequestWithEmptyAdminNotes() => new()
         {
             TransactionId = 1001,
-            Description = ""
+            AdminNotes = ""
         };
 
         /// <summary>
@@ -1442,7 +1442,7 @@ public static class WalletsTestDataBuilder
         public static CancelBankDepositRequest RequestWithInvalidTransactionId() => new()
         {
             TransactionId = -1,
-            Description = "Attempting to cancel with invalid transaction ID"
+            AdminNotes = "Attempting to cancel with invalid transaction ID"
         };
 
         /// <summary>
@@ -1451,7 +1451,7 @@ public static class WalletsTestDataBuilder
         public static CancelBankDepositRequest RequestForNonExistentTransaction() => new()
         {
             TransactionId = 99999,
-            Description = "Attempting to cancel non-existent transaction"
+            AdminNotes = "Attempting to cancel non-existent transaction"
         };
 
         /// <summary>
@@ -1460,7 +1460,7 @@ public static class WalletsTestDataBuilder
         public static CancelBankDepositRequest RequestForAlreadyConfirmedDeposit() => new()
         {
             TransactionId = 1002,
-            Description = "Attempting to cancel already confirmed deposit"
+            AdminNotes = "Attempting to cancel already confirmed deposit"
         };
 
         /// <summary>
@@ -1469,7 +1469,7 @@ public static class WalletsTestDataBuilder
         public static CancelBankDepositRequest RequestForAlreadyCancelledDeposit() => new()
         {
             TransactionId = 1003,
-            Description = "Attempting to cancel already cancelled deposit"
+            AdminNotes = "Attempting to cancel already cancelled deposit"
         };
 
         /// <summary>
@@ -1636,7 +1636,7 @@ public static class WalletsTestDataBuilder
             UserId = 1,
             Amount = 1000.00m,
             CurrencyCode = "USD",
-            AdminNotes = new string('A', 501) // 501 characters - exceeds limit
+            Description = new string('A', 501) // 501 characters - exceeds limit
         };
 
         /// <summary>
@@ -1709,7 +1709,7 @@ public static class WalletsTestDataBuilder
             UserId = userId,
             Amount = amount,
             CurrencyCode = currencyCode,
-            AdminNotes = adminNotes
+            Description = adminNotes
         };
 
         /// <summary>
@@ -1812,7 +1812,7 @@ public static class WalletsTestDataBuilder
         public static ApproveWithdrawalRequest ApprovalRequestWithZeroId() => new()
         {
             TransactionId = 0,
-            Description = "Attempting to approve withdrawal with zero ID"
+            AdminNotes = "Attempting to approve withdrawal with zero ID"
         };
 
         /// <summary>
@@ -1821,7 +1821,7 @@ public static class WalletsTestDataBuilder
         public static RejectWithdrawalRequest RejectionRequestWithNegativeId() => new()
         {
             TransactionId = -1,
-            Description = "Attempting to reject withdrawal with negative ID"
+            AdminNotes = "Attempting to reject withdrawal with negative ID"
         };
 
         /// <summary>
@@ -1830,7 +1830,7 @@ public static class WalletsTestDataBuilder
         public static ApproveWithdrawalRequest ApprovalRequestForNonExistentWithdrawal() => new()
         {
             TransactionId = 99999,
-            Description = "Attempting to approve non-existent withdrawal"
+            AdminNotes = "Attempting to approve non-existent withdrawal"
         };
 
         /// <summary>
@@ -1839,7 +1839,7 @@ public static class WalletsTestDataBuilder
         public static RejectWithdrawalRequest RejectionRequestForNonExistentWithdrawal() => new()
         {
             TransactionId = 99999,
-            Description = "Attempting to reject non-existent withdrawal"
+            AdminNotes = "Attempting to reject non-existent withdrawal"
         };
 
         /// <summary>
@@ -1848,7 +1848,7 @@ public static class WalletsTestDataBuilder
         public static ApproveWithdrawalRequest ApprovalRequestForAlreadyProcessedWithdrawal() => new()
         {
             TransactionId = 3003,
-            Description = "Attempting to approve already processed withdrawal"
+            AdminNotes = "Attempting to approve already processed withdrawal"
         };
 
         /// <summary>
@@ -1857,7 +1857,7 @@ public static class WalletsTestDataBuilder
         public static RejectWithdrawalRequest RejectionRequestForAlreadyProcessedWithdrawal() => new()
         {
             TransactionId = 3004,
-            Description = "Attempting to reject already processed withdrawal"
+            AdminNotes = "Attempting to reject already processed withdrawal"
         };
 
         /// <summary>

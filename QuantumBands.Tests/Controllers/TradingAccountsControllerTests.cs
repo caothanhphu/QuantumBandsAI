@@ -11,6 +11,7 @@ using QuantumBands.Application.Features.TradingAccounts.Queries;
 using QuantumBands.Application.Interfaces;
 using QuantumBands.Tests.Common;
 using QuantumBands.Tests.Fixtures;
+using static QuantumBands.Tests.Fixtures.TradingTestDataBuilder;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;

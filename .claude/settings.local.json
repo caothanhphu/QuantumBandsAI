@@ -32,7 +32,8 @@
       "Bash(git commit:*)",
       "Bash(verbosity=minimal)",
       "Bash(sudo fuser:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(python3:*)"
     ],
     "deny": []
   }
