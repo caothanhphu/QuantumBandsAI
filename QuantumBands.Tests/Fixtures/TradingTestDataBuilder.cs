@@ -1,14 +1,17 @@
 using QuantumBands.Application.Common.Models;
+using QuantumBands.Application.Features.Admin.ExchangeMonitor.Dtos;
+using QuantumBands.Application.Features.Admin.ExchangeMonitor.Queries;
+using QuantumBands.Application.Features.Admin.TradingAccounts.Commands;
+using QuantumBands.Application.Features.Admin.TradingAccounts.Dtos;
 using QuantumBands.Application.Features.Exchange.Commands.CreateOrder;
 using QuantumBands.Application.Features.Exchange.Dtos;
 using QuantumBands.Application.Features.Exchange.Queries;
 using QuantumBands.Application.Features.Portfolio.Dtos;
-using QuantumBands.Application.Features.TradingAccounts.Queries;
-using QuantumBands.Application.Features.Admin.TradingAccounts.Dtos;
-using QuantumBands.Application.Features.Admin.TradingAccounts.Commands;
 using QuantumBands.Application.Features.TradingAccounts.Dtos;
+using QuantumBands.Application.Features.TradingAccounts.Queries;
 using QuantumBands.Application.Features.Wallets.Dtos;
 using System;
+using System.Linq;
 
 namespace QuantumBands.Tests.Fixtures;
 
@@ -1050,6 +1053,227 @@ public static class TradingTestDataBuilder
             UnrealizedPAndL = (quantity * currentSharePrice) - (quantity * averageBuyPrice),
             LastUpdatedAt = DateTime.UtcNow
         };
+    }
+
+    // SCRUM-82: Test data for GET /admin/exchange/orders endpoint testing
+    /// <summary>
+    /// AdminExchangeMonitor - Test data builder for Admin Exchange Monitoring functionality
+    /// 
+    /// This class provides comprehensive test data for admin exchange monitoring including:
+    /// - All orders retrieval with pagination, filtering, and sorting
+    /// - Authorization scenarios for admin access
+    /// - Complex filtering combinations (user, trading account, status, order side, date range)
+    /// - Various sorting options and edge cases
+    /// 
+    /// Usage:
+    /// - TradingTestDataBuilder.AdminExchangeMonitor.ValidQuery() - Basic query
+    /// - TradingTestDataBuilder.AdminExchangeMonitor.AllOrdersList() - Sample orders
+    /// - TradingTestDataBuilder.AdminExchangeMonitor.FilteredOrdersList() - Filtered results
+    /// </summary>
+    public static class AdminExchangeMonitor
+    {
+        /// <summary>
+        /// Valid GetAdminAllOrdersQuery for basic testing
+        /// </summary>
+        public static GetAdminAllOrdersQuery ValidQuery() => new()
+        {
+            PageNumber = 1,
+            PageSize = 10,
+            SortBy = "OrderDate",
+            SortOrder = "desc"
+        };
+
+        /// <summary>
+        /// Query with trading account filter
+        /// </summary>
+        public static GetAdminAllOrdersQuery QueryWithTradingAccountFilter() => new()
+        {
+            PageNumber = 1,
+            PageSize = 10,
+            TradingAccountId = 1,
+            SortBy = "OrderDate",
+            SortOrder = "desc"
+        };
+
+        /// <summary>
+        /// Query with user filter
+        /// </summary>
+        public static GetAdminAllOrdersQuery QueryWithUserFilter() => new()
+        {
+            PageNumber = 1,
+            PageSize = 10,
+            UserId = 123,
+            SortBy = "OrderDate",
+            SortOrder = "desc"
+        };
+
+        /// <summary>
+        /// Query with status filter
+        /// </summary>
+        public static GetAdminAllOrdersQuery QueryWithStatusFilter() => new()
+        {
+            PageNumber = 1,
+            PageSize = 10,
+            Status = "Filled",
+            SortBy = "OrderDate",
+            SortOrder = "desc"
+        };
+
+        /// <summary>
+        /// Query with order side filter
+        /// </summary>
+        public static GetAdminAllOrdersQuery QueryWithOrderSideFilter() => new()
+        {
+            PageNumber = 1,
+            PageSize = 10,
+            OrderSide = "Buy",
+            SortBy = "OrderDate",
+            SortOrder = "desc"
+        };
+
+        /// <summary>
+        /// Query with date range filter
+        /// </summary>
+        public static GetAdminAllOrdersQuery QueryWithDateRangeFilter() => new()
+        {
+            PageNumber = 1,
+            PageSize = 10,
+            DateFrom = DateTime.UtcNow.AddDays(-30),
+            DateTo = DateTime.UtcNow,
+            SortBy = "OrderDate",
+            SortOrder = "desc"
+        };
+
+        /// <summary>
+        /// Query with combined filters
+        /// </summary>
+        public static GetAdminAllOrdersQuery QueryWithCombinedFilters() => new()
+        {
+            PageNumber = 1,
+            PageSize = 10,
+            UserId = 123,
+            Status = "Filled",
+            OrderSide = "Buy",
+            DateFrom = DateTime.UtcNow.AddDays(-7),
+            DateTo = DateTime.UtcNow,
+            SortBy = "OrderDate",
+            SortOrder = "desc"
+        };
+
+        /// <summary>
+        /// Query with custom sorting
+        /// </summary>
+        public static GetAdminAllOrdersQuery QueryWithCustomSorting() => new()
+        {
+            PageNumber = 1,
+            PageSize = 10,
+            SortBy = "Username",
+            SortOrder = "asc"
+        };
+
+        /// <summary>
+        /// Query with large page size
+        /// </summary>
+        public static GetAdminAllOrdersQuery QueryWithLargePageSize() => new()
+        {
+            PageNumber = 1,
+            PageSize = 50,
+            SortBy = "OrderDate",
+            SortOrder = "desc"
+        };
+
+        /// <summary>
+        /// Sample list of admin share orders for testing
+        /// </summary>
+        public static List<AdminShareOrderViewDto> AllOrdersList() => new()
+        {
+            new()
+            {
+                OrderId = 1001,
+                UserId = 123,
+                Username = "trader123",
+                UserEmail = "trader123@example.com",
+                TradingAccountId = 1,
+                TradingAccountName = "Main Trading Account",
+                OrderSide = "Buy",
+                OrderType = "Market",
+                QuantityOrdered = 100,
+                QuantityFilled = 100,
+                LimitPrice = null,
+                AverageFillPrice = 50.25m,
+                OrderStatus = "Filled",
+                OrderDate = DateTime.UtcNow.AddHours(-2),
+                UpdatedAt = DateTime.UtcNow.AddHours(-1),
+                TransactionFee = 2.51m
+            },
+            new()
+            {
+                OrderId = 1002,
+                UserId = 456,
+                Username = "investor456",
+                UserEmail = "investor456@example.com",
+                TradingAccountId = 2,
+                TradingAccountName = "Investment Account",
+                OrderSide = "Sell",
+                OrderType = "Limit",
+                QuantityOrdered = 200,
+                QuantityFilled = 150,
+                LimitPrice = 55.00m,
+                AverageFillPrice = 54.75m,
+                OrderStatus = "PartiallyFilled",
+                OrderDate = DateTime.UtcNow.AddHours(-5),
+                UpdatedAt = DateTime.UtcNow.AddMinutes(-30),
+                TransactionFee = 8.21m
+            },
+            new()
+            {
+                OrderId = 1003,
+                UserId = 789,
+                Username = "daytrader789",
+                UserEmail = "daytrader789@example.com",
+                TradingAccountId = 3,
+                TradingAccountName = "Day Trading Account",
+                OrderSide = "Buy",
+                OrderType = "Limit",
+                QuantityOrdered = 500,
+                QuantityFilled = 0,
+                LimitPrice = 48.50m,
+                AverageFillPrice = null,
+                OrderStatus = "Pending",
+                OrderDate = DateTime.UtcNow.AddMinutes(-15),
+                UpdatedAt = DateTime.UtcNow.AddMinutes(-15),
+                TransactionFee = null
+            }
+        };
+
+        /// <summary>
+        /// Filtered orders list for specific user
+        /// </summary>
+        public static List<AdminShareOrderViewDto> FilteredOrdersForUser(int userId) => 
+            AllOrdersList().Where(o => o.UserId == userId).ToList();
+
+        /// <summary>
+        /// Filtered orders list for specific trading account
+        /// </summary>
+        public static List<AdminShareOrderViewDto> FilteredOrdersForTradingAccount(int tradingAccountId) => 
+            AllOrdersList().Where(o => o.TradingAccountId == tradingAccountId).ToList();
+
+        /// <summary>
+        /// Filtered orders list for specific status
+        /// </summary>
+        public static List<AdminShareOrderViewDto> FilteredOrdersByStatus(string status) => 
+            AllOrdersList().Where(o => o.OrderStatus == status).ToList();
+
+        /// <summary>
+        /// Filtered orders list for specific order side
+        /// </summary>
+        public static List<AdminShareOrderViewDto> FilteredOrdersByOrderSide(string orderSide) => 
+            AllOrdersList().Where(o => o.OrderSide == orderSide).ToList();
+
+        /// <summary>
+        /// Empty orders list for testing no results scenario
+        /// </summary>
+        public static List<AdminShareOrderViewDto> EmptyOrdersList() => new();
     }
 
     // Note: Due to context limits, remaining Trading classes will be added incrementally:
