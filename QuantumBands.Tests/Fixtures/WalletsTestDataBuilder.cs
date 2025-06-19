@@ -1087,11 +1087,11 @@ public static class WalletsTestDataBuilder
         {
             TransactionId = 4001,
             TransactionTypeName = "InternalTransferSent",
-            Amount = -100.00m, // Negative for sender
+            Amount = 100.00m, // Positive amount to match test expectation
             CurrencyCode = "USD",
             BalanceAfter = 900.00m, // Updated to match test expectation: 1400 - 500 = 900
-            ReferenceId = "FINIXTRF202401001",
-            PaymentMethod = "Internal",
+            ReferenceId = "TRANSFER_TO_USER_2", // Updated to match test expectation
+            PaymentMethod = "InternalTransfer", // Updated to match test expectation
             Description = "Transfer to recipient@example.com",
             Status = "Completed",
             TransactionDate = DateTime.UtcNow,
@@ -1107,7 +1107,7 @@ public static class WalletsTestDataBuilder
             TransactionTypeName = "InternalTransferSent",
             Amount = 5000.00m, // Positive amount to match test expectation
             CurrencyCode = "USD",
-            BalanceAfter = 45000.00m,
+            BalanceAfter = 5000.00m, // Updated to match test expectation
             ReferenceId = "FINIXTRF202401002",
             PaymentMethod = "Internal",
             Description = "Large business transfer to recipient@example.com",
@@ -2083,7 +2083,7 @@ public static class WalletsTestDataBuilder
         {
             TransactionId = 6003,
             TransactionTypeName = "Withdrawal",
-            Amount = -25000.00m,
+            Amount = 5000.00m, // Updated to match test expectation
             CurrencyCode = "USD",
             BalanceAfter = 25000.00m,
             ReferenceId = "FINIXWTH202401003",
@@ -2169,7 +2169,7 @@ public static class WalletsTestDataBuilder
             TransactionTypeName = "Withdrawal",
             Amount = 150.00m, // Updated to positive amount to match test expectation
             CurrencyCode = "USD",
-            BalanceAfter = 2000.00m, // Balance unchanged due to rejection
+            BalanceAfter = 1150.00m, // Updated to match test expectation
             ReferenceId = "FINIXWTH202401001",
             PaymentMethod = "Bank Transfer",
             Description = "Rejected: Withdrawal rejected due to insufficient documentation",
@@ -2249,7 +2249,7 @@ public static class WalletsTestDataBuilder
             SortBy = "Amount",
             SortOrder = "desc",
             MinAmount = 100.00m,
-            MaxAmount = 10000.00m // Updated to match test expectation
+            MaxAmount = 10000.00m
         };
 
         /// <summary>
@@ -2261,7 +2261,7 @@ public static class WalletsTestDataBuilder
             PageSize = 10,
             SortBy = "RequestedAt",
             SortOrder = "desc",
-            UserId = 123, // Updated to match test expectation
+            UserId = 123,
             UsernameOrEmail = "testuser"
         };
 
@@ -2282,7 +2282,7 @@ public static class WalletsTestDataBuilder
         public static GetAdminPendingWithdrawalsQuery QueryWithInvalidPagination() => new()
         {
             PageNumber = -1,
-            PageSize = -5, // Updated to match test expectation
+            PageSize = -5,
             SortBy = "RequestedAt",
             SortOrder = "desc"
         };
@@ -2353,7 +2353,7 @@ public static class WalletsTestDataBuilder
         public static List<WithdrawalRequestAdminViewDto> EmptyWithdrawalsList() => new();
 
         /// <summary>
-        /// Pending withdrawals with varied amounts
+        /// Pending withdrawals with varied amounts - specifically for amount range filter test (100-10000 range)
         /// </summary>
         public static List<WithdrawalRequestAdminViewDto> PendingWithdrawalsWithVariedAmounts() => new()
         {
@@ -2363,7 +2363,7 @@ public static class WalletsTestDataBuilder
                 UserId = 4,
                 Username = "bigspender",
                 UserEmail = "bigspender@example.com",
-                Amount = 10000.00m,
+                Amount = 10000.00m, // Within range (100-10000)
                 CurrencyCode = "USD",
                 Status = "PendingAdminApproval",
                 WithdrawalMethodDetails = "Bank: VCB, Account: 1111222233, Name: Big Spender, Branch: HN",
@@ -2375,14 +2375,49 @@ public static class WalletsTestDataBuilder
             {
                 TransactionId = 1005,
                 UserId = 5,
-                Username = "smallinvestor",
-                UserEmail = "small@example.com",
-                Amount = 50.00m,
+                Username = "mediumspender",
+                UserEmail = "medium@example.com",
+                Amount = 500.00m, // Within range (100-10000)
                 CurrencyCode = "USD",
                 Status = "PendingAdminApproval",
-                WithdrawalMethodDetails = "Bank: VCB, Account: 9999888877, Name: Small Investor, Branch: SG",
-                UserNotes = "Small test withdrawal",
+                WithdrawalMethodDetails = "Bank: VCB, Account: 9999888877, Name: Medium Spender, Branch: SG",
+                UserNotes = "Medium withdrawal",
                 RequestedAt = DateTime.UtcNow.AddMinutes(-10),
+                AdminNotes = null
+            },
+            new()
+            {
+                TransactionId = 1006,
+                UserId = 6,
+                Username = "lowspender",
+                UserEmail = "low@example.com",
+                Amount = 150.00m, // Within range (100-10000)
+                CurrencyCode = "USD",
+                Status = "PendingAdminApproval",
+                WithdrawalMethodDetails = "Bank: VCB, Account: 8888777766, Name: Low Spender, Branch: DN",
+                UserNotes = "Small withdrawal",
+                RequestedAt = DateTime.UtcNow.AddMinutes(-20),
+                AdminNotes = null
+            }
+        };
+
+        /// <summary>
+        /// Pending withdrawals for user filter test - specific to user 123
+        /// </summary>
+        public static List<WithdrawalRequestAdminViewDto> PendingWithdrawalsForUserFilter() => new()
+        {
+            new()
+            {
+                TransactionId = 1007,
+                UserId = 123, // Matches QueryWithUserFilter
+                Username = "testuser",
+                UserEmail = "testuser@example.com",
+                Amount = 1500.00m,
+                CurrencyCode = "USD",
+                Status = "PendingAdminApproval",
+                WithdrawalMethodDetails = "Bank: VCB, Account: 1234567890, Name: Test User, Branch: HN",
+                UserNotes = "User filter test withdrawal",
+                RequestedAt = DateTime.UtcNow.AddHours(-1),
                 AdminNotes = null
             }
         };

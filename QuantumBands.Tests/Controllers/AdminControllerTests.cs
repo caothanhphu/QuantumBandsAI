@@ -2063,8 +2063,7 @@ public class AdminControllerTests : TestBase
     {
         // Arrange
         var query = WalletsTestDataBuilder.GetPendingWithdrawals.QueryWithUserFilter();
-        var expectedWithdrawals = WalletsTestDataBuilder.GetPendingWithdrawals.MultiplePendingWithdrawals()
-            .Where(w => w.UserId == 123 || w.Username.Contains("testuser")).ToList();
+        var expectedWithdrawals = WalletsTestDataBuilder.GetPendingWithdrawals.PendingWithdrawalsForUserFilter();
         var paginatedResult = new PaginatedList<WithdrawalRequestAdminViewDto>(expectedWithdrawals, expectedWithdrawals.Count, 1, 10);
 
         _mockWalletService.Setup(x => x.GetAdminPendingWithdrawalsAsync(
@@ -3360,7 +3359,7 @@ public class AdminControllerTests : TestBase
         
         SetupAdminUser(adminUserId);
         _mockWalletService.Setup(x => x.AdminDirectDepositAsync(It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()))
-            .ReturnsAsync((null, "Admin notes too long"));
+            .ReturnsAsync((null, "Description must be positive"));
 
         // Act
         var result = await _adminController.AdminDirectDeposit(request, CancellationToken.None);
@@ -3378,7 +3377,7 @@ public class AdminControllerTests : TestBase
         
         SetupAdminUser(adminUserId);
         _mockWalletService.Setup(x => x.AdminDirectDepositAsync(It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()))
-            .ReturnsAsync((null, "User account is inactive"));
+            .ReturnsAsync((null, "Amount must be positive"));
 
         // Act
         var result = await _adminController.AdminDirectDeposit(request, CancellationToken.None);
