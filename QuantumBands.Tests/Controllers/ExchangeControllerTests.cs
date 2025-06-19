@@ -25,6 +25,7 @@ using QuantumBands.Application.Interfaces;
 using QuantumBands.Application.Common.Models;
 using QuantumBands.Tests.Common;
 using QuantumBands.Tests.Fixtures;
+using static QuantumBands.Tests.Fixtures.TradingTestDataBuilder;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
@@ -117,8 +118,8 @@ public class ExchangeControllerTests : TestBase
     public async Task PlaceOrder_WithValidMarketBuyOrder_ShouldReturnCreatedWithOrderDto()
     {
         // Arrange
-        var orderRequest = TestDataBuilder.Exchange.ValidMarketBuyOrderRequest();
-        var expectedResponse = TestDataBuilder.Exchange.ValidMarketBuyOrderResponse();
+        var orderRequest = Exchange.ValidMarketBuyOrderRequest();
+        var expectedResponse = Exchange.ValidMarketBuyOrderResponse();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _exchangeController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {
@@ -155,8 +156,8 @@ public class ExchangeControllerTests : TestBase
     public async Task PlaceOrder_WithValidLimitSellOrder_ShouldReturnCreatedWithOrderDto()
     {
         // Arrange
-        var orderRequest = TestDataBuilder.Exchange.ValidLimitSellOrderRequest();
-        var expectedResponse = TestDataBuilder.Exchange.ValidLimitSellOrderResponse();
+        var orderRequest = Exchange.ValidLimitSellOrderRequest();
+        var expectedResponse = Exchange.ValidLimitSellOrderResponse();
         var authenticatedUser = CreateAuthenticatedUser(1, "testuser");
         _exchangeController.ControllerContext.HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
         {

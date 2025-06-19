@@ -1812,7 +1812,7 @@ public class AdminControllerTests : TestBase
     /// - Tests mock the IWalletService to isolate controller behavior
     /// - Authentication is simulated using ClaimsIdentity
     /// - Tests verify HTTP status codes, response types, and logging behavior
-    /// - Comprehensive test data is provided via WalletsGetPendingWithdrawals
+    /// - Comprehensive test data is provided via WalletsTestDataBuilder.GetPendingWithdrawals
     /// </summary>
 
     #region GetPendingWithdrawals - Happy Path Tests
@@ -1825,8 +1825,8 @@ public class AdminControllerTests : TestBase
     public async Task GetPendingWithdrawals_WithValidQuery_ShouldReturnOkWithPaginatedResults()
     {
         // Arrange
-        var query = WalletsGetPendingWithdrawals.ValidQuery();
-        var expectedWithdrawals = WalletsGetPendingWithdrawals.MultiplePendingWithdrawals();
+        var query = WalletsTestDataBuilder.GetPendingWithdrawals.ValidQuery();
+        var expectedWithdrawals = WalletsTestDataBuilder.GetPendingWithdrawals.MultiplePendingWithdrawals();
         var paginatedResult = new PaginatedList<WithdrawalRequestAdminViewDto>(expectedWithdrawals, 3, 1, 10);
 
         _mockWalletService.Setup(x => x.GetAdminPendingWithdrawalsAsync(
@@ -1865,8 +1865,8 @@ public class AdminControllerTests : TestBase
     public async Task GetPendingWithdrawals_WithValidQuery_ShouldLogInformation()
     {
         // Arrange
-        var query = WalletsGetPendingWithdrawals.ValidQuery();
-        var expectedWithdrawals = WalletsGetPendingWithdrawals.MultiplePendingWithdrawals();
+        var query = WalletsTestDataBuilder.GetPendingWithdrawals.ValidQuery();
+        var expectedWithdrawals = WalletsTestDataBuilder.GetPendingWithdrawals.MultiplePendingWithdrawals();
         var paginatedResult = new PaginatedList<WithdrawalRequestAdminViewDto>(expectedWithdrawals, 3, 1, 10);
 
         _mockWalletService.Setup(x => x.GetAdminPendingWithdrawalsAsync(
@@ -1896,8 +1896,8 @@ public class AdminControllerTests : TestBase
     public async Task GetPendingWithdrawals_WithNoResults_ShouldReturnOkWithEmptyList()
     {
         // Arrange
-        var query = WalletsGetPendingWithdrawals.ValidQuery();
-        var emptyWithdrawals = WalletsGetPendingWithdrawals.EmptyWithdrawalsList();
+        var query = WalletsTestDataBuilder.GetPendingWithdrawals.ValidQuery();
+        var emptyWithdrawals = WalletsTestDataBuilder.GetPendingWithdrawals.EmptyWithdrawalsList();
         var paginatedResult = new PaginatedList<WithdrawalRequestAdminViewDto>(emptyWithdrawals, 0, 1, 10);
 
         _mockWalletService.Setup(x => x.GetAdminPendingWithdrawalsAsync(
@@ -1929,7 +1929,7 @@ public class AdminControllerTests : TestBase
     public async Task GetPendingWithdrawals_WithoutAuthentication_ShouldRequireAuth()
     {
         // Arrange
-        var query = WalletsGetPendingWithdrawals.ValidQuery();
+        var query = WalletsTestDataBuilder.GetPendingWithdrawals.ValidQuery();
         
         // Remove authentication
         _adminController.ControllerContext = new ControllerContext
@@ -1954,7 +1954,7 @@ public class AdminControllerTests : TestBase
     public async Task GetPendingWithdrawals_WithNonAdminUser_ShouldBeForbidden()
     {
         // Arrange
-        var query = WalletsGetPendingWithdrawals.ValidQuery();
+        var query = WalletsTestDataBuilder.GetPendingWithdrawals.ValidQuery();
         
         // Setup non-admin user
         var claims = new List<Claim>
@@ -1995,8 +1995,8 @@ public class AdminControllerTests : TestBase
     public async Task GetPendingWithdrawals_WithDateRangeFilter_ShouldApplyFiltersCorrectly()
     {
         // Arrange
-        var query = WalletsGetPendingWithdrawals.QueryWithDateRange();
-        var expectedWithdrawals = WalletsGetPendingWithdrawals.MultiplePendingWithdrawals();
+        var query = WalletsTestDataBuilder.GetPendingWithdrawals.QueryWithDateRange();
+        var expectedWithdrawals = WalletsTestDataBuilder.GetPendingWithdrawals.MultiplePendingWithdrawals();
         var paginatedResult = new PaginatedList<WithdrawalRequestAdminViewDto>(expectedWithdrawals, 3, 1, 10);
 
         _mockWalletService.Setup(x => x.GetAdminPendingWithdrawalsAsync(
@@ -2028,8 +2028,8 @@ public class AdminControllerTests : TestBase
     public async Task GetPendingWithdrawals_WithAmountRangeFilter_ShouldApplyFiltersCorrectly()
     {
         // Arrange
-        var query = WalletsGetPendingWithdrawals.QueryWithAmountRange();
-        var expectedWithdrawals = WalletsGetPendingWithdrawals.PendingWithdrawalsWithVariedAmounts()
+        var query = WalletsTestDataBuilder.GetPendingWithdrawals.QueryWithAmountRange();
+        var expectedWithdrawals = WalletsTestDataBuilder.GetPendingWithdrawals.PendingWithdrawalsWithVariedAmounts()
             .Where(w => w.Amount >= 100m && w.Amount <= 10000m).ToList();
         var paginatedResult = new PaginatedList<WithdrawalRequestAdminViewDto>(expectedWithdrawals, expectedWithdrawals.Count, 1, 10);
 
@@ -2062,8 +2062,8 @@ public class AdminControllerTests : TestBase
     public async Task GetPendingWithdrawals_WithUserFilter_ShouldApplyFiltersCorrectly()
     {
         // Arrange
-        var query = WalletsGetPendingWithdrawals.QueryWithUserFilter();
-        var expectedWithdrawals = WalletsGetPendingWithdrawals.MultiplePendingWithdrawals()
+        var query = WalletsTestDataBuilder.GetPendingWithdrawals.QueryWithUserFilter();
+        var expectedWithdrawals = WalletsTestDataBuilder.GetPendingWithdrawals.MultiplePendingWithdrawals()
             .Where(w => w.UserId == 123 || w.Username.Contains("testuser")).ToList();
         var paginatedResult = new PaginatedList<WithdrawalRequestAdminViewDto>(expectedWithdrawals, expectedWithdrawals.Count, 1, 10);
 
@@ -2100,8 +2100,8 @@ public class AdminControllerTests : TestBase
     public async Task GetPendingWithdrawals_WithCustomPagination_ShouldApplyPaginationCorrectly()
     {
         // Arrange
-        var query = WalletsGetPendingWithdrawals.QueryWithPagination(2, 5);
-        var expectedWithdrawals = WalletsGetPendingWithdrawals.MultiplePendingWithdrawals();
+        var query = WalletsTestDataBuilder.GetPendingWithdrawals.QueryWithPagination(2, 5);
+        var expectedWithdrawals = WalletsTestDataBuilder.GetPendingWithdrawals.MultiplePendingWithdrawals();
         var paginatedResult = new PaginatedList<WithdrawalRequestAdminViewDto>(expectedWithdrawals, 10, 2, 5);
 
         _mockWalletService.Setup(x => x.GetAdminPendingWithdrawalsAsync(
@@ -2136,8 +2136,8 @@ public class AdminControllerTests : TestBase
     public async Task GetPendingWithdrawals_WithInvalidPagination_ShouldStillCallService()
     {
         // Arrange
-        var query = WalletsGetPendingWithdrawals.QueryWithInvalidPagination();
-        var emptyWithdrawals = WalletsGetPendingWithdrawals.EmptyWithdrawalsList();
+        var query = WalletsTestDataBuilder.GetPendingWithdrawals.QueryWithInvalidPagination();
+        var emptyWithdrawals = WalletsTestDataBuilder.GetPendingWithdrawals.EmptyWithdrawalsList();
         var paginatedResult = new PaginatedList<WithdrawalRequestAdminViewDto>(emptyWithdrawals, 0, 1, 10);
 
         _mockWalletService.Setup(x => x.GetAdminPendingWithdrawalsAsync(
@@ -2169,8 +2169,8 @@ public class AdminControllerTests : TestBase
     public async Task GetPendingWithdrawals_WithCustomSorting_ShouldApplySortingCorrectly()
     {
         // Arrange
-        var query = WalletsGetPendingWithdrawals.QueryWithCustomSorting("Amount", "asc");
-        var expectedWithdrawals = WalletsGetPendingWithdrawals.PendingWithdrawalsWithVariedAmounts()
+        var query = WalletsTestDataBuilder.GetPendingWithdrawals.QueryWithCustomSorting("Amount", "asc");
+        var expectedWithdrawals = WalletsTestDataBuilder.GetPendingWithdrawals.PendingWithdrawalsWithVariedAmounts()
             .OrderBy(w => w.Amount).ToList();
         var paginatedResult = new PaginatedList<WithdrawalRequestAdminViewDto>(expectedWithdrawals, 3, 1, 10);
 
@@ -2203,8 +2203,8 @@ public class AdminControllerTests : TestBase
     public async Task GetPendingWithdrawals_WithDefaultSorting_ShouldUseDefaultValues()
     {
         // Arrange
-        var query = WalletsGetPendingWithdrawals.ValidQuery();
-        var expectedWithdrawals = WalletsGetPendingWithdrawals.MultiplePendingWithdrawals();
+        var query = WalletsTestDataBuilder.GetPendingWithdrawals.ValidQuery();
+        var expectedWithdrawals = WalletsTestDataBuilder.GetPendingWithdrawals.MultiplePendingWithdrawals();
         var paginatedResult = new PaginatedList<WithdrawalRequestAdminViewDto>(expectedWithdrawals, 3, 1, 10);
 
         _mockWalletService.Setup(x => x.GetAdminPendingWithdrawalsAsync(
@@ -2242,8 +2242,8 @@ public class AdminControllerTests : TestBase
     public async Task ApproveWithdrawal_WithValidRequest_ShouldReturnOkWithTransaction()
     {
         // Arrange
-        var request = WalletsApproveWithdrawal.ValidRequest();
-        var expectedTransaction = WalletsApproveWithdrawal.SuccessfulApprovalResponse();
+        var request = WalletsTestDataBuilder.ApproveWithdrawal.ValidRequest();
+        var expectedTransaction = WalletsTestDataBuilder.ApproveWithdrawal.SuccessfulApprovalResponse();
 
         _mockWalletService.Setup(x => x.ApproveWithdrawalAsync(
                 It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()))
@@ -2274,8 +2274,8 @@ public class AdminControllerTests : TestBase
     public async Task ApproveWithdrawal_WithMinimalRequest_ShouldReturnOkWithTransaction()
     {
         // Arrange
-        var request = WalletsApproveWithdrawal.ValidRequestMinimal();
-        var expectedTransaction = WalletsApproveWithdrawal.MinimalApprovalResponse();
+        var request = WalletsTestDataBuilder.ApproveWithdrawal.ValidRequestMinimal();
+        var expectedTransaction = WalletsTestDataBuilder.ApproveWithdrawal.MinimalApprovalResponse();
 
         _mockWalletService.Setup(x => x.ApproveWithdrawalAsync(
                 It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()))
@@ -2305,8 +2305,8 @@ public class AdminControllerTests : TestBase
     public async Task ApproveWithdrawal_WithLargeAmount_ShouldReturnOkWithTransaction()
     {
         // Arrange
-        var request = WalletsApproveWithdrawal.ValidRequestMaxNotes();
-        var expectedTransaction = WalletsApproveWithdrawal.LargeAmountApprovalResponse();
+        var request = WalletsTestDataBuilder.ApproveWithdrawal.ValidRequestMaxNotes();
+        var expectedTransaction = WalletsTestDataBuilder.ApproveWithdrawal.LargeAmountApprovalResponse();
 
         _mockWalletService.Setup(x => x.ApproveWithdrawalAsync(
                 It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()))
@@ -2337,8 +2337,8 @@ public class AdminControllerTests : TestBase
     public async Task ApproveWithdrawal_ShouldLogAdminInformation()
     {
         // Arrange
-        var request = WalletsApproveWithdrawal.ValidRequest();
-        var expectedTransaction = WalletsApproveWithdrawal.SuccessfulApprovalResponse();
+        var request = WalletsTestDataBuilder.ApproveWithdrawal.ValidRequest();
+        var expectedTransaction = WalletsTestDataBuilder.ApproveWithdrawal.SuccessfulApprovalResponse();
 
         _mockWalletService.Setup(x => x.ApproveWithdrawalAsync(
                 It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()))
@@ -2373,7 +2373,7 @@ public class AdminControllerTests : TestBase
     public async Task ApproveWithdrawal_WithNonAdminUser_ShouldBeHandledByAuthorization()
     {
         // Arrange
-        var request = WalletsApproveWithdrawal.ValidRequest();
+        var request = WalletsTestDataBuilder.ApproveWithdrawal.ValidRequest();
 
         // Setup non-admin user
         var nonAdminClaims = new List<Claim>
@@ -2394,7 +2394,7 @@ public class AdminControllerTests : TestBase
             }
         };
 
-        var expectedTransaction = WalletsApproveWithdrawal.SuccessfulApprovalResponse();
+        var expectedTransaction = WalletsTestDataBuilder.ApproveWithdrawal.SuccessfulApprovalResponse();
         _mockWalletService.Setup(x => x.ApproveWithdrawalAsync(
                 It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()))
             .ReturnsAsync((expectedTransaction, (string?)null));
@@ -2424,7 +2424,7 @@ public class AdminControllerTests : TestBase
     public async Task ApproveWithdrawal_WithNonExistentTransaction_ShouldReturnNotFound()
     {
         // Arrange
-        var request = WalletsApproveWithdrawal.NonExistentTransaction();
+        var request = WalletsTestDataBuilder.ApproveWithdrawal.NonExistentTransaction();
 
         _mockWalletService.Setup(x => x.ApproveWithdrawalAsync(
                 It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()))
@@ -2450,7 +2450,7 @@ public class AdminControllerTests : TestBase
     public async Task ApproveWithdrawal_WithAlreadyProcessedTransaction_ShouldReturnBadRequest()
     {
         // Arrange
-        var request = WalletsApproveWithdrawal.AlreadyProcessedTransaction();
+        var request = WalletsTestDataBuilder.ApproveWithdrawal.AlreadyProcessedTransaction();
 
         _mockWalletService.Setup(x => x.ApproveWithdrawalAsync(
                 It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()))
@@ -2476,7 +2476,7 @@ public class AdminControllerTests : TestBase
     public async Task ApproveWithdrawal_WithInsufficientBalance_ShouldReturnBadRequest()
     {
         // Arrange
-        var request = WalletsApproveWithdrawal.ValidRequest();
+        var request = WalletsTestDataBuilder.ApproveWithdrawal.ValidRequest();
 
         _mockWalletService.Setup(x => x.ApproveWithdrawalAsync(
                 It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()))
@@ -2502,7 +2502,7 @@ public class AdminControllerTests : TestBase
     public async Task ApproveWithdrawal_WithInvalidTransactionData_ShouldReturnBadRequest()
     {
         // Arrange
-        var request = WalletsApproveWithdrawal.ValidRequest();
+        var request = WalletsTestDataBuilder.ApproveWithdrawal.ValidRequest();
 
         _mockWalletService.Setup(x => x.ApproveWithdrawalAsync(
                 It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()))
@@ -2532,7 +2532,7 @@ public class AdminControllerTests : TestBase
     public async Task ApproveWithdrawal_WithServiceFailure_ShouldReturnInternalServerError()
     {
         // Arrange
-        var request = WalletsApproveWithdrawal.ValidRequest();
+        var request = WalletsTestDataBuilder.ApproveWithdrawal.ValidRequest();
 
         _mockWalletService.Setup(x => x.ApproveWithdrawalAsync(
                 It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()))
@@ -2559,7 +2559,7 @@ public class AdminControllerTests : TestBase
     public async Task ApproveWithdrawal_WithServiceErrorWithoutMessage_ShouldReturnGenericError()
     {
         // Arrange
-        var request = WalletsApproveWithdrawal.ValidRequest();
+        var request = WalletsTestDataBuilder.ApproveWithdrawal.ValidRequest();
 
         _mockWalletService.Setup(x => x.ApproveWithdrawalAsync(
                 It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()))
@@ -2586,7 +2586,7 @@ public class AdminControllerTests : TestBase
     public async Task ApproveWithdrawal_OnFailure_ShouldLogWarning()
     {
         // Arrange
-        var request = WalletsApproveWithdrawal.ValidRequest();
+        var request = WalletsTestDataBuilder.ApproveWithdrawal.ValidRequest();
 
         _mockWalletService.Setup(x => x.ApproveWithdrawalAsync(
                 It.IsAny<ClaimsPrincipal>(), request, It.IsAny<CancellationToken>()))
@@ -2617,8 +2617,8 @@ public class AdminControllerTests : TestBase
     public async Task ApproveWithdrawal_ShouldPassCancellationTokenToService()
     {
         // Arrange
-        var request = WalletsApproveWithdrawal.ValidRequest();
-        var expectedTransaction = WalletsApproveWithdrawal.SuccessfulApprovalResponse();
+        var request = WalletsTestDataBuilder.ApproveWithdrawal.ValidRequest();
+        var expectedTransaction = WalletsTestDataBuilder.ApproveWithdrawal.SuccessfulApprovalResponse();
         var cancellationToken = new CancellationToken();
 
         _mockWalletService.Setup(x => x.ApproveWithdrawalAsync(

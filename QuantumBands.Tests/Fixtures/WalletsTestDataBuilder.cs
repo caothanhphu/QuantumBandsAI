@@ -1988,4 +1988,384 @@ public static class WalletsTestDataBuilder
             TransactionDate = DateTime.UtcNow
         };
     }
+
+    // ApproveWithdrawal methods for AdminControllerTests
+    public static class ApproveWithdrawal
+    {
+        /// <summary>
+        /// Valid approve withdrawal request
+        /// </summary>
+        public static ApproveWithdrawalRequest ValidRequest() => new()
+        {
+            TransactionId = 3001,
+            AdminNotes = "Withdrawal approved after verification of bank details"
+        };
+
+        /// <summary>
+        /// Valid minimal approve withdrawal request
+        /// </summary>
+        public static ApproveWithdrawalRequest ValidRequestMinimal() => new()
+        {
+            TransactionId = 3002,
+            AdminNotes = "Approved"
+        };
+
+        /// <summary>
+        /// Valid approve withdrawal request with maximum notes length
+        /// </summary>
+        public static ApproveWithdrawalRequest ValidRequestMaxNotes() => new()
+        {
+            TransactionId = 3003,
+            AdminNotes = new string('A', 500) // Maximum allowed length
+        };
+
+        /// <summary>
+        /// Request for non-existent transaction
+        /// </summary>
+        public static ApproveWithdrawalRequest NonExistentTransaction() => new()
+        {
+            TransactionId = 99999,
+            AdminNotes = "Attempting to approve non-existent transaction"
+        };
+
+        /// <summary>
+        /// Request for already processed transaction
+        /// </summary>
+        public static ApproveWithdrawalRequest AlreadyProcessedTransaction() => new()
+        {
+            TransactionId = 3004,
+            AdminNotes = "Attempting to approve already processed transaction"
+        };
+
+        /// <summary>
+        /// Successful approval response
+        /// </summary>
+        public static WalletTransactionDto SuccessfulApprovalResponse() => new()
+        {
+            TransactionId = 6001,
+            TransactionTypeName = "Withdrawal",
+            Amount = -500.00m,
+            CurrencyCode = "USD",
+            BalanceAfter = 1500.00m,
+            ReferenceId = "FINIXWTH202401001",
+            PaymentMethod = "Bank Transfer",
+            Description = "Approved: Withdrawal approved after verification of bank details",
+            Status = "Completed",
+            TransactionDate = DateTime.UtcNow
+        };
+
+        /// <summary>
+        /// Minimal approval response
+        /// </summary>
+        public static WalletTransactionDto MinimalApprovalResponse() => new()
+        {
+            TransactionId = 6002,
+            TransactionTypeName = "Withdrawal",
+            Amount = -250.00m,
+            CurrencyCode = "USD",
+            BalanceAfter = 1750.00m,
+            ReferenceId = "FINIXWTH202401002",
+            PaymentMethod = "Bank Transfer",
+            Description = "Approved: Approved",
+            Status = "Completed",
+            TransactionDate = DateTime.UtcNow
+        };
+
+        /// <summary>
+        /// Large amount approval response
+        /// </summary>
+        public static WalletTransactionDto LargeAmountApprovalResponse() => new()
+        {
+            TransactionId = 6003,
+            TransactionTypeName = "Withdrawal",
+            Amount = -25000.00m,
+            CurrencyCode = "USD",
+            BalanceAfter = 25000.00m,
+            ReferenceId = "FINIXWTH202401003",
+            PaymentMethod = "Wire Transfer",
+            Description = $"Approved: {new string('A', 500)}",
+            Status = "Completed",
+            TransactionDate = DateTime.UtcNow
+        };
+    }
+
+    // RejectWithdrawal methods for AdminControllerTests
+    public static class RejectWithdrawal
+    {
+        /// <summary>
+        /// Valid reject withdrawal request
+        /// </summary>
+        public static RejectWithdrawalRequest ValidRequest() => new()
+        {
+            TransactionId = 3001,
+            AdminNotes = "Withdrawal rejected due to insufficient documentation"
+        };
+
+        /// <summary>
+        /// Valid detailed reject withdrawal request
+        /// </summary>
+        public static RejectWithdrawalRequest ValidRequestDetailed() => new()
+        {
+            TransactionId = 3002,
+            AdminNotes = "Withdrawal rejected after thorough review of banking details and compliance requirements"
+        };
+
+        /// <summary>
+        /// Valid reject withdrawal request with maximum notes length
+        /// </summary>
+        public static RejectWithdrawalRequest ValidRequestMaxNotes() => new()
+        {
+            TransactionId = 3003,
+            AdminNotes = new string('R', 500) // Maximum allowed length
+        };
+
+        /// <summary>
+        /// Request with invalid empty admin notes
+        /// </summary>
+        public static RejectWithdrawalRequest InvalidEmptyAdminNotes() => new()
+        {
+            TransactionId = 3001,
+            AdminNotes = ""
+        };
+
+        /// <summary>
+        /// Request for non-existent transaction
+        /// </summary>
+        public static RejectWithdrawalRequest NonExistentTransaction() => new()
+        {
+            TransactionId = 99999,
+            AdminNotes = "Attempting to reject non-existent transaction"
+        };
+
+        /// <summary>
+        /// Request for already processed transaction
+        /// </summary>
+        public static RejectWithdrawalRequest AlreadyProcessedTransaction() => new()
+        {
+            TransactionId = 3004,
+            AdminNotes = "Attempting to reject already processed transaction"
+        };
+
+        /// <summary>
+        /// Request for already cancelled transaction
+        /// </summary>
+        public static RejectWithdrawalRequest AlreadyCancelledTransaction() => new()
+        {
+            TransactionId = 3005,
+            AdminNotes = "Attempting to reject already cancelled transaction"
+        };
+
+        /// <summary>
+        /// Successful rejection response
+        /// </summary>
+        public static WalletTransactionDto SuccessfulRejectionResponse() => new()
+        {
+            TransactionId = 6001,
+            TransactionTypeName = "Withdrawal",
+            Amount = -500.00m,
+            CurrencyCode = "USD",
+            BalanceAfter = 2000.00m, // Balance unchanged due to rejection
+            ReferenceId = "FINIXWTH202401001",
+            PaymentMethod = "Bank Transfer",
+            Description = "Rejected: Withdrawal rejected due to insufficient documentation",
+            Status = "Rejected",
+            TransactionDate = DateTime.UtcNow
+        };
+
+        /// <summary>
+        /// Detailed rejection response
+        /// </summary>
+        public static WalletTransactionDto DetailedRejectionResponse() => new()
+        {
+            TransactionId = 6002,
+            TransactionTypeName = "Withdrawal",
+            Amount = -750.00m,
+            CurrencyCode = "USD",
+            BalanceAfter = 2500.00m, // Balance unchanged due to rejection
+            ReferenceId = "FINIXWTH202401002",
+            PaymentMethod = "Bank Transfer",
+            Description = "Rejected: Withdrawal rejected after thorough review of banking details and compliance requirements",
+            Status = "Rejected",
+            TransactionDate = DateTime.UtcNow
+        };
+
+        /// <summary>
+        /// Large amount rejection response
+        /// </summary>
+        public static WalletTransactionDto LargeAmountRejectionResponse() => new()
+        {
+            TransactionId = 6003,
+            TransactionTypeName = "Withdrawal",
+            Amount = -25000.00m,
+            CurrencyCode = "USD",
+            BalanceAfter = 50000.00m, // Balance unchanged due to rejection
+            ReferenceId = "FINIXWTH202401003",
+            PaymentMethod = "Wire Transfer",
+            Description = $"Rejected: {new string('R', 500)}",
+            Status = "Rejected",
+            TransactionDate = DateTime.UtcNow
+        };
+    }
+
+    // GetPendingWithdrawals methods for AdminControllerTests
+    public static class GetPendingWithdrawals
+    {
+        /// <summary>
+        /// Valid query for getting pending withdrawals
+        /// </summary>
+        public static GetAdminPendingWithdrawalsQuery ValidQuery() => new()
+        {
+            PageNumber = 1,
+            PageSize = 10,
+            SortBy = "RequestedAt",
+            SortOrder = "desc"
+        };
+
+        /// <summary>
+        /// Query with date range filtering
+        /// </summary>
+        public static GetAdminPendingWithdrawalsQuery QueryWithDateRange() => new()
+        {
+            PageNumber = 1,
+            PageSize = 10,
+            SortBy = "RequestedAt",
+            SortOrder = "desc",
+            DateFrom = DateTime.UtcNow.AddDays(-30),
+            DateTo = DateTime.UtcNow
+        };
+
+        /// <summary>
+        /// Query with amount range filtering
+        /// </summary>
+        public static GetAdminPendingWithdrawalsQuery QueryWithAmountRange() => new()
+        {
+            PageNumber = 1,
+            PageSize = 10,
+            SortBy = "Amount",
+            SortOrder = "desc",
+            MinAmountUSD = 100.00m,
+            MaxAmountUSD = 5000.00m
+        };
+
+        /// <summary>
+        /// Query with user filtering
+        /// </summary>
+        public static GetAdminPendingWithdrawalsQuery QueryWithUserFilter() => new()
+        {
+            PageNumber = 1,
+            PageSize = 10,
+            SortBy = "RequestedAt",
+            SortOrder = "desc",
+            UserId = 1,
+            UsernameOrEmail = "testuser"
+        };
+
+        /// <summary>
+        /// Query with pagination
+        /// </summary>
+        public static GetAdminPendingWithdrawalsQuery QueryWithPagination(int pageNumber, int pageSize) => new()
+        {
+            PageNumber = pageNumber,
+            PageSize = pageSize,
+            SortBy = "RequestedAt",
+            SortOrder = "desc"
+        };
+
+        /// <summary>
+        /// Query with invalid pagination
+        /// </summary>
+        public static GetAdminPendingWithdrawalsQuery QueryWithInvalidPagination() => new()
+        {
+            PageNumber = -1,
+            PageSize = 0,
+            SortBy = "RequestedAt",
+            SortOrder = "desc"
+        };
+
+        /// <summary>
+        /// Query with custom sorting
+        /// </summary>
+        public static GetAdminPendingWithdrawalsQuery QueryWithCustomSorting(string sortBy, string sortOrder) => new()
+        {
+            PageNumber = 1,
+            PageSize = 10,
+            SortBy = sortBy,
+            SortOrder = sortOrder
+        };
+
+        /// <summary>
+        /// Multiple pending withdrawals response
+        /// </summary>
+        public static List<WithdrawalRequestAdminViewDto> MultiplePendingWithdrawals() => new()
+        {
+            new()
+            {
+                TransactionId = 1001,
+                UserId = 1,
+                Username = "testuser123",
+                UserEmail = "test@example.com",
+                Amount = 500.00m,
+                CurrencyCode = "USD",
+                Status = "PendingAdminApproval",
+                WithdrawalMethodDetails = "Bank: VCB, Account: 0012300456, Name: Test User, Branch: HN",
+                UserNotes = "Personal withdrawal request",
+                RequestedAt = DateTime.UtcNow.AddHours(-2),
+                AdminNotes = null
+            },
+            new()
+            {
+                TransactionId = 1002,
+                UserId = 2,
+                Username = "investor456",
+                UserEmail = "investor@example.com",
+                Amount = 2500.00m,
+                CurrencyCode = "USD",
+                Status = "PendingAdminApproval",
+                WithdrawalMethodDetails = "Bank: VCB, Account: 0087654321, Name: Investor User, Branch: SG",
+                UserNotes = "Business withdrawal for investment",
+                RequestedAt = DateTime.UtcNow.AddHours(-5),
+                AdminNotes = null
+            }
+        };
+
+        /// <summary>
+        /// Empty withdrawals list
+        /// </summary>
+        public static List<WithdrawalRequestAdminViewDto> EmptyWithdrawalsList() => new();
+
+        /// <summary>
+        /// Pending withdrawals with varied amounts
+        /// </summary>
+        public static List<WithdrawalRequestAdminViewDto> PendingWithdrawalsWithVariedAmounts() => new()
+        {
+            new()
+            {
+                TransactionId = 1004,
+                UserId = 4,
+                Username = "bigspender",
+                UserEmail = "bigspender@example.com",
+                Amount = 10000.00m,
+                CurrencyCode = "USD",
+                Status = "PendingAdminApproval",
+                WithdrawalMethodDetails = "Bank: VCB, Account: 1111222233, Name: Big Spender, Branch: HN",
+                UserNotes = "Large withdrawal for business",
+                RequestedAt = DateTime.UtcNow.AddDays(-1),
+                AdminNotes = null
+            },
+            new()
+            {
+                TransactionId = 1005,
+                UserId = 5,
+                Username = "smallinvestor",
+                UserEmail = "small@example.com",
+                Amount = 50.00m,
+                CurrencyCode = "USD",
+                Status = "PendingAdminApproval",
+                WithdrawalMethodDetails = "Bank: VCB, Account: 9999888877, Name: Small Investor, Branch: SG",
+                UserNotes = "Small test withdrawal",
+                RequestedAt = DateTime.UtcNow.AddMinutes(-10),
+                AdminNotes = null
+            }
+        };
+    }
 } 

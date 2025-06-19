@@ -12,6 +12,7 @@ using QuantumBands.Application.Features.Portfolio.Dtos;
 using QuantumBands.Application.Interfaces;
 using QuantumBands.Tests.Common;
 using QuantumBands.Tests.Fixtures;
+using static QuantumBands.Tests.Fixtures.TradingTestDataBuilder;
 using System.Collections.Generic;
 using System.Security.Claims;
 using System.Threading;
@@ -62,7 +63,7 @@ namespace QuantumBands.Tests.Controllers
             var user = CreateAuthenticatedUser("123", "testuser");
             _controller.ControllerContext = CreateControllerContext(user);
             
-            var expectedPortfolio = TestDataBuilder.GetMyPortfolio.ValidPortfolioResponse();
+            var expectedPortfolio = GetMyPortfolio.ValidPortfolioResponse();
             _mockPortfolioService.Setup(x => x.GetMyPortfolioAsync(
                 It.IsAny<ClaimsPrincipal>(),
                 It.IsAny<CancellationToken>()))
@@ -98,7 +99,7 @@ namespace QuantumBands.Tests.Controllers
             var user = CreateAuthenticatedUser("456", "profitableuser");
             _controller.ControllerContext = CreateControllerContext(user);
             
-            var expectedPortfolio = TestDataBuilder.GetMyPortfolio.ProfitablePortfolioResponse();
+            var expectedPortfolio = GetMyPortfolio.ProfitablePortfolioResponse();
             _mockPortfolioService.Setup(x => x.GetMyPortfolioAsync(
                 It.IsAny<ClaimsPrincipal>(),
                 It.IsAny<CancellationToken>()))
@@ -129,7 +130,7 @@ namespace QuantumBands.Tests.Controllers
             var user = CreateAuthenticatedUser("789", "losinguser");
             _controller.ControllerContext = CreateControllerContext(user);
             
-            var expectedPortfolio = TestDataBuilder.GetMyPortfolio.LosingPortfolioResponse();
+            var expectedPortfolio = GetMyPortfolio.LosingPortfolioResponse();
             _mockPortfolioService.Setup(x => x.GetMyPortfolioAsync(
                 It.IsAny<ClaimsPrincipal>(),
                 It.IsAny<CancellationToken>()))
@@ -159,7 +160,7 @@ namespace QuantumBands.Tests.Controllers
             var user = CreateAuthenticatedUser("999", "emptyuser");
             _controller.ControllerContext = CreateControllerContext(user);
             
-            var expectedPortfolio = TestDataBuilder.GetMyPortfolio.EmptyPortfolioResponse();
+            var expectedPortfolio = GetMyPortfolio.EmptyPortfolioResponse();
             _mockPortfolioService.Setup(x => x.GetMyPortfolioAsync(
                 It.IsAny<ClaimsPrincipal>(),
                 It.IsAny<CancellationToken>()))
@@ -190,7 +191,7 @@ namespace QuantumBands.Tests.Controllers
             var user = CreateAuthenticatedUser("111", "zerouser");
             _controller.ControllerContext = CreateControllerContext(user);
             
-            var expectedPortfolio = TestDataBuilder.GetMyPortfolio.ZeroQuantityPortfolioResponse();
+            var expectedPortfolio = GetMyPortfolio.ZeroQuantityPortfolioResponse();
             _mockPortfolioService.Setup(x => x.GetMyPortfolioAsync(
                 It.IsAny<ClaimsPrincipal>(),
                 It.IsAny<CancellationToken>()))
@@ -218,7 +219,7 @@ namespace QuantumBands.Tests.Controllers
             var user = CreateAuthenticatedUser("222", "wealthyuser");
             _controller.ControllerContext = CreateControllerContext(user);
             
-            var expectedPortfolio = TestDataBuilder.GetMyPortfolio.LargePortfolioResponse();
+            var expectedPortfolio = GetMyPortfolio.LargePortfolioResponse();
             _mockPortfolioService.Setup(x => x.GetMyPortfolioAsync(
                 It.IsAny<ClaimsPrincipal>(),
                 It.IsAny<CancellationToken>()))
@@ -246,7 +247,7 @@ namespace QuantumBands.Tests.Controllers
             var user = CreateAuthenticatedUser("333", "multiuser");
             _controller.ControllerContext = CreateControllerContext(user);
             
-            var expectedPortfolio = TestDataBuilder.GetMyPortfolio.MultiAccountPortfolioResponse();
+            var expectedPortfolio = GetMyPortfolio.MultiAccountPortfolioResponse();
             _mockPortfolioService.Setup(x => x.GetMyPortfolioAsync(
                 It.IsAny<ClaimsPrincipal>(),
                 It.IsAny<CancellationToken>()))
@@ -281,7 +282,7 @@ namespace QuantumBands.Tests.Controllers
             var user = CreateAuthenticatedUser("444", "preciseuser");
             _controller.ControllerContext = CreateControllerContext(user);
             
-            var expectedPortfolio = TestDataBuilder.GetMyPortfolio.PreciseDecimalPortfolioResponse();
+            var expectedPortfolio = GetMyPortfolio.PreciseDecimalPortfolioResponse();
             _mockPortfolioService.Setup(x => x.GetMyPortfolioAsync(
                 It.IsAny<ClaimsPrincipal>(),
                 It.IsAny<CancellationToken>()))
@@ -383,7 +384,7 @@ namespace QuantumBands.Tests.Controllers
             var user = CreateAuthenticatedUser(expectedUserId, "specificuser");
             _controller.ControllerContext = CreateControllerContext(user);
             
-            var expectedPortfolio = TestDataBuilder.GetMyPortfolio.ValidPortfolioResponse();
+            var expectedPortfolio = GetMyPortfolio.ValidPortfolioResponse();
             _mockPortfolioService.Setup(x => x.GetMyPortfolioAsync(
                 It.IsAny<ClaimsPrincipal>(),
                 It.IsAny<CancellationToken>()))
@@ -409,7 +410,7 @@ namespace QuantumBands.Tests.Controllers
             var user = CreateAuthenticatedUser("999", "loguser");
             _controller.ControllerContext = CreateControllerContext(user);
             
-            var expectedPortfolio = TestDataBuilder.GetMyPortfolio.ValidPortfolioResponse();
+            var expectedPortfolio = GetMyPortfolio.ValidPortfolioResponse();
             _mockPortfolioService.Setup(x => x.GetMyPortfolioAsync(
                 It.IsAny<ClaimsPrincipal>(),
                 It.IsAny<CancellationToken>()))
@@ -474,7 +475,7 @@ namespace QuantumBands.Tests.Controllers
             _mockPortfolioService.Setup(x => x.GetMyPortfolioAsync(
                 It.IsAny<ClaimsPrincipal>(),
                 cancellationToken))
-                .ReturnsAsync((TestDataBuilder.GetMyPortfolio.ValidPortfolioResponse(), (string?)null));
+                .ReturnsAsync((GetMyPortfolio.ValidPortfolioResponse(), (string?)null));
 
             // Act
             var result = await _controller.GetMyPortfolio(cancellationToken);
@@ -499,7 +500,7 @@ namespace QuantumBands.Tests.Controllers
             // Create portfolio with recent timestamp to simulate real-time data
             var recentPortfolio = new List<SharePortfolioItemDto>
             {
-                TestDataBuilder.GetMyPortfolio.CustomPortfolioItem(
+                GetMyPortfolio.CustomPortfolioItem(
                     portfolioId: 1,
                     tradingAccountId: 1,
                     tradingAccountName: "Real-time Trading Inc.",

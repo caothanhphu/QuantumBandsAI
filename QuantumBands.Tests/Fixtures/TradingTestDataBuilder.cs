@@ -8,6 +8,7 @@ using QuantumBands.Application.Features.Admin.TradingAccounts.Dtos;
 using QuantumBands.Application.Features.Admin.TradingAccounts.Commands;
 using QuantumBands.Application.Features.TradingAccounts.Dtos;
 using QuantumBands.Application.Features.Wallets.Dtos;
+using System;
 
 namespace QuantumBands.Tests.Fixtures;
 
@@ -253,91 +254,109 @@ public static class TradingTestDataBuilder
         public static ShareOrderDto ValidMarketBuyOrderResponse() => new()
         {
             OrderId = 1001,
+            UserId = 1,
             TradingAccountId = 1,
-            OrderTypeId = 1,
-            OrderTypeName = "Market",
+            TradingAccountName = "Test Trading Account",
             OrderSide = "Buy",
+            OrderType = "Market",
             QuantityOrdered = 100,
             QuantityFilled = 0,
             LimitPrice = null,
-            OrderStatusName = "Active",
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
+            AverageFillPrice = null,
+            OrderStatus = "Active",
+            OrderDate = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+            TransactionFee = 2.50m
         };
 
         public static ShareOrderDto ValidLimitSellOrderResponse() => new()
         {
             OrderId = 1002,
+            UserId = 1,
             TradingAccountId = 1,
-            OrderTypeId = 2,
-            OrderTypeName = "Limit",
+            TradingAccountName = "Test Trading Account",
             OrderSide = "Sell",
+            OrderType = "Limit",
             QuantityOrdered = 50,
             QuantityFilled = 0,
             LimitPrice = 55.00m,
-            OrderStatusName = "Active",
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
+            AverageFillPrice = null,
+            OrderStatus = "Active",
+            OrderDate = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+            TransactionFee = 1.25m
         };
 
         public static ShareOrderDto PartiallyFilledOrderResponse() => new()
         {
             OrderId = 1003,
+            UserId = 1,
             TradingAccountId = 1,
-            OrderTypeId = 1,
-            OrderTypeName = "Market",
+            TradingAccountName = "Test Trading Account",
             OrderSide = "Buy",
+            OrderType = "Market",
             QuantityOrdered = 100,
             QuantityFilled = 50,
             LimitPrice = null,
-            OrderStatusName = "PartiallyFilled",
-            CreatedAt = DateTime.UtcNow.AddMinutes(-5),
-            UpdatedAt = DateTime.UtcNow
+            AverageFillPrice = 50.25m,
+            OrderStatus = "PartiallyFilled",
+            OrderDate = DateTime.UtcNow.AddMinutes(-5),
+            UpdatedAt = DateTime.UtcNow,
+            TransactionFee = 1.26m
         };
 
         public static ShareOrderDto FilledOrderResponse() => new()
         {
             OrderId = 1004,
+            UserId = 1,
             TradingAccountId = 1,
-            OrderTypeId = 2,
-            OrderTypeName = "Limit",
+            TradingAccountName = "Test Trading Account",
             OrderSide = "Sell",
+            OrderType = "Limit",
             QuantityOrdered = 25,
             QuantityFilled = 25,
             LimitPrice = 52.50m,
-            OrderStatusName = "Filled",
-            CreatedAt = DateTime.UtcNow.AddMinutes(-10),
-            UpdatedAt = DateTime.UtcNow.AddMinutes(-2)
+            AverageFillPrice = 52.50m,
+            OrderStatus = "Filled",
+            OrderDate = DateTime.UtcNow.AddMinutes(-10),
+            UpdatedAt = DateTime.UtcNow.AddMinutes(-2),
+            TransactionFee = 0.66m
         };
 
         public static ShareOrderDto OrderWithHighFeeResponse() => new()
         {
             OrderId = 1005,
+            UserId = 1,
             TradingAccountId = 1,
-            OrderTypeId = 1,
-            OrderTypeName = "Market",
+            TradingAccountName = "Test Trading Account",
+            OrderType = "Market",
             OrderSide = "Buy",
             QuantityOrdered = 1000,
             QuantityFilled = 1000,
             LimitPrice = null,
-            OrderStatusName = "Filled",
-            CreatedAt = DateTime.UtcNow.AddHours(-1),
-            UpdatedAt = DateTime.UtcNow.AddHours(-1).AddMinutes(5)
+            AverageFillPrice = 45.75m,
+            OrderStatus = "Filled",
+            OrderDate = DateTime.UtcNow.AddHours(-1),
+            UpdatedAt = DateTime.UtcNow.AddHours(-1).AddMinutes(5),
+            TransactionFee = 22.88m
         };
 
         public static ShareOrderDto OrderFromDifferentUserResponse() => new()
         {
             OrderId = 2001,
+            UserId = 1,
             TradingAccountId = 2,
-            OrderTypeId = 1,
-            OrderTypeName = "Market",
+            TradingAccountName = "Test Trading Account",
+            OrderType = "Market",
             OrderSide = "Buy",
             QuantityOrdered = 200,
             QuantityFilled = 0,
             LimitPrice = null,
-            OrderStatusName = "Active",
-            CreatedAt = DateTime.UtcNow.AddMinutes(-1),
-            UpdatedAt = DateTime.UtcNow.AddMinutes(-1)
+            AverageFillPrice = null,
+            OrderStatus = "Active",
+            OrderDate = DateTime.UtcNow.AddMinutes(-1),
+            UpdatedAt = DateTime.UtcNow.AddMinutes(-1),
+            TransactionFee = 5.00m
         };
     }
 
@@ -439,7 +458,7 @@ public static class TradingTestDataBuilder
                     SharePrice = 12.50m,
                     ManagementFeePercentage = 2.0m,
                     IsActive = true,
-                    CreatedAt = DateTime.UtcNow.AddMonths(-6),
+                    OrderDate = DateTime.UtcNow.AddMonths(-6),
                     UpdatedAt = DateTime.UtcNow.AddDays(-1),
                     EaName = "TechGrowthEA_v1.0"
                 },
@@ -455,7 +474,7 @@ public static class TradingTestDataBuilder
                     SharePrice = 11.50m,
                     ManagementFeePercentage = 1.5m,
                     IsActive = true,
-                    CreatedAt = DateTime.UtcNow.AddMonths(-12),
+                    OrderDate = DateTime.UtcNow.AddMonths(-12),
                     UpdatedAt = DateTime.UtcNow.AddHours(-3),
                     EaName = "ValueInvestEA_v2.1"
                 }
@@ -524,7 +543,7 @@ public static class TradingTestDataBuilder
             SharePrice = 12.50m,
             ManagementFeePercentage = 2.0m,
             IsActive = true,
-            CreatedAt = DateTime.UtcNow.AddMonths(-6),
+            OrderDate = DateTime.UtcNow.AddMonths(-6),
             UpdatedAt = DateTime.UtcNow.AddDays(-1),
             EaName = "TechGrowthEA_v1.0",
             OpenPositions = ValidOpenPositions(),
@@ -640,7 +659,7 @@ public static class TradingTestDataBuilder
             SharePrice = 0.00m,
             ManagementFeePercentage = 0.0m,
             IsActive = false,
-            CreatedAt = DateTime.MinValue,
+            OrderDate = DateTime.MinValue,
             UpdatedAt = DateTime.MinValue,
             EaName = "",
             OpenPositions = new List<EAOpenPositionDto>(),
@@ -729,7 +748,7 @@ public static class TradingTestDataBuilder
                     StartDate = DateTime.UtcNow.AddDays(-30),
                     EndDate = DateTime.UtcNow.AddDays(30),
                     Status = "Active",
-                    CreatedAt = DateTime.UtcNow.AddDays(-35),
+                    OrderDate = DateTime.UtcNow.AddDays(-35),
                     UpdatedAt = DateTime.UtcNow.AddHours(-2)
                 },
                 new()
@@ -745,7 +764,7 @@ public static class TradingTestDataBuilder
                     StartDate = DateTime.UtcNow.AddDays(-90),
                     EndDate = DateTime.UtcNow.AddDays(-30),
                     Status = "Completed",
-                    CreatedAt = DateTime.UtcNow.AddDays(-95),
+                    OrderDate = DateTime.UtcNow.AddDays(-95),
                     UpdatedAt = DateTime.UtcNow.AddDays(-30)
                 }
             },
@@ -771,7 +790,7 @@ public static class TradingTestDataBuilder
                     StartDate = DateTime.UtcNow.AddDays(-30),
                     EndDate = DateTime.UtcNow.AddDays(30),
                     Status = "Active",
-                    CreatedAt = DateTime.UtcNow.AddDays(-35),
+                    OrderDate = DateTime.UtcNow.AddDays(-35),
                     UpdatedAt = DateTime.UtcNow.AddHours(-2)
                 }
             },
@@ -787,9 +806,221 @@ public static class TradingTestDataBuilder
         );
     }
 
+    /// <summary>
+    /// SCRUM-62: Test data for GET /portfolio/me endpoint testing
+    /// Provides comprehensive test scenarios for user portfolio management including:
+    /// - Valid portfolio responses with multiple positions
+    /// - Financial calculations and PnL accuracy
+    /// - Edge cases (empty portfolios, zero quantities)
+    /// - Large portfolios and precise decimal handling
+    /// - Multi-account portfolio scenarios
+    /// 
+    /// Usage:
+    /// - TradingTestDataBuilder.GetMyPortfolio.ValidPortfolioResponse() - Standard portfolio data
+    /// - TradingTestDataBuilder.GetMyPortfolio.ProfitablePortfolioResponse() - Profitable positions
+    /// - TradingTestDataBuilder.GetMyPortfolio.EmptyPortfolioResponse() - Empty portfolio
+    /// </summary>
+    public static class GetMyPortfolio
+    {
+        /// <summary>
+        /// Valid user portfolio with multiple positions
+        /// </summary>
+        public static List<SharePortfolioItemDto> ValidPortfolioResponse() => new()
+        {
+            new()
+            {
+                PortfolioId = 1,
+                TradingAccountId = 1,
+                TradingAccountName = "Tech Solutions Inc.",
+                Quantity = 150,
+                AverageBuyPrice = 25.50m,
+                CurrentSharePrice = 28.75m,
+                CurrentValue = 4312.50m,
+                UnrealizedPAndL = 487.50m,
+                LastUpdatedAt = DateTime.UtcNow.AddMinutes(-5)
+            },
+            new()
+            {
+                PortfolioId = 2,
+                TradingAccountId = 2,
+                TradingAccountName = "Green Energy Corp.",
+                Quantity = 200,
+                AverageBuyPrice = 18.90m,
+                CurrentSharePrice = 19.25m,
+                CurrentValue = 3850.00m,
+                UnrealizedPAndL = 70.00m,
+                LastUpdatedAt = DateTime.UtcNow.AddMinutes(-3)
+            }
+        };
+
+        /// <summary>
+        /// Portfolio with profitable positions
+        /// </summary>
+        public static List<SharePortfolioItemDto> ProfitablePortfolioResponse() => new()
+        {
+            new()
+            {
+                PortfolioId = 3,
+                TradingAccountId = 1,
+                TradingAccountName = "Tech Solutions Inc.",
+                Quantity = 100,
+                AverageBuyPrice = 20.00m,
+                CurrentSharePrice = 30.00m,
+                CurrentValue = 3000.00m,
+                UnrealizedPAndL = 1000.00m,
+                LastUpdatedAt = DateTime.UtcNow.AddMinutes(-2)
+            }
+        };
+
+        /// <summary>
+        /// Portfolio with losing positions
+        /// </summary>
+        public static List<SharePortfolioItemDto> LosingPortfolioResponse() => new()
+        {
+            new()
+            {
+                PortfolioId = 4,
+                TradingAccountId = 2,
+                TradingAccountName = "Green Energy Corp.",
+                Quantity = 80,
+                AverageBuyPrice = 35.00m,
+                CurrentSharePrice = 28.50m,
+                CurrentValue = 2280.00m,
+                UnrealizedPAndL = -520.00m,
+                LastUpdatedAt = DateTime.UtcNow.AddMinutes(-1)
+            }
+        };
+
+        /// <summary>
+        /// Empty portfolio response
+        /// </summary>
+        public static List<SharePortfolioItemDto> EmptyPortfolioResponse() => new();
+
+        /// <summary>
+        /// Portfolio with zero quantity positions (edge case)
+        /// </summary>
+        public static List<SharePortfolioItemDto> ZeroQuantityPortfolioResponse() => new()
+        {
+            new()
+            {
+                PortfolioId = 5,
+                TradingAccountId = 1,
+                TradingAccountName = "Tech Solutions Inc.",
+                Quantity = 0,
+                AverageBuyPrice = 25.00m,
+                CurrentSharePrice = 27.00m,
+                CurrentValue = 0.00m,
+                UnrealizedPAndL = 0.00m,
+                LastUpdatedAt = DateTime.UtcNow.AddHours(-1)
+            }
+        };
+
+        /// <summary>
+        /// Large portfolio with high values
+        /// </summary>
+        public static List<SharePortfolioItemDto> LargePortfolioResponse() => new()
+        {
+            new()
+            {
+                PortfolioId = 6,
+                TradingAccountId = 3,
+                TradingAccountName = "Financial Holdings Ltd.",
+                Quantity = 5000,
+                AverageBuyPrice = 100.00m,
+                CurrentSharePrice = 125.50m,
+                CurrentValue = 627500.00m,
+                UnrealizedPAndL = 127500.00m,
+                LastUpdatedAt = DateTime.UtcNow.AddMinutes(-10)
+            }
+        };
+
+        /// <summary>
+        /// Portfolio with multiple trading accounts
+        /// </summary>
+        public static List<SharePortfolioItemDto> MultiAccountPortfolioResponse() => new()
+        {
+            new()
+            {
+                PortfolioId = 7,
+                TradingAccountId = 1,
+                TradingAccountName = "Tech Solutions Inc.",
+                Quantity = 300,
+                AverageBuyPrice = 22.50m,
+                CurrentSharePrice = 24.75m,
+                CurrentValue = 7425.00m,
+                UnrealizedPAndL = 675.00m,
+                LastUpdatedAt = DateTime.UtcNow.AddMinutes(-7)
+            },
+            new()
+            {
+                PortfolioId = 8,
+                TradingAccountId = 2,
+                TradingAccountName = "Green Energy Corp.",
+                Quantity = 500,
+                AverageBuyPrice = 15.80m,
+                CurrentSharePrice = 16.90m,
+                CurrentValue = 8450.00m,
+                UnrealizedPAndL = 550.00m,
+                LastUpdatedAt = DateTime.UtcNow.AddMinutes(-4)
+            },
+            new()
+            {
+                PortfolioId = 9,
+                TradingAccountId = 3,
+                TradingAccountName = "Financial Holdings Ltd.",
+                Quantity = 200,
+                AverageBuyPrice = 45.25m,
+                CurrentSharePrice = 42.10m,
+                CurrentValue = 8420.00m,
+                UnrealizedPAndL = -630.00m,
+                LastUpdatedAt = DateTime.UtcNow.AddMinutes(-6)
+            }
+        };
+
+        /// <summary>
+        /// Portfolio with precise decimal calculations
+        /// </summary>
+        public static List<SharePortfolioItemDto> PreciseDecimalPortfolioResponse() => new()
+        {
+            new()
+            {
+                PortfolioId = 10,
+                TradingAccountId = 1,
+                TradingAccountName = "Tech Solutions Inc.",
+                Quantity = 123,
+                AverageBuyPrice = 12.3456m,
+                CurrentSharePrice = 13.7891m,
+                CurrentValue = 1696.0593m,
+                UnrealizedPAndL = 177.7548m,
+                LastUpdatedAt = DateTime.UtcNow.AddMinutes(-8)
+            }
+        };
+
+        /// <summary>
+        /// Custom portfolio item for testing
+        /// </summary>
+        public static SharePortfolioItemDto CustomPortfolioItem(
+            int portfolioId,
+            int tradingAccountId,
+            string tradingAccountName,
+            long quantity,
+            decimal averageBuyPrice,
+            decimal currentSharePrice) => new()
+        {
+            PortfolioId = portfolioId,
+            TradingAccountId = tradingAccountId,
+            TradingAccountName = tradingAccountName,
+            Quantity = quantity,
+            AverageBuyPrice = averageBuyPrice,
+            CurrentSharePrice = currentSharePrice,
+            CurrentValue = quantity * currentSharePrice,
+            UnrealizedPAndL = (quantity * currentSharePrice) - (quantity * averageBuyPrice),
+            LastUpdatedAt = DateTime.UtcNow
+        };
+    }
+
     // Note: Due to context limits, remaining Trading classes will be added incrementally:
     // - CreateTradingAccounts, UpdateTradingAccounts, InitialShareOfferings  
-    // - GetMyOrders, CancelOrder, GetOrderBook, GetMarketData
-    // - GetMyTrades, GetMyPortfolio
+    // - GetMyOrders, CancelOrder, GetOrderBook, GetMarketData, GetMyTrades
     // Each containing comprehensive test scenarios and documentation
 } 
