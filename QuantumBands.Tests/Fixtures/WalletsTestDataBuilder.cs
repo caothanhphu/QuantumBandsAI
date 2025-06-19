@@ -760,7 +760,7 @@ public static class WalletsTestDataBuilder
         /// </summary>
         public static WithdrawalRequestDto ValidResponse() => new()
         {
-            TransactionId = 3001,
+            WithdrawalRequestId = 3001,
             UserId = 1,
             Amount = 500.00m,
             CurrencyCode = "USD",
@@ -775,7 +775,7 @@ public static class WalletsTestDataBuilder
         /// </summary>
         public static WithdrawalRequestDto LargeAmountResponse() => new()
         {
-            TransactionId = 3002,
+            WithdrawalRequestId = 3002,
             UserId = 1,
             Amount = 50000.00m,
             CurrencyCode = "USD",
@@ -790,7 +790,7 @@ public static class WalletsTestDataBuilder
         /// </summary>
         public static WithdrawalRequestDto ResponseWithoutNotes() => new()
         {
-            TransactionId = 3003,
+            WithdrawalRequestId = 3003,
             UserId = 1,
             Amount = 500.00m,
             CurrencyCode = "USD",
@@ -816,7 +816,7 @@ public static class WalletsTestDataBuilder
         /// </summary>
         public static WithdrawalRequestDto CustomResponse(long requestId, int userId, decimal amount, string status = "PendingAdminApproval") => new()
         {
-            TransactionId = requestId,
+            WithdrawalRequestId = requestId,
             UserId = userId,
             Amount = amount,
             CurrencyCode = "USD",
@@ -1406,7 +1406,7 @@ public static class WalletsTestDataBuilder
         public static CancelBankDepositRequest ValidRequest() => new()
         {
             TransactionId = 1001,
-            Description = "User requested cancellation due to error in amount"
+            AdminNotes = "User requested cancellation due to error in amount"
         };
 
         /// <summary>
@@ -1757,7 +1757,7 @@ public static class WalletsTestDataBuilder
         public static ApproveWithdrawalRequest ValidApprovalRequest() => new()
         {
             TransactionId = 3001,
-            Description = "Withdrawal approved after verification of bank details"
+            AdminNotes = "Withdrawal approved after verification of bank details"
         };
 
         /// <summary>
@@ -1767,7 +1767,7 @@ public static class WalletsTestDataBuilder
         public static RejectWithdrawalRequest ValidRejectionRequest() => new()
         {
             TransactionId = 3002,
-            Description = "Withdrawal rejected due to insufficient documentation"
+            AdminNotes = "Withdrawal rejected due to insufficient documentation"
         };
 
         /// <summary>
@@ -1776,7 +1776,7 @@ public static class WalletsTestDataBuilder
         public static ApproveWithdrawalRequest ApprovalRequestWithEmptyNotes() => new()
         {
             TransactionId = 3001,
-            Description = ""
+            AdminNotes = ""
         };
 
         /// <summary>
@@ -1785,7 +1785,7 @@ public static class WalletsTestDataBuilder
         public static RejectWithdrawalRequest RejectionRequestWithEmptyNotes() => new()
         {
             TransactionId = 3002,
-            Description = ""
+            AdminNotes = ""
         };
 
         /// <summary>
