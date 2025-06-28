@@ -30,6 +30,7 @@ public class UnitOfWork : IUnitOfWork
     public IGenericRepository<ShareOrderStatus> ShareOrderStatuses { get; private set; }
     public IGenericRepository<ShareTrade> ShareTrades { get; private set; } // Thêm repo mới
     public IGenericRepository<ProfitDistributionLog> ProfitDistributionLogs { get; private set; } // Thêm repo mới
+    public IGenericRepository<TransactionType> TransactionTypes { get; private set; } // Thêm TransactionType repository
     public ISystemSettingRepository SystemSettings { get; private set; } // Thêm SystemSetting repository
 
     public UnitOfWork(FinixAIDbContext context)
@@ -51,6 +52,7 @@ public class UnitOfWork : IUnitOfWork
         ShareOrderStatuses = new GenericRepository<ShareOrderStatus>(_context); // Khởi tạo generic repository
         ShareTrades = new GenericRepository<ShareTrade>(_context); // Khởi tạo generic repository
         ProfitDistributionLogs = new GenericRepository<ProfitDistributionLog>(_context); // Khởi tạo generic repository
+        TransactionTypes = new GenericRepository<TransactionType>(_context); // Khởi tạo TransactionType repository
         SystemSettings = new SystemSettingRepository(_context); // Khởi tạo SystemSetting repository
     }
 

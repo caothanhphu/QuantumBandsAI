@@ -9,6 +9,9 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Threading;
 using System.Collections.Generic;
+using QuantumBands.Application.Features.Admin.TradingAccounts.Commands.RecalculateProfitDistribution;
+using QuantumBands.Application.Features.Admin.TradingAccounts.Dtos;
+using QuantumBands.Application.Common.Models;
 
 namespace QuantumBands.Application.Services;
 
@@ -171,5 +174,247 @@ public class ProfitDistributionService : IProfitDistributionService
                                tradingAccount.TradingAccountId, snapshotDate, totalProfitDistributedToShareholders);
 
         return (totalManagementFeeDeducted, totalProfitDistributedToShareholders);
+    }
+
+    public async Task<RecalculateProfitDistributionResponse> RecalculateProfitDistributionAsync(
+        int accountId, 
+        DateTime date, 
+        RecalculateProfitDistributionRequest request, 
+        CancellationToken cancellationToken = default)
+    {
+        var snapshotDate = date.Date;
+        _logger.LogInformation("Starting profit distribution recalculation for TradingAccountID: {AccountId}, Date: {Date}, Reason: {Reason}",
+            accountId, snapshotDate, request.Reason);
+
+        var response = new RecalculateProfitDistributionResponse
+        {
+            Success = false,
+            Message = "Recalculation failed"
+        };
+
+        try
+        {
+            // Get the trading account
+            var tradingAccount = await _unitOfWork.TradingAccounts.Query()
+                .FirstOrDefaultAsync(ta => ta.TradingAccountId == accountId, cancellationToken);
+
+            if (tradingAccount == null)
+            {
+                response.Message = $"Trading account with ID {accountId} not found";
+                return response;
+            }
+
+            // Get the existing snapshot
+            var existingSnapshot = await _unitOfWork.TradingAccountSnapshots.Query()
+                .FirstOrDefaultAsync(s => s.TradingAccountId == accountId &&
+                                         s.SnapshotDate == DateOnly.FromDateTime(snapshotDate), cancellationToken);
+
+            if (existingSnapshot == null)
+            {
+                response.Message = $"No snapshot found for date {snapshotDate:yyyy-MM-dd}";
+                return response;
+            }
+
+            // Get existing distribution information
+            var existingDistribution = await GetExistingDistributionSummary(existingSnapshot.SnapshotId, cancellationToken);
+            response.OldDistribution = existingDistribution;
+
+            if (request.ReverseExisting)
+            {
+                // Reverse existing profit distribution
+                await ReverseExistingProfitDistributionAsync(existingSnapshot, cancellationToken);
+                _logger.LogInformation("Reversed existing profit distribution for snapshot {SnapshotId}", existingSnapshot.SnapshotId);
+            }
+
+            // Recalculate profit distribution
+            var (newManagementFee, newProfitDistributed) = await CalculateAndDistributeProfitAsync(
+                tradingAccount,
+                existingSnapshot.RealizedPandLforTheDay,
+                snapshotDate,
+                existingSnapshot.SnapshotId,
+                cancellationToken);
+
+            // Update snapshot with new values
+            existingSnapshot.ManagementFeeDeducted = newManagementFee;
+            existingSnapshot.ProfitDistributed = newProfitDistributed;
+            existingSnapshot.ClosingNav = tradingAccount.CurrentNetAssetValue - newManagementFee - newProfitDistributed;
+            existingSnapshot.ClosingSharePrice = (tradingAccount.TotalSharesIssued > 0)
+                ? Math.Round(existingSnapshot.ClosingNav / tradingAccount.TotalSharesIssued, 8)
+                : 0;
+
+            _unitOfWork.TradingAccountSnapshots.Update(existingSnapshot);
+            await _unitOfWork.CompleteAsync(cancellationToken);
+
+            // Get new distribution information
+            var newDistribution = await GetExistingDistributionSummary(existingSnapshot.SnapshotId, cancellationToken);
+            response.NewDistribution = newDistribution;
+            response.AdjustmentAmount = newDistribution.TotalDistributed - existingDistribution.TotalDistributed;
+
+            response.Success = true;
+            response.Message = "Profit distribution recalculated successfully";
+
+            _logger.LogInformation("Profit distribution recalculation completed for TA_ID {AccountId}. Old: {OldAmount}, New: {NewAmount}, Adjustment: {Adjustment}",
+                accountId, existingDistribution.TotalDistributed, newDistribution.TotalDistributed, response.AdjustmentAmount);
+
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to recalculate profit distribution for TradingAccountID: {AccountId}, Date: {Date}",
+                accountId, snapshotDate);
+            response.Message = $"Recalculation failed: {ex.Message}";
+            response.Errors.Add(ex.Message);
+            return response;
+        }
+    }
+
+    public async Task<PaginatedList<ProfitDistributionLogDto>> GetProfitDistributionHistoryAsync(
+        int accountId,
+        DateTime? fromDate,
+        DateTime? toDate,
+        int pageNumber,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Getting profit distribution history for AccountID: {AccountId}, FromDate: {FromDate}, ToDate: {ToDate}",
+            accountId, fromDate, toDate);
+
+        var query = _unitOfWork.ProfitDistributionLogs.Query()
+            .Include(p => p.User)
+            .Include(p => p.TradingAccount)
+            .AsQueryable();
+
+        // Filter by account if specified (0 means all accounts)
+        if (accountId > 0)
+        {
+            query = query.Where(p => p.TradingAccountId == accountId);
+        }
+
+        // Filter by date range
+        if (fromDate.HasValue)
+        {
+            query = query.Where(p => p.DistributionDate >= DateOnly.FromDateTime(fromDate.Value));
+        }
+
+        if (toDate.HasValue)
+        {
+            query = query.Where(p => p.DistributionDate <= DateOnly.FromDateTime(toDate.Value));
+        }
+
+        // Order by date descending
+        query = query.OrderByDescending(p => p.DistributionDate)
+                    .ThenByDescending(p => p.CreatedAt);
+
+        var totalCount = await query.CountAsync(cancellationToken);
+        var items = await query
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .Select(p => new ProfitDistributionLogDto
+            {
+                DistributionLogId = p.DistributionLogId,
+                TradingAccountSnapshotId = p.TradingAccountSnapshotId,
+                TradingAccountId = p.TradingAccountId,
+                TradingAccountName = p.TradingAccount.AccountName,
+                UserId = p.UserId,
+                UserEmail = p.User.Email,
+                UserFullName = p.User.FullName ?? "Unknown User",
+                DistributionDate = p.DistributionDate.ToDateTime(TimeOnly.MinValue),
+                SharesHeldAtDistribution = p.SharesHeldAtDistribution,
+                ProfitPerShareDistributed = p.ProfitPerShareDistributed,
+                TotalAmountDistributed = p.TotalAmountDistributed,
+                WalletTransactionId = p.WalletTransactionId,
+                CreatedAt = p.CreatedAt,
+                CurrencyCode = "USD" // Default currency
+            })
+            .ToListAsync(cancellationToken);
+
+        return new PaginatedList<ProfitDistributionLogDto>(items, totalCount, pageNumber, pageSize);
+    }
+
+    private async Task<ProfitDistributionSummary> GetExistingDistributionSummary(long snapshotId, CancellationToken cancellationToken)
+    {
+        var logs = await _unitOfWork.ProfitDistributionLogs.Query()
+            .Where(p => p.TradingAccountSnapshotId == snapshotId)
+            .ToListAsync(cancellationToken);
+
+        var snapshot = await _unitOfWork.TradingAccountSnapshots.Query()
+            .FirstOrDefaultAsync(s => s.SnapshotId == snapshotId, cancellationToken);
+
+        return new ProfitDistributionSummary
+        {
+            TotalDistributed = logs.Sum(l => l.TotalAmountDistributed),
+            ShareholdersCount = logs.Count,
+            ManagementFee = snapshot?.ManagementFeeDeducted ?? 0,
+            RealizedPAndL = snapshot?.RealizedPandLforTheDay ?? 0,
+            ProfitPerShare = logs.FirstOrDefault()?.ProfitPerShareDistributed ?? 0
+        };
+    }
+
+    private async Task ReverseExistingProfitDistributionAsync(TradingAccountSnapshot snapshot, CancellationToken cancellationToken)
+    {
+        // Get all profit distribution logs for this snapshot
+        var distributionLogs = await _unitOfWork.ProfitDistributionLogs.Query()
+            .Include(p => p.User.Wallet)
+            .Where(p => p.TradingAccountSnapshotId == snapshot.SnapshotId)
+            .ToListAsync(cancellationToken);
+
+        if (!distributionLogs.Any()) return;
+
+        // Get transaction type for reversal
+        var reversalType = await _transactionTypeRepository.GetByNameAsync("ProfitDistributionReversal", cancellationToken);
+
+        if (reversalType == null)
+        {
+            _logger.LogWarning("TransactionType 'ProfitDistributionReversal' not found. Will use default transaction type.");
+            // Try to get a default transaction type
+            reversalType = await _transactionTypeRepository.GetByNameAsync("SystemAdjustment", cancellationToken);
+        }
+
+        var now = DateTime.UtcNow;
+
+        foreach (var log in distributionLogs)
+        {
+            if (log.User?.Wallet == null)
+            {
+                _logger.LogWarning("User or Wallet is null for DistributionLogId {LogId}", log.DistributionLogId);
+                continue;
+            }
+
+            // Create reversal wallet transaction
+            var reversalTransaction = new WalletTransaction
+            {
+                WalletId = log.User.Wallet.WalletId,
+                TransactionTypeId = reversalType?.TransactionTypeId ?? 1, // Fallback to a default type
+                Amount = -log.TotalAmountDistributed, // Negative amount for reversal
+                CurrencyCode = log.User.Wallet.CurrencyCode,
+                BalanceBefore = log.User.Wallet.Balance,
+                BalanceAfter = log.User.Wallet.Balance - log.TotalAmountDistributed,
+                Description = $"Reversal of profit distribution from snapshot {snapshot.SnapshotId} due to recalculation",
+                ReferenceId = $"REV_SNAP_{snapshot.SnapshotId}_USR_{log.UserId}_{now:yyyyMMddHHmmss}",
+                Status = "Completed",
+                PaymentMethod = "SystemReversal",
+                TransactionDate = now,
+                UpdatedAt = now
+            };
+            await _unitOfWork.WalletTransactions.AddAsync(reversalTransaction);
+
+            // Update wallet balance
+            log.User.Wallet.Balance -= log.TotalAmountDistributed;
+            log.User.Wallet.UpdatedAt = now;
+            _unitOfWork.Wallets.Update(log.User.Wallet);
+
+            _logger.LogInformation("Reversed profit distribution of {Amount} for UserID {UserId} from snapshot {SnapshotId}",
+                log.TotalAmountDistributed, log.UserId, snapshot.SnapshotId);
+        }
+
+        // Remove the distribution logs
+        foreach (var log in distributionLogs)
+        {
+            _unitOfWork.ProfitDistributionLogs.Remove(log);
+        }
+
+        await _unitOfWork.CompleteAsync(cancellationToken);
+        _logger.LogInformation("Completed reversal of {Count} profit distribution entries for snapshot {SnapshotId}",
+            distributionLogs.Count, snapshot.SnapshotId);
     }
 }

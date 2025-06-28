@@ -21,6 +21,10 @@ using QuantumBands.Application.Services;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
+using QuantumBands.Application.Features.Admin.TradingAccounts.Commands.ManualSnapshotTrigger;
+using QuantumBands.Application.Features.Admin.TradingAccounts.Queries.GetSnapshotStatus;
+using QuantumBands.Application.Features.Admin.TradingAccounts.Commands.RecalculateProfitDistribution;
+using QuantumBands.Application.Features.Admin.TradingAccounts.Dtos;
 
 namespace QuantumBands.API.Controllers;
 
@@ -34,6 +38,8 @@ public class AdminController : ControllerBase
     private readonly ITradingAccountService _tradingAccountService; // Inject service mới
     private readonly IAdminDashboardService _dashboardService; // Inject service mới
     private readonly IExchangeService _exchangeService;
+    private readonly IDailySnapshotService _dailySnapshotService; // Add for manual snapshot functionality
+    private readonly IProfitDistributionService _profitDistributionService; // Add for profit distribution functionality
     private readonly ILogger<AdminController> _logger;
 
     public AdminController(
@@ -42,6 +48,8 @@ public class AdminController : ControllerBase
         ITradingAccountService tradingAccountService, // Thêm vào constructor
         IAdminDashboardService dashboardService, // Inject service mới
         IExchangeService exchangeService,
+        IDailySnapshotService dailySnapshotService, // Add for manual snapshot functionality
+        IProfitDistributionService profitDistributionService, // Add for profit distribution functionality
         ILogger<AdminController> logger)
     {
         _userService = userService;
@@ -49,6 +57,8 @@ public class AdminController : ControllerBase
         _tradingAccountService = tradingAccountService; // Gán
         _dashboardService = dashboardService;
         _exchangeService = exchangeService;
+        _dailySnapshotService = dailySnapshotService; // Add for manual snapshot functionality
+        _profitDistributionService = profitDistributionService; // Add for profit distribution functionality
         _logger = logger;
     }
 
@@ -437,5 +447,193 @@ public class AdminController : ControllerBase
             return StatusCode(StatusCodes.Status500InternalServerError, new { Message = errorMessage ?? "Failed to cancel initial share offering." });
         }
         return Ok(offeringDto);
+    }
+
+    // --- MANUAL SNAPSHOT MANAGEMENT ENDPOINTS ---
+
+    [HttpPost("trading-accounts/snapshots/trigger-manual")] // Route: /api/v1/admin/trading-accounts/snapshots/trigger-manual
+    [ProducesResponseType(typeof(ManualSnapshotTriggerResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> TriggerManualSnapshot([FromBody] ManualSnapshotTriggerRequest request, CancellationToken cancellationToken)
+    {
+        var adminUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        _logger.LogInformation("Admin {AdminId} triggering manual snapshot for date {TargetDate}. Reason: {Reason}", 
+            adminUserId, request.TargetDate, request.Reason);
+
+        try
+        {
+            var response = await _dailySnapshotService.TriggerManualSnapshotAsync(request, cancellationToken);
+            
+            if (response.Success)
+            {
+                _logger.LogInformation("Manual snapshot trigger completed successfully. Processed: {Processed}, Skipped: {Skipped}, Failed: {Failed}",
+                    response.AccountsProcessed, response.AccountsSkipped, response.AccountsFailed);
+                return Ok(response);
+            }
+            else
+            {
+                _logger.LogWarning("Manual snapshot trigger completed with issues. Message: {Message}, Errors: {Errors}",
+                    response.Message, string.Join("; ", response.Errors));
+                return BadRequest(response);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to trigger manual snapshot for admin {AdminId}", adminUserId);
+            return StatusCode(StatusCodes.Status500InternalServerError, new { Message = "An unexpected error occurred while triggering manual snapshot" });
+        }
+    }
+
+    [HttpGet("trading-accounts/snapshots/status")] // Route: /api/v1/admin/trading-accounts/snapshots/status
+    [ProducesResponseType(typeof(SnapshotStatusResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> GetSnapshotStatus([FromQuery] GetSnapshotStatusQuery query, CancellationToken cancellationToken)
+    {
+        var adminUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        _logger.LogInformation("Admin {AdminId} requesting snapshot status for date {Date}", adminUserId, query.Date);
+
+        try
+        {
+            var response = await _dailySnapshotService.GetSnapshotStatusAsync(query, cancellationToken);
+            return Ok(response);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get snapshot status for admin {AdminId}, date {Date}", adminUserId, query.Date);
+            return StatusCode(StatusCodes.Status500InternalServerError, new { Message = "An unexpected error occurred while retrieving snapshot status" });
+        }
+    }
+
+    [HttpPost("trading-accounts/{accountId}/snapshots/{date}/recalculate")] // Route: /api/v1/admin/trading-accounts/{accountId}/snapshots/{date}/recalculate
+    [ProducesResponseType(typeof(RecalculateProfitDistributionResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> RecalculateProfitDistribution(int accountId, DateTime date, [FromBody] RecalculateProfitDistributionRequest request, CancellationToken cancellationToken)
+    {
+        var adminUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        _logger.LogInformation("Admin {AdminId} recalculating profit distribution for AccountID {AccountId}, Date {Date}. Reason: {Reason}", 
+            adminUserId, accountId, date, request.Reason);
+
+        try
+        {
+            var response = await _profitDistributionService.RecalculateProfitDistributionAsync(accountId, date, request, cancellationToken);
+            
+            if (response.Success)
+            {
+                _logger.LogInformation("Profit distribution recalculation completed successfully for AccountID {AccountId}. Adjustment: {Adjustment}",
+                    accountId, response.AdjustmentAmount);
+                return Ok(response);
+            }
+            else
+            {
+                _logger.LogWarning("Profit distribution recalculation failed for AccountID {AccountId}. Message: {Message}",
+                    accountId, response.Message);
+                
+                if (response.Message.Contains("not found"))
+                    return NotFound(response);
+                
+                return BadRequest(response);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to recalculate profit distribution for admin {AdminId}, AccountID {AccountId}, Date {Date}", 
+                adminUserId, accountId, date);
+            return StatusCode(StatusCodes.Status500InternalServerError, new { Message = "An unexpected error occurred while recalculating profit distribution" });
+        }
+    }
+
+    [HttpGet("trading-accounts/{accountId}/profit-distributions")] // Route: /api/v1/admin/trading-accounts/{accountId}/profit-distributions
+    [ProducesResponseType(typeof(PaginatedList<ProfitDistributionLogDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> GetProfitDistributionHistory(
+        int accountId,
+        [FromQuery] DateTime? fromDate,
+        [FromQuery] DateTime? toDate,
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 50,
+        CancellationToken cancellationToken = default)
+    {
+        var adminUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        _logger.LogInformation("Admin {AdminId} requesting profit distribution history for AccountID {AccountId}", adminUserId, accountId);
+
+        try
+        {
+            // Validate page parameters
+            if (pageNumber < 1)
+                return BadRequest(new { Message = "Page number must be greater than 0" });
+            
+            if (pageSize < 1 || pageSize > 100)
+                return BadRequest(new { Message = "Page size must be between 1 and 100" });
+
+            // Validate date range
+            if (fromDate.HasValue && toDate.HasValue && fromDate > toDate)
+                return BadRequest(new { Message = "From date cannot be greater than to date" });
+
+            var result = await _profitDistributionService.GetProfitDistributionHistoryAsync(
+                accountId, fromDate, toDate, pageNumber, pageSize, cancellationToken);
+
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get profit distribution history for admin {AdminId}, AccountID {AccountId}", 
+                adminUserId, accountId);
+            return StatusCode(StatusCodes.Status500InternalServerError, new { Message = "An unexpected error occurred while retrieving profit distribution history" });
+        }
+    }
+
+    [HttpGet("trading-accounts/profit-distributions")] // Route: /api/v1/admin/trading-accounts/profit-distributions (for all accounts)
+    [ProducesResponseType(typeof(PaginatedList<ProfitDistributionLogDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> GetAllProfitDistributionHistory(
+        [FromQuery] DateTime? fromDate,
+        [FromQuery] DateTime? toDate,
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 50,
+        CancellationToken cancellationToken = default)
+    {
+        var adminUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        _logger.LogInformation("Admin {AdminId} requesting profit distribution history for all accounts", adminUserId);
+
+        try
+        {
+            // Validate page parameters
+            if (pageNumber < 1)
+                return BadRequest(new { Message = "Page number must be greater than 0" });
+            
+            if (pageSize < 1 || pageSize > 100)
+                return BadRequest(new { Message = "Page size must be between 1 and 100" });
+
+            // Validate date range
+            if (fromDate.HasValue && toDate.HasValue && fromDate > toDate)
+                return BadRequest(new { Message = "From date cannot be greater than to date" });
+
+            // Use accountId = 0 to get all accounts
+            var result = await _profitDistributionService.GetProfitDistributionHistoryAsync(
+                0, fromDate, toDate, pageNumber, pageSize, cancellationToken);
+
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get profit distribution history for all accounts. Admin {AdminId}", adminUserId);
+            return StatusCode(StatusCodes.Status500InternalServerError, new { Message = "An unexpected error occurred while retrieving profit distribution history" });
+        }
     }
 }

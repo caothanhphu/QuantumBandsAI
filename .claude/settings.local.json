@@ -33,7 +33,9 @@
       "Bash(verbosity=minimal)",
       "Bash(sudo fuser:*)",
       "Bash(rm:*)",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "WebFetch(domain:docs.anthropic.com)",
+      "Bash(claude mcp:*)"
     ],
     "deny": []
   }

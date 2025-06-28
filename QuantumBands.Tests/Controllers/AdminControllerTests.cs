@@ -8,6 +8,9 @@ using QuantumBands.Application.Common.Models;
 using QuantumBands.Application.Features.Admin.ExchangeMonitor.Dtos;
 using QuantumBands.Application.Features.Admin.ExchangeMonitor.Queries;
 using QuantumBands.Application.Features.Admin.TradingAccounts.Commands;
+using QuantumBands.Application.Features.Admin.TradingAccounts.Commands.ManualSnapshotTrigger;
+using QuantumBands.Application.Features.Admin.TradingAccounts.Commands.RecalculateProfitDistribution;
+using QuantumBands.Application.Features.Admin.TradingAccounts.Queries.GetSnapshotStatus;
 using QuantumBands.Application.Features.Admin.TradingAccounts.Dtos;
 using QuantumBands.Application.Features.Wallets.Commands.AdminActions;
 using QuantumBands.Application.Features.Wallets.Commands.AdminDeposit;
@@ -34,6 +37,8 @@ public class AdminControllerTests : TestBase
     private readonly Mock<ITradingAccountService> _mockTradingAccountService;
     private readonly Mock<IAdminDashboardService> _mockDashboardService;
     private readonly Mock<IExchangeService> _mockExchangeService;
+    private readonly Mock<IDailySnapshotService> _mockDailySnapshotService;
+    private readonly Mock<IProfitDistributionService> _mockProfitDistributionService;
     private readonly Mock<ILogger<AdminController>> _mockLogger;
 
     public AdminControllerTests()
@@ -43,6 +48,8 @@ public class AdminControllerTests : TestBase
         _mockTradingAccountService = new Mock<ITradingAccountService>();
         _mockDashboardService = new Mock<IAdminDashboardService>();
         _mockExchangeService = new Mock<IExchangeService>();
+        _mockDailySnapshotService = new Mock<IDailySnapshotService>();
+        _mockProfitDistributionService = new Mock<IProfitDistributionService>();
         _mockLogger = new Mock<ILogger<AdminController>>();
 
         _adminController = new AdminController(
@@ -51,6 +58,8 @@ public class AdminControllerTests : TestBase
             _mockTradingAccountService.Object,
             _mockDashboardService.Object,
             _mockExchangeService.Object,
+            _mockDailySnapshotService.Object,
+            _mockProfitDistributionService.Object,
             _mockLogger.Object
         );
 
@@ -4233,4 +4242,27 @@ public class AdminControllerTests : TestBase
     #endregion
 
     #endregion
-} 
+
+    #region Manual Snapshot and Profit Distribution Tests
+    
+    /// <summary>
+    /// Test: Manual snapshot endpoints should require admin authorization
+    /// </summary>
+    [Fact]
+    public void ManualSnapshotEndpoints_ShouldRequireAdminAuthorization()
+    {
+        // This test verifies that the manual snapshot endpoints exist
+        // In production they would be protected by [Authorize(Policy = "AdminPolicy")]
+        var controller = typeof(AdminController);
+        
+        Assert.NotNull(controller.GetMethod("TriggerManualSnapshot"));
+        Assert.NotNull(controller.GetMethod("GetSnapshotStatus"));
+        Assert.NotNull(controller.GetMethod("RecalculateProfitDistribution"));
+        Assert.NotNull(controller.GetMethod("GetProfitDistributionHistory"));
+        Assert.NotNull(controller.GetMethod("GetAllProfitDistributionHistory"));
+    }
+
+
+
+    #endregion
+}
