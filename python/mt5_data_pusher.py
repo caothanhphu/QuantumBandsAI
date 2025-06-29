@@ -12,7 +12,7 @@ os.environ['PYTHONIOENCODING'] = 'utf-8'
 
 # --- Cấu hình Logging ---
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.ERROR,
     format='%(asctime)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s',
     handlers=[
         logging.FileHandler("mt5_pusher.log", encoding='utf-8'), # Ghi log ra file với UTF-8 encoding
