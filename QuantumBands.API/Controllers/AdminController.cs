@@ -9,6 +9,7 @@ using QuantumBands.Application.Features.Admin.TradingAccounts.Commands;
 using QuantumBands.Application.Features.Admin.TradingAccounts.Dtos;
 using QuantumBands.Application.Features.Admin.Users.Commands.UpdateUserRole;
 using QuantumBands.Application.Features.Admin.Users.Commands.UpdateUserStatus;
+using QuantumBands.Application.Features.Admin.Users.Commands.UpdateUserPassword;
 using QuantumBands.Application.Features.Admin.Users.Dtos;
 using QuantumBands.Application.Features.Admin.Users.Queries;
 using QuantumBands.Application.Features.Wallets.Commands.AdminActions;
@@ -24,7 +25,6 @@ using System.Threading.Tasks;
 using QuantumBands.Application.Features.Admin.TradingAccounts.Commands.ManualSnapshotTrigger;
 using QuantumBands.Application.Features.Admin.TradingAccounts.Queries.GetSnapshotStatus;
 using QuantumBands.Application.Features.Admin.TradingAccounts.Commands.RecalculateProfitDistribution;
-using QuantumBands.Application.Features.Admin.TradingAccounts.Dtos;
 
 namespace QuantumBands.API.Controllers;
 
@@ -304,6 +304,29 @@ public class AdminController : ControllerBase
             return BadRequest(new { Message = errorMessage ?? "Failed to update user role." });
         }
         return Ok(updatedUser);
+    }
+
+    [HttpPut("users/{userId}/password")] // Route: /api/v1/admin/users/{userId}/password
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpdateUserPassword(int userId, [FromBody] UpdateUserPasswordRequest request, CancellationToken cancellationToken)
+    {
+        var adminUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        _logger.LogInformation("Admin {AdminId} attempting to update password for UserID: {UserId}", adminUserId, userId);
+        
+        var (success, message) = await _userService.UpdateUserPasswordByAdminAsync(userId, request, User, cancellationToken);
+
+        if (!success)
+        {
+            if (message.Contains("not found")) return NotFound(new { Message = message });
+            if (message.Contains("authentication")) return Unauthorized(new { Message = message });
+            return BadRequest(new { Message = message });
+        }
+        
+        return Ok(new { Message = message });
     }
     [HttpPost("trading-accounts")] // Route: /api/v1/admin/trading-accounts
     [ProducesResponseType(typeof(TradingAccountDto), StatusCodes.Status201Created)]

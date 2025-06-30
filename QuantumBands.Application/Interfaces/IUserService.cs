@@ -2,6 +2,7 @@
 using QuantumBands.Application.Common.Models;
 using QuantumBands.Application.Features.Admin.Users.Commands.UpdateUserRole;
 using QuantumBands.Application.Features.Admin.Users.Commands.UpdateUserStatus;
+using QuantumBands.Application.Features.Admin.Users.Commands.UpdateUserPassword;
 using QuantumBands.Application.Features.Admin.Users.Dtos;
 using QuantumBands.Application.Features.Admin.Users.Queries;
 using QuantumBands.Application.Features.Authentication; // For UserProfileDto
@@ -31,5 +32,6 @@ public interface IUserService
     Task<PaginatedList<AdminUserViewDto>> GetAdminAllUsersAsync(GetAdminUsersQuery query, CancellationToken cancellationToken = default);
     Task<(AdminUserViewDto? User, string? ErrorMessage)> UpdateUserStatusByAdminAsync(int userId, UpdateUserStatusRequest request, CancellationToken cancellationToken = default);
     Task<(AdminUserViewDto? User, string? ErrorMessage)> UpdateUserRoleByAdminAsync(int userId, UpdateUserRoleRequest request, CancellationToken cancellationToken = default);
+    Task<(bool Success, string Message)> UpdateUserPasswordByAdminAsync(int userId, UpdateUserPasswordRequest request, ClaimsPrincipal adminUser, CancellationToken cancellationToken = default);
 
 }

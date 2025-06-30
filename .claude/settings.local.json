@@ -35,7 +35,8 @@
       "Bash(rm:*)",
       "Bash(python3:*)",
       "WebFetch(domain:docs.anthropic.com)",
-      "Bash(claude mcp:*)"
+      "Bash(claude mcp:*)",
+      "mcp__atlassian__atlassianUserInfo"
     ],
     "deny": []
   }

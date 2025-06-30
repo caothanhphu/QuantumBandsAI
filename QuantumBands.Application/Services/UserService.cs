@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using QuantumBands.Application.Common.Models;
 using QuantumBands.Application.Features.Admin.Users.Commands.UpdateUserStatus;
 using QuantumBands.Application.Features.Admin.Users.Commands.UpdateUserRole;
+using QuantumBands.Application.Features.Admin.Users.Commands.UpdateUserPassword;
 using QuantumBands.Application.Features.Admin.Users.Dtos;
 using QuantumBands.Application.Features.Admin.Users.Queries;
 using QuantumBands.Application.Features.Authentication;
@@ -567,6 +568,53 @@ public class UserService : IUserService
         {
             _logger.LogError(ex, "Error updating role for UserID: {UserId}", userId);
             return (null, "An error occurred while updating user role.");
+        }
+    }
+
+    public async Task<(bool Success, string Message)> UpdateUserPasswordByAdminAsync(int userId, UpdateUserPasswordRequest request, ClaimsPrincipal adminUser, CancellationToken cancellationToken = default)
+    {
+        var adminUserId = GetUserIdFromPrincipal(adminUser);
+        if (!adminUserId.HasValue)
+        {
+            _logger.LogWarning("UpdateUserPasswordByAdminAsync: Admin user is not authenticated.");
+            return (false, "Admin authentication required.");
+        }
+
+        _logger.LogInformation("Admin {AdminId} attempting to update password for UserID: {UserId}. Reason: {Reason}", 
+            adminUserId.Value, userId, request.Reason ?? "No reason provided");
+
+        try
+        {
+            var user = await _unitOfWork.Users.GetByIdAsync(userId);
+            if (user == null)
+            {
+                _logger.LogWarning("UpdateUserPasswordByAdminAsync: User with ID {UserId} not found.", userId);
+                return (false, "User not found.");
+            }
+
+            // Hash the new password
+            string newPasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+
+            // Update password and metadata
+            user.PasswordHash = newPasswordHash;
+            user.UpdatedAt = DateTime.UtcNow;
+            
+            // Invalidate existing sessions by clearing refresh tokens
+            user.RefreshToken = null;
+            user.RefreshTokenExpiry = null;
+
+            _unitOfWork.Users.Update(user);
+            await _unitOfWork.CompleteAsync(cancellationToken);
+
+            _logger.LogInformation("Password updated successfully by Admin {AdminId} for UserID: {UserId}. Reason: {Reason}", 
+                adminUserId.Value, userId, request.Reason ?? "No reason provided");
+
+            return (true, "Password updated successfully. User will need to log in again.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating password by admin {AdminId} for UserID: {UserId}", adminUserId.Value, userId);
+            return (false, "An error occurred while updating the password.");
         }
     }
 }

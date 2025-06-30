@@ -12,6 +12,7 @@ using QuantumBands.Application.Features.Admin.TradingAccounts.Commands.ManualSna
 using QuantumBands.Application.Features.Admin.TradingAccounts.Commands.RecalculateProfitDistribution;
 using QuantumBands.Application.Features.Admin.TradingAccounts.Queries.GetSnapshotStatus;
 using QuantumBands.Application.Features.Admin.TradingAccounts.Dtos;
+using QuantumBands.Application.Features.Admin.Users.Commands.UpdateUserPassword;
 using QuantumBands.Application.Features.Wallets.Commands.AdminActions;
 using QuantumBands.Application.Features.Wallets.Commands.AdminDeposit;
 using QuantumBands.Application.Features.Wallets.Commands.BankDeposit;
@@ -4262,7 +4263,308 @@ public class AdminControllerTests : TestBase
         Assert.NotNull(controller.GetMethod("GetAllProfitDistributionHistory"));
     }
 
+    #endregion
 
+    #region UpdateUserPassword Tests
+
+    /// <summary>
+    /// Test: Valid admin request should successfully update user password
+    /// Verifies the happy path where an admin updates a user's password
+    /// </summary>
+    [Fact]
+    public async Task UpdateUserPassword_WithValidRequest_ShouldReturnOk()
+    {
+        // Arrange
+        const int targetUserId = 2;
+        var request = new UpdateUserPasswordRequest
+        {
+            NewPassword = "NewSecurePass123!",
+            ConfirmNewPassword = "NewSecurePass123!",
+            Reason = "Password reset requested by user"
+        };
+
+        _mockUserService.Setup(x => x.UpdateUserPasswordByAdminAsync(
+                targetUserId, request, It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, "Password updated successfully. User will need to log in again."));
+
+        // Act
+        var result = await _adminController.UpdateUserPassword(targetUserId, request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        var response = okResult!.Value;
+        response.Should().NotBeNull();
+
+        // Verify service was called correctly
+        _mockUserService.Verify(x => x.UpdateUserPasswordByAdminAsync(
+            targetUserId, request, It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Valid admin request without reason should successfully update user password
+    /// Verifies that reason is optional
+    /// </summary>
+    [Fact]
+    public async Task UpdateUserPassword_WithNoReason_ShouldReturnOk()
+    {
+        // Arrange
+        const int targetUserId = 2;
+        var request = new UpdateUserPasswordRequest
+        {
+            NewPassword = "NewSecurePass123!",
+            ConfirmNewPassword = "NewSecurePass123!",
+            Reason = null
+        };
+
+        _mockUserService.Setup(x => x.UpdateUserPasswordByAdminAsync(
+                targetUserId, request, It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, "Password updated successfully. User will need to log in again."));
+
+        // Act
+        var result = await _adminController.UpdateUserPassword(targetUserId, request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        var response = okResult!.Value;
+        response.Should().NotBeNull();
+
+        // Verify service was called correctly
+        _mockUserService.Verify(x => x.UpdateUserPasswordByAdminAsync(
+            targetUserId, request, It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Non-existent user should return NotFound
+    /// Verifies proper handling of user not found scenarios
+    /// </summary>
+    [Fact]
+    public async Task UpdateUserPassword_WithNonExistentUser_ShouldReturnNotFound()
+    {
+        // Arrange
+        const int invalidUserId = 999;
+        var request = new UpdateUserPasswordRequest
+        {
+            NewPassword = "NewSecurePass123!",
+            ConfirmNewPassword = "NewSecurePass123!",
+            Reason = "Test"
+        };
+
+        _mockUserService.Setup(x => x.UpdateUserPasswordByAdminAsync(
+                invalidUserId, request, It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((false, "User not found."));
+
+        // Act
+        var result = await _adminController.UpdateUserPassword(invalidUserId, request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<NotFoundObjectResult>();
+        var notFoundResult = result as NotFoundObjectResult;
+        var response = notFoundResult!.Value;
+        response.Should().NotBeNull();
+
+        // Verify service was called correctly
+        _mockUserService.Verify(x => x.UpdateUserPasswordByAdminAsync(
+            invalidUserId, request, It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Authentication failure should return Unauthorized
+    /// Verifies proper handling of admin authentication issues
+    /// </summary>
+    [Fact]
+    public async Task UpdateUserPassword_WithAuthenticationFailure_ShouldReturnUnauthorized()
+    {
+        // Arrange
+        const int targetUserId = 2;
+        var request = new UpdateUserPasswordRequest
+        {
+            NewPassword = "NewSecurePass123!",
+            ConfirmNewPassword = "NewSecurePass123!",
+            Reason = "Test"
+        };
+
+        _mockUserService.Setup(x => x.UpdateUserPasswordByAdminAsync(
+                targetUserId, request, It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((false, "Admin authentication required."));
+
+        // Act
+        var result = await _adminController.UpdateUserPassword(targetUserId, request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<UnauthorizedObjectResult>();
+        var unauthorizedResult = result as UnauthorizedObjectResult;
+        var response = unauthorizedResult!.Value;
+        response.Should().NotBeNull();
+
+        // Verify service was called correctly
+        _mockUserService.Verify(x => x.UpdateUserPasswordByAdminAsync(
+            targetUserId, request, It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Service validation failure should return BadRequest
+    /// Verifies proper handling of business logic validation errors
+    /// </summary>
+    [Fact]
+    public async Task UpdateUserPassword_WithValidationFailure_ShouldReturnBadRequest()
+    {
+        // Arrange
+        const int targetUserId = 2;
+        var request = new UpdateUserPasswordRequest
+        {
+            NewPassword = "NewSecurePass123!",
+            ConfirmNewPassword = "NewSecurePass123!",
+            Reason = "Test"
+        };
+
+        _mockUserService.Setup(x => x.UpdateUserPasswordByAdminAsync(
+                targetUserId, request, It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((false, "Password validation failed."));
+
+        // Act
+        var result = await _adminController.UpdateUserPassword(targetUserId, request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+        var badRequestResult = result as BadRequestObjectResult;
+        var response = badRequestResult!.Value;
+        response.Should().NotBeNull();
+
+        // Verify service was called correctly
+        _mockUserService.Verify(x => x.UpdateUserPasswordByAdminAsync(
+            targetUserId, request, It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Service error should return BadRequest with generic message
+    /// Verifies proper handling of general service errors
+    /// </summary>
+    [Fact]
+    public async Task UpdateUserPassword_WithServiceError_ShouldReturnBadRequest()
+    {
+        // Arrange
+        const int targetUserId = 2;
+        var request = new UpdateUserPasswordRequest
+        {
+            NewPassword = "NewSecurePass123!",
+            ConfirmNewPassword = "NewSecurePass123!",
+            Reason = "Test"
+        };
+
+        _mockUserService.Setup(x => x.UpdateUserPasswordByAdminAsync(
+                targetUserId, request, It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((false, "An error occurred while updating the password."));
+
+        // Act
+        var result = await _adminController.UpdateUserPassword(targetUserId, request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<BadRequestObjectResult>();
+        var badRequestResult = result as BadRequestObjectResult;
+        var response = badRequestResult!.Value;
+        response.Should().NotBeNull();
+
+        // Verify service was called correctly
+        _mockUserService.Verify(x => x.UpdateUserPasswordByAdminAsync(
+            targetUserId, request, It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Controller should properly pass admin claims to service
+    /// Verifies that the authenticated admin context is passed correctly
+    /// </summary>
+    [Fact]
+    public async Task UpdateUserPassword_ShouldPassAdminClaimsToService()
+    {
+        // Arrange
+        const int targetUserId = 2;
+        var request = new UpdateUserPasswordRequest
+        {
+            NewPassword = "NewSecurePass123!",
+            ConfirmNewPassword = "NewSecurePass123!",
+            Reason = "Test claims passing"
+        };
+
+        _mockUserService.Setup(x => x.UpdateUserPasswordByAdminAsync(
+                targetUserId, request, It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, "Password updated successfully. User will need to log in again."));
+
+        // Act
+        var result = await _adminController.UpdateUserPassword(targetUserId, request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+
+        // Verify that the correct ClaimsPrincipal (admin user) was passed to the service
+        _mockUserService.Verify(x => x.UpdateUserPasswordByAdminAsync(
+            targetUserId, 
+            request, 
+            It.Is<ClaimsPrincipal>(p => p.FindFirst(ClaimTypes.NameIdentifier) != null && p.FindFirst(ClaimTypes.NameIdentifier).Value == "1"), 
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Controller should log admin actions appropriately
+    /// Verifies that admin password updates are logged for audit purposes
+    /// </summary>
+    [Fact]
+    public async Task UpdateUserPassword_ShouldLogAdminAction()
+    {
+        // Arrange
+        const int targetUserId = 2;
+        var request = new UpdateUserPasswordRequest
+        {
+            NewPassword = "NewSecurePass123!",
+            ConfirmNewPassword = "NewSecurePass123!",
+            Reason = "User account security compromise"
+        };
+
+        _mockUserService.Setup(x => x.UpdateUserPasswordByAdminAsync(
+                targetUserId, request, It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, "Password updated successfully. User will need to log in again."));
+
+        // Act
+        var result = await _adminController.UpdateUserPassword(targetUserId, request, CancellationToken.None);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+
+        // Verify logging occurred
+        _mockLogger.Verify(
+            x => x.Log(
+                LogLevel.Information,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Admin 1 attempting to update password for UserID: 2")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    /// <summary>
+    /// Test: Endpoint method signature and attributes validation
+    /// Verifies that the endpoint has correct routing and authorization attributes
+    /// </summary>
+    [Fact]
+    public void UpdateUserPassword_ShouldHaveCorrectMethodSignature()
+    {
+        // Arrange & Act
+        var method = typeof(AdminController).GetMethod("UpdateUserPassword");
+
+        // Assert
+        method.Should().NotBeNull("UpdateUserPassword method should exist");
+        
+        // Verify method signature
+        var parameters = method!.GetParameters();
+        parameters.Should().HaveCount(3, "Method should have userId, request, and cancellationToken parameters");
+        parameters[0].ParameterType.Should().Be<int>("First parameter should be int userId");
+        parameters[1].ParameterType.Should().Be<UpdateUserPasswordRequest>("Second parameter should be UpdateUserPasswordRequest");
+        parameters[2].ParameterType.Should().Be<CancellationToken>("Third parameter should be CancellationToken");
+        
+        // Verify return type
+        method.ReturnType.Should().Be<Task<IActionResult>>("Method should return Task<IActionResult>");
+    }
 
     #endregion
 }
