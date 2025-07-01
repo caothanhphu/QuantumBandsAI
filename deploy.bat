@@ -1,22 +1,83 @@
 @echo OFF
 ECHO Starting CI/CD Deployment Process...
 
-REM Bước 1: Kiểm tra Docker daemon có đang chạy không
-ECHO Checking if Docker daemon is running...
+REM Kiểm tra biến môi trường để bỏ qua Docker check nếu cần
+IF "%SKIP_DOCKER_CHECK%"=="true" (
+    ECHO ⚠️ SKIP_DOCKER_CHECK is enabled. Skipping Docker daemon verification.
+    ECHO WARNING: This may cause deployment to fail if Docker is not running.
+    GOTO :SKIP_DOCKER_VERIFICATION
+)
+
+REM Bước 1: Kiểm tra và khởi động Docker daemon
+ECHO Checking Docker daemon status...
+
+REM Function để kiểm tra Docker daemon
+:CHECK_DOCKER
 docker info >nul 2>&1
-IF %ERRORLEVEL% NEQ 0 (
-    ECHO ERROR: Docker daemon is not running or not accessible.
-    ECHO Please ensure Docker Desktop is installed and running.
-    ECHO You can check by running 'docker info' manually.
+IF %ERRORLEVEL% EQU 0 (
+    ECHO ✅ Docker daemon is running
+    GOTO :DOCKER_READY
+)
+
+ECHO ⚠️ Docker daemon is not running. Attempting to start Docker Desktop...
+
+REM Kiểm tra xem Docker Desktop có được cài đặt không
+IF EXIST "%ProgramFiles%\Docker\Docker\Docker Desktop.exe" (
+    ECHO Starting Docker Desktop...
+    START "" "%ProgramFiles%\Docker\Docker\Docker Desktop.exe"
+) ELSE IF EXIST "%ProgramFiles(x86)%\Docker\Docker\Docker Desktop.exe" (
+    ECHO Starting Docker Desktop...
+    START "" "%ProgramFiles(x86)%\Docker\Docker\Docker Desktop.exe"
+) ELSE (
+    ECHO ERROR: Docker Desktop not found in Program Files.
+    ECHO Please install Docker Desktop manually from: https://www.docker.com/products/docker-desktop
     EXIT /B 1
 )
 
-REM Bước 1.1: Kiểm tra phiên bản Docker
-ECHO Verifying Docker installation...
-docker --version
-IF %ERRORLEVEL% NEQ 0 (
-    ECHO Docker command failed. Exiting.
+REM Đợi Docker daemon khởi động với retry logic
+SET RETRY_COUNT=0
+SET MAX_RETRIES=12
+ECHO Waiting for Docker daemon to start (max %MAX_RETRIES% retries, ~2 minutes)...
+
+:RETRY_DOCKER
+docker info >nul 2>&1
+IF %ERRORLEVEL% EQU 0 (
+    ECHO ✅ Docker daemon is now running
+    GOTO :DOCKER_READY
+)
+
+SET /A RETRY_COUNT=%RETRY_COUNT%+1
+ECHO Attempt %RETRY_COUNT%/%MAX_RETRIES%: Still waiting for Docker daemon...
+
+IF %RETRY_COUNT% GEQ %MAX_RETRIES% (
+    ECHO ❌ ERROR: Docker daemon failed to start after %MAX_RETRIES% attempts.
+    ECHO Please try the following:
+    ECHO 1. Start Docker Desktop manually
+    ECHO 2. Check if virtualization is enabled in BIOS
+    ECHO 3. Ensure Hyper-V or WSL 2 is properly configured
+    ECHO 4. Run 'docker info' manually to diagnose the issue
     EXIT /B 1
+)
+
+ECHO Waiting 10 seconds before next retry...
+timeout /t 10 >nul 2>&1
+GOTO :RETRY_DOCKER
+
+:DOCKER_READY
+ECHO Docker daemon is ready for deployment.
+
+:SKIP_DOCKER_VERIFICATION
+
+REM Bước 1.1: Kiểm tra phiên bản Docker (nếu không skip Docker check)
+IF NOT "%SKIP_DOCKER_CHECK%"=="true" (
+    ECHO Verifying Docker installation...
+    docker --version
+    IF %ERRORLEVEL% NEQ 0 (
+        ECHO Docker command failed. Exiting.
+        EXIT /B 1
+    )
+) ELSE (
+    ECHO Skipping Docker version check.
 )
 
 REM Bước 2: Build Docker image

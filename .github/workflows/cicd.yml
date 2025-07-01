@@ -295,6 +295,8 @@ jobs:
           DOCKER_HUB_USERNAME: ${{ secrets.DOCKER_HUB_USERNAME }}
           DOCKER_HUB_TOKEN: ${{ secrets.DOCKER_HUB_TOKEN }}
           VERSION: latest
+          # Sử dụng retry mechanism để tự động khởi động Docker nếu cần
+          SKIP_DOCKER_CHECK: false
         run: |
           call deploy.bat
         shell: cmd # Chỉ định shell là cmd để thực thi file .bat
