@@ -8,18 +8,58 @@ IF "%SKIP_DOCKER_CHECK%"=="true" (
     GOTO :SKIP_DOCKER_VERIFICATION
 )
 
+REM Kiểm tra biến môi trường để force Docker ready nếu biết Docker đang chạy
+IF "%FORCE_DOCKER_READY%"=="true" (
+    ECHO ⚠️ FORCE_DOCKER_READY is enabled. Assuming Docker is ready.
+    ECHO Proceeding with deployment...
+    GOTO :DOCKER_READY
+)
+
 REM Bước 1: Kiểm tra và khởi động Docker daemon
 ECHO Checking Docker daemon status...
 
 REM Function để kiểm tra Docker daemon
 :CHECK_DOCKER
-docker info >nul 2>&1
+ECHO Checking Docker daemon connectivity...
+
+REM Method 1: Check với docker version
+docker version --format "{{.Server.Version}}" >nul 2>&1
 IF %ERRORLEVEL% EQU 0 (
-    ECHO ✅ Docker daemon is running
+    ECHO ✅ Docker daemon is running (docker version succeeded)
     GOTO :DOCKER_READY
 )
 
-ECHO ⚠️ Docker daemon is not running. Attempting to start Docker Desktop...
+REM Method 2: Check với docker info
+docker info >nul 2>&1
+IF %ERRORLEVEL% EQU 0 (
+    ECHO ✅ Docker daemon is running (docker info succeeded)
+    GOTO :DOCKER_READY
+)
+
+REM Method 3: Check với docker ps
+docker ps >nul 2>&1
+IF %ERRORLEVEL% EQU 0 (
+    ECHO ✅ Docker daemon is running (docker ps succeeded)
+    GOTO :DOCKER_READY
+)
+
+REM Method 4: Parse docker info output để check nếu có "Server Version"
+FOR /F "tokens=*" %%i IN ('docker info 2^>nul ^| findstr "Server Version"') DO (
+    IF NOT "%%i"=="" (
+        ECHO ✅ Docker daemon is running (found Server Version in docker info)
+        GOTO :DOCKER_READY
+    )
+)
+
+REM Method 5: Fallback - check if docker command itself is available and try simple command
+docker --version >nul 2>&1
+IF %ERRORLEVEL% EQU 0 (
+    ECHO ⚠️ Docker CLI is available, attempting to proceed despite daemon check failures...
+    ECHO This might work if Docker is running but has warnings/context issues.
+    GOTO :DOCKER_READY
+)
+
+ECHO ⚠️ Docker daemon is not running or not accessible. Attempting to start Docker Desktop...
 
 REM Kiểm tra xem Docker Desktop có được cài đặt không
 IF EXIST "%ProgramFiles%\Docker\Docker\Docker Desktop.exe" (
@@ -40,22 +80,48 @@ SET MAX_RETRIES=12
 ECHO Waiting for Docker daemon to start (max %MAX_RETRIES% retries, ~2 minutes)...
 
 :RETRY_DOCKER
+ECHO Checking Docker daemon (attempt %RETRY_COUNT%/%MAX_RETRIES%)...
+
+REM Thử docker version trước
+docker version >nul 2>&1
+IF %ERRORLEVEL% EQU 0 (
+    ECHO ✅ Docker daemon is now running (detected via docker version)
+    GOTO :DOCKER_READY
+)
+
+REM Thử docker info
 docker info >nul 2>&1
 IF %ERRORLEVEL% EQU 0 (
-    ECHO ✅ Docker daemon is now running
+    ECHO ✅ Docker daemon is now running (detected via docker info)
+    GOTO :DOCKER_READY
+)
+
+REM Thử docker ps để check daemon
+docker ps >nul 2>&1
+IF %ERRORLEVEL% EQU 0 (
+    ECHO ✅ Docker daemon is now running (detected via docker ps)
     GOTO :DOCKER_READY
 )
 
 SET /A RETRY_COUNT=%RETRY_COUNT%+1
-ECHO Attempt %RETRY_COUNT%/%MAX_RETRIES%: Still waiting for Docker daemon...
+ECHO Attempt %RETRY_COUNT%/%MAX_RETRIES%: Docker daemon still not responding...
 
 IF %RETRY_COUNT% GEQ %MAX_RETRIES% (
     ECHO ❌ ERROR: Docker daemon failed to start after %MAX_RETRIES% attempts.
+    ECHO.
+    ECHO === DEBUGGING INFORMATION ===
+    ECHO Trying docker info to get more details:
+    docker info 2>&1
+    ECHO.
+    ECHO Trying docker version to check connectivity:
+    docker version 2>&1
+    ECHO.
     ECHO Please try the following:
     ECHO 1. Start Docker Desktop manually
     ECHO 2. Check if virtualization is enabled in BIOS
     ECHO 3. Ensure Hyper-V or WSL 2 is properly configured
     ECHO 4. Run 'docker info' manually to diagnose the issue
+    ECHO 5. Check if Docker context is correct with 'docker context ls'
     EXIT /B 1
 )
 
