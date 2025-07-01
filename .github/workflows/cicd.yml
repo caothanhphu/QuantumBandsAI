@@ -12,6 +12,7 @@ jobs:
 
     steps:
       - name: Add Docker to PATH (if needed)
+        id: add-docker-path
         run: |
           $dockerPath1 = "${env:ProgramFiles}\Docker\Docker\resources\bin"
           $dockerPath2 = "${env:ProgramFiles}\Docker\resources\bin"
@@ -24,7 +25,7 @@ jobs:
           } else {
             Write-Host "Docker bin path not found!"
           }
-          [System.Environment]::SetEnvironmentVariable("PATH", $env:PATH, "Process")
+          echo "PATH=$env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           docker --version
         shell: powershell
       - name: Checkout repository
