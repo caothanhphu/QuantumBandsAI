@@ -33,8 +33,8 @@ public class EAClosedTradeDtoFromEAValidator : AbstractValidator<EAClosedTradeDt
         RuleFor(x => x.OpenTime).NotEmpty().LessThan(x => x.CloseTime)
             .WithMessage("Open time must be before close time and not empty.");
         RuleFor(x => x.ClosePrice).GreaterThan(0);
-        RuleFor(x => x.CloseTime).NotEmpty().LessThanOrEqualTo(DateTime.UtcNow.AddMinutes(5)) // Không quá xa tương lai
-            .WithMessage("Close time cannot be in the distant future and must be after open time.");
+        //RuleFor(x => x.CloseTime).NotEmpty().LessThanOrEqualTo(DateTime.UtcNow.AddMinutes(5)) // Không quá xa tương lai
+        //    .WithMessage("Close time cannot be in the distant future and must be after open time.");
         // RealizedPAndL, Swap, Commission có thể âm, dương hoặc 0
     }
 }

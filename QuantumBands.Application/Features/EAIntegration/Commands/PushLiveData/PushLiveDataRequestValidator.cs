@@ -37,7 +37,7 @@ public class EAOpenPositionDtoFromEAValidator : AbstractValidator<EAOpenPosition
             .WithMessage("TradeType must be 'Buy' or 'Sell'.");
         RuleFor(x => x.VolumeLots).GreaterThan(0);
         RuleFor(x => x.OpenPrice).GreaterThan(0);
-        RuleFor(x => x.OpenTime).NotEmpty().LessThanOrEqualTo(DateTime.UtcNow.AddMinutes(15)); // Allow 15 minutes for clock skew
+        //RuleFor(x => x.OpenTime).NotEmpty().LessThanOrEqualTo(DateTime.UtcNow.AddMinutes(15)); // Allow 15 minutes for clock skew
         RuleFor(x => x.CurrentMarketPrice).GreaterThanOrEqualTo(0);
         // Swap, Commission, FloatingPAndL có thể âm, dương hoặc 0
     }
