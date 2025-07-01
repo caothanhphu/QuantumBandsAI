@@ -14,71 +14,261 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Check Administrator Privileges
+        run: |
+          Write-Host "=== Checking Administrator Privileges ==="
+          
+          $currentPrincipal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
+          $isAdmin = $currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+          
+          if ($isAdmin) {
+            Write-Host "✅ Running with Administrator privileges"
+          } else {
+            Write-Host "⚠️  WARNING: Not running with Administrator privileges"
+            Write-Host "This may cause issues when starting Docker services"
+            Write-Host "Please ensure the GitHub Actions runner service is running as Administrator"
+          }
+          
+          Write-Host "Current user: $env:USERNAME"
+          Write-Host "Current domain: $env:USERDOMAIN"
+        shell: powershell
+
+      - name: Install Docker if not present
+        run: |
+          Write-Host "=== Checking Docker Installation ==="
+          
+          # Kiểm tra xem Docker đã được cài đặt chưa
+          $dockerCmd = Get-Command docker -ErrorAction SilentlyContinue
+          $dockerDesktopExists = Test-Path "${env:ProgramFiles}\Docker\Docker\Docker Desktop.exe"
+          
+          if (-not $dockerCmd -and -not $dockerDesktopExists) {
+            Write-Host "Docker not found. Attempting to install Docker Desktop..."
+            
+            # Download Docker Desktop installer
+            $dockerInstallerUrl = "https://desktop.docker.com/win/stable/Docker%20Desktop%20Installer.exe"
+            $installerPath = "$env:TEMP\DockerDesktopInstaller.exe"
+            
+            try {
+              Write-Host "Downloading Docker Desktop installer..."
+              Invoke-WebRequest -Uri $dockerInstallerUrl -OutFile $installerPath -UseBasicParsing
+              
+              Write-Host "Installing Docker Desktop (this may take several minutes)..."
+              Start-Process -FilePath $installerPath -ArgumentList "install", "--quiet", "--accept-license" -Wait -NoNewWindow
+              
+              Write-Host "Docker Desktop installation completed"
+              
+              # Cleanup installer
+              Remove-Item $installerPath -Force -ErrorAction SilentlyContinue
+              
+              # Add Docker to PATH if needed
+              $dockerPath = "${env:ProgramFiles}\Docker\Docker\resources\bin"
+              if (Test-Path $dockerPath) {
+                $currentPath = [Environment]::GetEnvironmentVariable("PATH", "Machine")
+                if ($currentPath -notlike "*$dockerPath*") {
+                  [Environment]::SetEnvironmentVariable("PATH", "$currentPath;$dockerPath", "Machine")
+                  $env:PATH = "$env:PATH;$dockerPath"
+                  Write-Host "Added Docker to system PATH"
+                }
+              }
+              
+            } catch {
+              Write-Host "Failed to install Docker Desktop: $($_.Exception.Message)"
+              Write-Host "Please install Docker Desktop manually on this self-hosted runner"
+              Write-Host "Download from: https://www.docker.com/products/docker-desktop"
+            }
+          } else {
+            Write-Host "Docker installation found"
+          }
+        shell: powershell
+
       - name: Check and Start Docker Service
         run: |
-          # Kiểm tra trạng thái Docker service
+          Write-Host "=== Docker Service Check Started ==="
+          
+          # Kiểm tra các Docker services có sẵn
+          Write-Host "Checking available Docker services..."
+          $allServices = Get-Service | Where-Object { $_.Name -like "*docker*" }
+          if ($allServices) {
+            Write-Host "Found Docker-related services:"
+            $allServices | ForEach-Object { Write-Host "  - $($_.Name): $($_.Status)" }
+          } else {
+            Write-Host "No Docker services found"
+          }
+          
+          # Kiểm tra Docker Desktop Service
           $dockerService = Get-Service -Name "Docker Desktop Service" -ErrorAction SilentlyContinue
           if ($dockerService) {
             Write-Host "Docker Desktop Service found. Status: $($dockerService.Status)"
             if ($dockerService.Status -ne "Running") {
               Write-Host "Starting Docker Desktop Service..."
-              Start-Service -Name "Docker Desktop Service"
-              Start-Sleep -Seconds 10
+              try {
+                Start-Service -Name "Docker Desktop Service" -ErrorAction Stop
+                Start-Sleep -Seconds 15
+                Write-Host "Docker Desktop Service started successfully"
+              } catch {
+                Write-Host "Failed to start Docker Desktop Service: $($_.Exception.Message)"
+              }
             }
           } else {
-            Write-Host "Docker Desktop Service not found. Checking com.docker.service..."
-            $dockerService = Get-Service -Name "com.docker.service" -ErrorAction SilentlyContinue
-            if ($dockerService) {
-              Write-Host "com.docker.service found. Status: $($dockerService.Status)"
-              if ($dockerService.Status -ne "Running") {
-                Write-Host "Starting com.docker.service..."
-                Start-Service -Name "com.docker.service"
-                Start-Sleep -Seconds 10
-              }
-            }
-          }
-          
-          # Kiểm tra Docker Desktop executable và khởi động nếu cần
-          $dockerDesktopPath = "${env:ProgramFiles}\Docker\Docker\Docker Desktop.exe"
-          if (Test-Path $dockerDesktopPath) {
-            $dockerProcess = Get-Process -Name "Docker Desktop" -ErrorAction SilentlyContinue
-            if (-not $dockerProcess) {
-              Write-Host "Starting Docker Desktop application..."
-              Start-Process -FilePath $dockerDesktopPath -WindowStyle Hidden
-              Write-Host "Waiting for Docker Desktop to start..."
-              Start-Sleep -Seconds 30
-            }
-          }
-          
-          # Đợi Docker daemon sẵn sàng
-          Write-Host "Waiting for Docker daemon to be ready..."
-          $timeout = 120 # 2 phút timeout
-          $elapsed = 0
-          do {
-            try {
-              docker version | Out-Null
-              if ($LASTEXITCODE -eq 0) {
-                Write-Host "Docker daemon is ready!"
+            Write-Host "Docker Desktop Service not found. Checking other Docker services..."
+            
+            # Thử các tên service khác
+            $serviceNames = @("com.docker.service", "docker", "dockerd")
+            foreach ($serviceName in $serviceNames) {
+              $service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
+              if ($service) {
+                Write-Host "$serviceName found. Status: $($service.Status)"
+                if ($service.Status -ne "Running") {
+                  Write-Host "Starting $serviceName..."
+                  try {
+                    Start-Service -Name $serviceName -ErrorAction Stop
+                    Start-Sleep -Seconds 10
+                    Write-Host "$serviceName started successfully"
+                  } catch {
+                    Write-Host "Failed to start $serviceName: $($_.Exception.Message)"
+                  }
+                }
                 break
               }
-            } catch {
-              # Ignore error and continue waiting
             }
-            Start-Sleep -Seconds 5
-            $elapsed += 5
+          }
+          
+          # Kiểm tra Docker Desktop executable
+          $dockerPaths = @(
+            "${env:ProgramFiles}\Docker\Docker\Docker Desktop.exe",
+            "${env:ProgramFiles(x86)}\Docker\Docker\Docker Desktop.exe"
+          )
+          
+          $dockerDesktopFound = $false
+          foreach ($path in $dockerPaths) {
+            if (Test-Path $path) {
+              Write-Host "Docker Desktop found at: $path"
+              $dockerDesktopFound = $true
+              $dockerProcess = Get-Process -Name "Docker Desktop" -ErrorAction SilentlyContinue
+              if (-not $dockerProcess) {
+                Write-Host "Starting Docker Desktop application..."
+                try {
+                  Start-Process -FilePath $path -WindowStyle Hidden -ErrorAction Stop
+                  Write-Host "Docker Desktop started, waiting for initialization..."
+                  Start-Sleep -Seconds 45
+                } catch {
+                  Write-Host "Failed to start Docker Desktop: $($_.Exception.Message)"
+                }
+              } else {
+                Write-Host "Docker Desktop is already running"
+              }
+              break
+            }
+          }
+          
+          if (-not $dockerDesktopFound) {
+            Write-Host "Docker Desktop executable not found. Checking if Docker is available via CLI..."
+          }
+          
+          # Đợi Docker daemon sẵn sàng với timeout tăng lên
+          Write-Host "Waiting for Docker daemon to be ready..."
+          $timeout = 300 # Tăng timeout lên 5 phút
+          $elapsed = 0
+          $dockerReady = $false
+          
+          do {
+            try {
+              $dockerVersionOutput = docker version 2>&1
+              if ($LASTEXITCODE -eq 0) {
+                Write-Host "Docker daemon is ready!"
+                Write-Host "Docker version output: $dockerVersionOutput"
+                $dockerReady = $true
+                break
+              } else {
+                Write-Host "Docker command failed with exit code: $LASTEXITCODE"
+                Write-Host "Output: $dockerVersionOutput"
+              }
+            } catch {
+              Write-Host "Exception checking Docker: $($_.Exception.Message)"
+            }
+            Start-Sleep -Seconds 10
+            $elapsed += 10
             Write-Host "Still waiting for Docker daemon... ($elapsed/$timeout seconds)"
           } while ($elapsed -lt $timeout)
           
-          if ($elapsed -ge $timeout) {
-            Write-Host "Timeout waiting for Docker daemon. Exiting."
+          if (-not $dockerReady) {
+            Write-Host "Timeout waiting for Docker daemon after $timeout seconds."
+            Write-Host "Attempting to get more diagnostic information..."
+            
+            # Thêm thông tin chẩn đoán
+            Write-Host "=== Diagnostic Information ==="
+            Write-Host "Current user: $env:USERNAME"
+            Write-Host "System PATH: $env:PATH"
+            
+            # Kiểm tra Docker trong PATH
+            $dockerCmd = Get-Command docker -ErrorAction SilentlyContinue
+            if ($dockerCmd) {
+              Write-Host "Docker command found at: $($dockerCmd.Source)"
+            } else {
+              Write-Host "Docker command not found in PATH"
+            }
+            
+            # Kiểm tra Windows containers mode
+            Write-Host "Checking Docker daemon logs..."
+            try {
+              $dockerInfo = docker info 2>&1
+              Write-Host "Docker info output: $dockerInfo"
+            } catch {
+              Write-Host "Could not get docker info: $($_.Exception.Message)"
+            }
+            
+            Write-Host "Exiting with error code 1"
             exit 1
           }
+          
+          Write-Host "=== Docker Service Check Completed Successfully ==="
         shell: powershell
 
       - name: Verify Docker is working
         run: |
           docker --version
           docker info
+        shell: powershell
+
+      - name: Final Docker Verification
+        run: |
+          Write-Host "=== Final Docker Verification ==="
+          
+          # Test Docker basic functionality
+          Write-Host "Testing Docker basic functionality..."
+          try {
+            docker --version
+            docker info --format "{{.ServerVersion}}"
+            
+            Write-Host "Testing Docker with a simple container..."
+            docker run --rm hello-world
+            
+            Write-Host "✅ Docker is working correctly!"
+            
+          } catch {
+            Write-Host "❌ Docker verification failed: $($_.Exception.Message)"
+            
+            # Additional troubleshooting
+            Write-Host "=== Troubleshooting Information ==="
+            Write-Host "Checking Docker processes..."
+            Get-Process | Where-Object { $_.Name -like "*docker*" } | Format-Table Name, Id, WorkingSet -AutoSize
+            
+            Write-Host "Checking Docker services..."
+            Get-Service | Where-Object { $_.Name -like "*docker*" } | Format-Table Name, Status -AutoSize
+            
+            Write-Host "Checking if Hyper-V is enabled..."
+            $hyperv = Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All
+            Write-Host "Hyper-V Status: $($hyperv.State)"
+            
+            Write-Host "Checking if WSL 2 is available..."
+            try {
+              wsl --status
+            } catch {
+              Write-Host "WSL not available or not configured"
+            }
+            
+            throw "Docker verification failed - cannot proceed with deployment"
+          }
         shell: powershell
 
       - name: Run deployment script
