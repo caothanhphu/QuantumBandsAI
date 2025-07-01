@@ -11,11 +11,21 @@ jobs:
     runs-on: [self-hosted, Windows] # Đảm bảo runner của bạn có các nhãn này
 
     steps:
-      - name: Debug PATH and Docker
+      - name: Add Docker to PATH (if needed)
         run: |
-          echo "PATH: $env:PATH"
-          where docker
-          docker info
+          $dockerPath1 = "${env:ProgramFiles}\Docker\Docker\resources\bin"
+          $dockerPath2 = "${env:ProgramFiles}\Docker\resources\bin"
+          if (Test-Path $dockerPath1) {
+            Write-Host "Adding $dockerPath1 to PATH"
+            $env:PATH = "$dockerPath1;$env:PATH"
+          } elseif (Test-Path $dockerPath2) {
+            Write-Host "Adding $dockerPath2 to PATH"
+            $env:PATH = "$dockerPath2;$env:PATH"
+          } else {
+            Write-Host "Docker bin path not found!"
+          }
+          [System.Environment]::SetEnvironmentVariable("PATH", $env:PATH, "Process")
+          docker --version
         shell: powershell
       - name: Checkout repository
         uses: actions/checkout@v4
