@@ -1392,15 +1392,20 @@ public class ExchangeService : IExchangeService
             if (accountMarketData.RecentTrades.Any())
             {
                 accountMarketData.LastTradePrice = accountMarketData.RecentTrades.First().Price;
+                accountMarketData.LastTradeVolume = accountMarketData.RecentTrades.First().Quantity;
             }
             else
             {
                 var lastTradeFromDb = await _unitOfWork.ShareTrades.Query()
                                         .Where(st => st.TradingAccountId == account.TradingAccountId)
                                         .OrderByDescending(st => st.TradeDate)
-                                        .Select(st => (decimal?)st.TradePrice)
+                                        .Select(st => new { st.TradePrice, st.QuantityTraded })
                                         .FirstOrDefaultAsync(cancellationToken);
-                accountMarketData.LastTradePrice = lastTradeFromDb;
+                if (lastTradeFromDb != null)
+                {
+                    accountMarketData.LastTradePrice = lastTradeFromDb.TradePrice;
+                    accountMarketData.LastTradeVolume = lastTradeFromDb.QuantityTraded;
+                }
             }
 
             marketDataResponse.Items.Add(accountMarketData);

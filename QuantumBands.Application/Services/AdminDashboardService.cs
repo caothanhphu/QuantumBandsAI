@@ -86,6 +86,16 @@ public class AdminDashboardService : IAdminDashboardService
                 })
                 .ToList();
 
+            var lastTrade = await _unitOfWork.ShareTrades.Query()
+                .OrderByDescending(st => st.TradeDate)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (lastTrade != null)
+            {
+                summary.LastMatchedPrice = lastTrade.TradePrice;
+                summary.LastMatchedVolume = lastTrade.QuantityTraded;
+            }
+
             return (summary, null);
         }
         catch (Exception ex)

@@ -13,4 +13,6 @@ public class AdminDashboardSummaryDto
     public List<SimpleTradeInfoDto> RecentTrades { get; set; } = new();
     public List<ChartDataPoint<long>> UserGrowthData { get; set; } = new();
     public List<ChartDataPoint<decimal>> PlatformNavHistory { get; set; } = new();
+    public decimal? LastMatchedPrice { get; set; }
+    public long? LastMatchedVolume { get; set; }
 }
