@@ -11,6 +11,12 @@ jobs:
     runs-on: [self-hosted, Windows] # Đảm bảo runner của bạn có các nhãn này
 
     steps:
+      - name: Debug PATH and Docker
+        run: |
+          echo "PATH: $env:PATH"
+          where docker
+          docker info
+        shell: powershell
       - name: Checkout repository
         uses: actions/checkout@v4
 
