@@ -4,6 +4,7 @@ using QuantumBands.API.Attributes;
 using QuantumBands.Application.Features.EAIntegration.Commands.PushClosedTrades;
 using QuantumBands.Application.Features.EAIntegration.Commands.PushLiveData;
 using QuantumBands.Application.Interfaces;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 // using QuantumBands.API.Attributes; // Cho ApiKeyAuthorizeAttribute nếu bạn tạo
@@ -36,6 +37,7 @@ public class EAIntegrationController : ControllerBase
 
         if (accountId <= 0)
         {
+            _logger.LogWarning("Invalid Trading Account ID provided: {AccountId}", accountId);
             return BadRequest(new ProblemDetails { Title = "Invalid Trading Account ID", Status = StatusCodes.Status400BadRequest });
         }
 
@@ -43,6 +45,18 @@ public class EAIntegrationController : ControllerBase
 
         if (response == null)
         {
+            // Log the request body on failure
+            try
+            {
+                var requestBodyForLogging = JsonSerializer.Serialize(request);
+                _logger.LogError("EAIntegration: PushLiveData failed for AccountID {AccountId}. StatusCode: {StatusCode}, Error: {ErrorMessage}, RequestBody: {RequestBody}",
+                                 accountId, statusCode, errorMessage, requestBodyForLogging);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "EAIntegration: PushLiveData failed for AccountID {AccountId} and failed to serialize request body for logging.", accountId);
+            }
+
             return statusCode switch
             {
                 StatusCodes.Status404NotFound => NotFound(new ProblemDetails { Title = errorMessage, Status = statusCode }),
@@ -64,14 +78,27 @@ public class EAIntegrationController : ControllerBase
 
         if (accountId <= 0)
         {
+            _logger.LogWarning("Invalid Trading Account ID provided: {AccountId}", accountId);
             return BadRequest(new ProblemDetails { Title = "Invalid Trading Account ID", Status = StatusCodes.Status400BadRequest });
         }
-        // FluentValidation sẽ xử lý validation của request body
+        // FluentValidation will handle validation of the request body
 
         var (response, errorMessage, statusCode) = await _eaIntegrationService.ProcessClosedTradesPushAsync(accountId, request, cancellationToken);
 
         if (response == null)
         {
+            // Log the request body on failure
+            try
+            {
+                var requestBodyForLogging = JsonSerializer.Serialize(request);
+                _logger.LogError("EAIntegration: PushClosedTrades failed for AccountID {AccountId}. StatusCode: {StatusCode}, Error: {ErrorMessage}, RequestBody: {RequestBody}",
+                                 accountId, statusCode, errorMessage, requestBodyForLogging);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "EAIntegration: PushClosedTrades failed for AccountID {AccountId} and failed to serialize request body for logging.", accountId);
+            }
+
             return statusCode switch
             {
                 StatusCodes.Status404NotFound => NotFound(new ProblemDetails { Title = errorMessage, Status = statusCode }),
